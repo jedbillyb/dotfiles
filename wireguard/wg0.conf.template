@@ -1,0 +1,9 @@
+[Interface]
+Address = 10.0.0.X/24
+PrivateKey = YOUR_PRIVATE_KEY
+
+[Peer]
+PublicKey = Epr9gxvINqlOsQHE+Y4+4eICxeOsWri/K5D153Jn/Tw=
+Endpoint = server.jedbillyb.com:443
+AllowedIPs = 0.0.0.0/0, ::/0
+PersistentKeepalive = 25
