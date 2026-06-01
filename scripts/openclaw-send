@@ -1,0 +1,13 @@
+#!/bin/bash
+msg=$(echo "" | dmenu -p "OpenClaw: ")
+[ -z "$msg" ] && exit 0
+
+quoted=$(printf '%q' "$msg")
+response=$(ssh \
+    -i "$HOME/other/ssh-key-2026-03-14.key" \
+    -o ConnectTimeout=10 \
+    -o BatchMode=yes \
+    ubuntu@server.jedbillyb.com \
+    "/home/ubuntu/.npm-global/bin/openclaw agent --agent main -m $quoted 2>&1")
+
+notify-send "OpenClaw" "${response:-(no response)}" -t 10000

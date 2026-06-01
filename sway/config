@@ -1,0 +1,175 @@
+# sway config — ported from i3
+
+# ── Variables ─────────────────────────────────────────────────────────────────
+
+set $mod Mod4
+
+# ── Appearance ────────────────────────────────────────────────────────────────
+
+font pango:monospace 8
+
+for_window [app_id=".*"] border pixel 1
+focus_on_window_activation none
+floating_modifier $mod normal
+
+client.focused #222222 #222222 #ffffff #222222 #222222
+
+# ── Output / Wallpaper ────────────────────────────────────────────────────────
+
+output * bg #000000 solid_color
+
+# ── Idle / Lock ───────────────────────────────────────────────────────────────
+
+exec swayidle -w \
+    timeout 300 'swaylock -c 000000' \
+    timeout 600 'swaymsg "output * dpms off"' \
+    resume 'swaymsg "output * dpms on"' \
+    before-sleep 'swaylock -c 000000'
+
+# ── Autostart ─────────────────────────────────────────────────────────────────
+
+exec nm-applet --indicator
+exec dunst
+exec foot --server
+exec pipewire
+exec pipewire-pulse
+exec wireplumber
+exec udiskie
+
+# ── Workspaces ────────────────────────────────────────────────────────────────
+
+set $ws1 "1"
+set $ws2 "2"
+set $ws3 "3"
+set $ws4 "4"
+set $ws5 "5"
+set $ws6 "6"
+set $ws7 "7"
+set $ws8 "8"
+set $ws9 "9"
+set $ws10 "10"
+
+bindsym $mod+1 workspace number $ws1
+bindsym $mod+2 workspace number $ws2
+bindsym $mod+3 workspace number $ws3
+bindsym $mod+4 workspace number $ws4
+bindsym $mod+5 workspace number $ws5
+bindsym $mod+6 workspace number $ws6
+bindsym $mod+7 workspace number $ws7
+bindsym $mod+8 workspace number $ws8
+bindsym $mod+9 workspace number $ws9
+bindsym $mod+0 workspace number $ws10
+
+bindsym $mod+Shift+1 move container to workspace number $ws1
+bindsym $mod+Shift+2 move container to workspace number $ws2
+bindsym $mod+Shift+3 move container to workspace number $ws3
+bindsym $mod+Shift+4 move container to workspace number $ws4
+bindsym $mod+Shift+5 move container to workspace number $ws5
+bindsym $mod+Shift+6 move container to workspace number $ws6
+bindsym $mod+Shift+7 move container to workspace number $ws7
+bindsym $mod+Shift+8 move container to workspace number $ws8
+bindsym $mod+Shift+9 move container to workspace number $ws9
+bindsym $mod+Shift+0 move container to workspace number $ws10
+
+# ── Applications ──────────────────────────────────────────────────────────────
+
+bindsym $mod+Return exec footclient
+bindsym $mod+r      exec wofi --show drun
+bindsym $mod+o      exec $HOME/.local/bin/openclaw-send
+bindsym $mod+p      exec Thunar
+bindsym $mod+grave  exec footclient btop
+
+# ── System ────────────────────────────────────────────────────────────────────
+
+bindsym $mod+v       exec $HOME/.local/bin/vpn-toggle.sh
+bindsym $mod+Shift+i exec swaylock -c 000000
+bindsym $mod+Shift+p exec loginctl poweroff
+bindsym $mod+Shift+e exec swaymsg exit
+bindsym $mod+Shift+c reload
+bindsym $mod+Shift+r reload
+
+# ── Media ─────────────────────────────────────────────────────────────────────
+
+bindsym XF86AudioRaiseVolume  exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 10%+ && notify-send -t 800 "Vol: $(wpctl get-volume @DEFAULT_AUDIO_SINK@)"
+bindsym XF86AudioLowerVolume  exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 10%- && notify-send -t 800 "Vol: $(wpctl get-volume @DEFAULT_AUDIO_SINK@)"
+bindsym XF86AudioMute         exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
+bindsym XF86AudioMicMute      exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
+bindsym XF86AudioNext         exec playerctl next
+bindsym XF86AudioPrev         exec playerctl previous
+bindsym XF86AudioPlay         exec playerctl play-pause
+bindsym XF86AudioStop         exec playerctl stop
+bindsym XF86MonBrightnessUp   exec brightnessctl set 5%+
+bindsym XF86MonBrightnessDown exec brightnessctl set 5%-
+
+# ── Screenshots ───────────────────────────────────────────────────────────────
+
+bindsym $mod+Shift+s exec grim -g "$(slurp)" - | wl-copy
+bindsym F9           exec $HOME/.local/bin/screenrecord-toggle.sh
+
+# ── Window Management ─────────────────────────────────────────────────────────
+
+bindsym $mod+q kill
+
+bindsym $mod+h split h
+bindsym $mod+f       exec firefox
+bindsym $mod+Shift+f fullscreen toggle
+
+bindsym $mod+s layout stacking
+bindsym $mod+w layout tabbed
+bindsym $mod+e layout toggle split
+
+bindsym $mod+Shift+space floating toggle
+bindsym $mod+space       focus mode_toggle
+bindsym $mod+a           focus parent
+
+# focus
+bindsym $mod+j         focus left
+bindsym $mod+k         focus down
+bindsym $mod+l         focus up
+bindsym $mod+semicolon focus right
+bindsym $mod+Left      focus left
+bindsym $mod+Down      focus down
+bindsym $mod+Up        focus up
+bindsym $mod+Right     focus right
+
+# move
+bindsym $mod+Shift+j         move left
+bindsym $mod+Shift+k         move down
+bindsym $mod+Shift+l         move up
+bindsym $mod+Shift+semicolon move right
+bindsym $mod+Shift+Left      move left
+bindsym $mod+Shift+Down      move down
+bindsym $mod+Shift+Up        move up
+bindsym $mod+Shift+Right     move right
+
+# ── Resize Mode ───────────────────────────────────────────────────────────────
+
+mode "resize" {
+    bindsym j         resize shrink width 10 px
+    bindsym k         resize grow height 10 px
+    bindsym l         resize shrink height 10 px
+    bindsym semicolon resize grow width 10 px
+
+    bindsym Left  resize shrink width 10 px
+    bindsym Down  resize grow height 10 px
+    bindsym Up    resize shrink height 10 px
+    bindsym Right resize grow width 10 px
+
+    bindsym Return mode "default"
+    bindsym Escape mode "default"
+    bindsym $mod+r mode "default"
+}
+
+bindsym $mod+Shift+d mode "resize"
+
+# ── Bar ───────────────────────────────────────────────────────────────────────
+
+exec_always sh -c 'pkill -x waybar; waybar'
+
+bindsym $mod+b exec pkill -SIGUSR1 waybar
+
+# ── Input ─────────────────────────────────────────────────────────────────────
+
+input type:touchpad {
+    natural_scroll enabled
+}
