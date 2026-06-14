@@ -44,7 +44,7 @@ ln -s ~/projects/dotfiles/scripts/openclaw-send ~/.local/bin/openclaw-send
 | Keybind | Action |
 | --- | --- |
 | `$mod+v` | Toggle WireGuard VPN |
-| `$mod+Shift+i` | Lock screen (swaylock) |
+| `$mod+Shift+i` | Lock screen (swaylock-fprintd, auto fingerprint) |
 | `$mod+Shift+o` | Exit sway, back to TTY |
 | `$mod+Shift+p` | Power off |
 | `$mod+Shift+r` | Reload sway config |
