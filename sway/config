@@ -16,16 +16,11 @@ client.focused #222222 #222222 #ffffff #222222 #222222
 
 # ── Output / Wallpaper ────────────────────────────────────────────────────────
 
-output * bg /mnt/shared/projects/dotfiles/sway/wallpapers/wp8330753-empty-error-wallpapers.png fill
+output * bg /mnt/shared/projects/dotfiles/sway/wallpapers/void-linux.png fill
 
 # ── Idle / Lock ───────────────────────────────────────────────────────────────
 
-exec swayidle -w \
-    timeout 300 '/home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000' \
-    timeout 600 'swaymsg "output * dpms off"' \
-    after-resume 'swaymsg "output * dpms on"' \
-    before-sleep '/home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000' \
-    lock '/home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000'
+exec /home/jed/.local/bin/sway-idle.sh
 
 # ── Autostart ─────────────────────────────────────────────────────────────────
 
@@ -81,6 +76,7 @@ bindsym $mod+p      exec Thunar
 # ── System ────────────────────────────────────────────────────────────────────
 
 bindsym $mod+v       exec $HOME/.local/bin/vpn-toggle.sh
+bindsym $mod+c       exec $HOME/.local/bin/caffeine-toggle.sh
 bindsym $mod+Shift+i exec /home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000
 bindsym $mod+Shift+o exec swaymsg exit
 bindsym $mod+Shift+p exec loginctl poweroff
