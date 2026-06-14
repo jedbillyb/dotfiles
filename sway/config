@@ -83,6 +83,7 @@ bindsym $mod+grave  exec footclient btop
 
 bindsym $mod+v       exec $HOME/.local/bin/vpn-toggle.sh
 bindsym $mod+Shift+i exec swaylock -c 000000
+bindsym $mod+Shift+o exec swaymsg exit
 bindsym $mod+Shift+p exec loginctl poweroff
 bindsym $mod+Shift+e exec swaymsg exit
 bindsym $mod+Shift+c reload
