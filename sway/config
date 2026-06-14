@@ -23,8 +23,9 @@ output * bg #000000 solid_color
 exec swayidle -w \
     timeout 300 'swaylock -c 000000' \
     timeout 600 'swaymsg "output * dpms off"' \
-    resume 'swaymsg "output * dpms on"' \
-    before-sleep 'swaylock -c 000000'
+    after-resume 'swaymsg "output * dpms on"' \
+    before-sleep 'swaylock -c 000000' \
+    lock 'swaylock -c 000000'
 
 # ── Autostart ─────────────────────────────────────────────────────────────────
 
