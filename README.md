@@ -38,8 +38,6 @@ ln -s ~/projects/dotfiles/scripts/openclaw-send ~/.local/bin/openclaw-send
 | `$mod+r` | App launcher (wofi) |
 | `$mod+f` | Firefox |
 | `$mod+p` | File manager (Thunar) |
-| `$mod+o` | openclaw-send |
-| `` $mod+` `` | System monitor (btop) |
 
 ### System / session
 
@@ -48,9 +46,7 @@ ln -s ~/projects/dotfiles/scripts/openclaw-send ~/.local/bin/openclaw-send
 | `$mod+v` | Toggle WireGuard VPN |
 | `$mod+Shift+i` | Lock screen (swaylock) |
 | `$mod+Shift+o` | Exit sway, back to TTY |
-| `$mod+Shift+e` | Exit sway, back to TTY |
 | `$mod+Shift+p` | Power off |
-| `$mod+Shift+c` | Reload sway config |
 | `$mod+Shift+r` | Reload sway config |
 
 ### Window management

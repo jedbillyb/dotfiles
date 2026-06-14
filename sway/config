@@ -75,9 +75,7 @@ bindsym $mod+Shift+0 move container to workspace number $ws10
 
 bindsym $mod+Return exec footclient
 bindsym $mod+r      exec wofi --show drun
-bindsym $mod+o      exec $HOME/.local/bin/openclaw-send
 bindsym $mod+p      exec Thunar
-bindsym $mod+grave  exec footclient btop
 
 # ── System ────────────────────────────────────────────────────────────────────
 
@@ -85,8 +83,6 @@ bindsym $mod+v       exec $HOME/.local/bin/vpn-toggle.sh
 bindsym $mod+Shift+i exec swaylock -c 000000
 bindsym $mod+Shift+o exec swaymsg exit
 bindsym $mod+Shift+p exec loginctl poweroff
-bindsym $mod+Shift+e exec swaymsg exit
-bindsym $mod+Shift+c reload
 bindsym $mod+Shift+r reload
 
 # ── Media ─────────────────────────────────────────────────────────────────────
