@@ -6,7 +6,10 @@ My personal configuration files.
 
 - `sway/config` - Sway window manager config
 - `i3/config` - i3 window manager config (legacy)
+- `waybar/` - Waybar config, style, and status scripts (VPN + caffeine indicators)
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+v)
+- `scripts/caffeine-toggle.sh` - Stay-awake toggle: blocks idle lock + lid suspend (bound to mod+c)
+- `scripts/sway-idle.sh` - swayidle launcher (idle lock / screen-off), restartable by the caffeine toggle
 - `scripts/openclaw-send` - openclaw helper script
 - `wireguard/wg0.conf.template` - WireGuard client config template (fill in private key)
 
@@ -16,6 +19,7 @@ My personal configuration files.
 git clone https://github.com/jedbillyb/dotfiles ~/projects/dotfiles
 
 ln -s ~/projects/dotfiles/sway/config ~/.config/sway/config
+ln -s ~/projects/dotfiles/waybar ~/.config/waybar
 
 # WireGuard: copy template, fill in PrivateKey and assign an IP
 sudo cp ~/projects/dotfiles/wireguard/wg0.conf.template /etc/wireguard/wg0.conf
@@ -23,7 +27,22 @@ sudo chmod 600 /etc/wireguard/wg0.conf
 
 # Scripts
 ln -s ~/projects/dotfiles/scripts/vpn-toggle.sh ~/.local/bin/vpn-toggle.sh
+ln -s ~/projects/dotfiles/scripts/caffeine-toggle.sh ~/.local/bin/caffeine-toggle.sh
+ln -s ~/projects/dotfiles/scripts/sway-idle.sh ~/.local/bin/sway-idle.sh
 ln -s ~/projects/dotfiles/scripts/openclaw-send ~/.local/bin/openclaw-send
+```
+
+### VPN passwordless sudo
+
+The VPN toggle needs `wg-quick up/down wg0` without a password. Drop a sudoers
+rule **named so it sorts after `wheel`** (otherwise a broad `%wheel ALL` rule
+overrides the NOPASSWD), pointing at the absolute `/usr/bin/wg-quick`:
+
+```sh
+echo 'jed ALL=(ALL) NOPASSWD: /usr/bin/wg-quick up wg0, /usr/bin/wg-quick down wg0' \
+  | sudo tee /etc/sudoers.d/zz-wg-toggle
+sudo chmod 0440 /etc/sudoers.d/zz-wg-toggle
+sudo visudo -c
 ```
 
 ## Sway keybindings
@@ -43,7 +62,8 @@ ln -s ~/projects/dotfiles/scripts/openclaw-send ~/.local/bin/openclaw-send
 
 | Keybind | Action |
 | --- | --- |
-| `$mod+v` | Toggle WireGuard VPN |
+| `$mod+v` | Toggle WireGuard VPN (status in bar, green when on) |
+| `$mod+c` | Toggle caffeine / stay-awake (blocks idle lock + lid suspend; status in bar) |
 | `$mod+Shift+i` | Lock screen (swaylock-fprintd, auto fingerprint) |
 | `$mod+Shift+o` | Exit sway, back to TTY |
 | `$mod+Shift+p` | Power off |
