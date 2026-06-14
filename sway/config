@@ -21,11 +21,11 @@ output * bg #000000 solid_color
 # ── Idle / Lock ───────────────────────────────────────────────────────────────
 
 exec swayidle -w \
-    timeout 300 'swaylock-fprintd --fingerprint -c 000000' \
+    timeout 300 '/home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000' \
     timeout 600 'swaymsg "output * dpms off"' \
     after-resume 'swaymsg "output * dpms on"' \
-    before-sleep 'swaylock-fprintd --fingerprint -c 000000' \
-    lock 'swaylock-fprintd --fingerprint -c 000000'
+    before-sleep '/home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000' \
+    lock '/home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000'
 
 # ── Autostart ─────────────────────────────────────────────────────────────────
 
@@ -81,7 +81,7 @@ bindsym $mod+p      exec Thunar
 # ── System ────────────────────────────────────────────────────────────────────
 
 bindsym $mod+v       exec $HOME/.local/bin/vpn-toggle.sh
-bindsym $mod+Shift+i exec swaylock-fprintd --fingerprint -c 000000
+bindsym $mod+Shift+i exec /home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000
 bindsym $mod+Shift+o exec swaymsg exit
 bindsym $mod+Shift+p exec loginctl poweroff
 bindsym $mod+Shift+r reload
