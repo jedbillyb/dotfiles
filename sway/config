@@ -16,7 +16,7 @@ client.focused #222222 #222222 #ffffff #222222 #222222
 
 # ── Output / Wallpaper ────────────────────────────────────────────────────────
 
-output * bg #000000 solid_color
+output * bg /mnt/shared/projects/dotfiles/sway/wallpapers/wp8330753-empty-error-wallpapers.png fill
 
 # ── Idle / Lock ───────────────────────────────────────────────────────────────
 
