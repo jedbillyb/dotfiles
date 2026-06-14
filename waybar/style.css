@@ -1,0 +1,46 @@
+* {
+    font-family: "DejaVu Sans Mono";
+    font-size: 9px;
+    min-height: 0;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+window#waybar {
+    background: #111111;
+    color: #cccccc;
+}
+
+#workspaces button {
+    color: #666666;
+    padding: 0 6px;
+    background: transparent;
+}
+
+#workspaces button.focused {
+    color: #ffffff;
+}
+
+#clock {
+    color: #ffffff;
+    padding: 0 12px;
+}
+
+#pulseaudio,
+#memory,
+#cpu,
+#battery,
+#custom-vpn,
+#custom-caffeine {
+    color: #aaaaaa;
+    padding: 0 10px;
+}
+
+#custom-caffeine.on {
+    color: #e0af68;
+}
+
+#custom-caffeine.off {
+    color: #666666;
+}

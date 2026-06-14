@@ -1,0 +1,62 @@
+{
+    "position": "top",
+    "height": 16,
+    "layer": "overlay",
+    "exclusive": true,
+    "modules-left": ["sway/workspaces"],
+    "modules-center": ["clock"],
+    "modules-right": ["custom/caffeine", "custom/vpn", "pulseaudio", "memory", "cpu", "battery"],
+
+    "sway/workspaces": {
+        "disable-scroll": true,
+        "format": "{name}"
+    },
+
+    "clock": {
+        "format": "{:%H:%M  %a %d %b}",
+        "tooltip": false
+    },
+
+    "pulseaudio": {
+        "format": "vol {volume}%",
+        "format-muted": "muted",
+        "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
+        "tooltip": false
+    },
+
+    "memory": {
+        "format": "ram {percentage}%",
+        "interval": 5,
+        "tooltip": false
+    },
+
+    "cpu": {
+        "format": "cpu {usage}%",
+        "interval": 5,
+        "tooltip": false
+    },
+
+    "custom/vpn": {
+        "exec": "~/.config/waybar/vpn-status.sh",
+        "interval": 5,
+        "signal": 8,
+        "tooltip": false
+    },
+
+    "custom/caffeine": {
+        "exec": "~/.config/waybar/caffeine-status.sh",
+        "return-type": "json",
+        "interval": 5,
+        "signal": 9,
+        "on-click": "~/.local/bin/caffeine-toggle.sh",
+        "tooltip": false
+    },
+
+    "battery": {
+        "format": "bat {capacity}%",
+        "format-charging": "bat+ {capacity}%",
+        "format-full": "bat full",
+        "interval": 30,
+        "tooltip": false
+    }
+}
