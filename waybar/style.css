@@ -44,3 +44,11 @@ window#waybar {
 #custom-caffeine.off {
     color: #aaaaaa;
 }
+
+#custom-vpn.on {
+    color: #9ece6a;
+}
+
+#custom-vpn.off {
+    color: #aaaaaa;
+}
