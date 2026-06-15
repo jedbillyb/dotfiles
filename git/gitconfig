@@ -1,0 +1,18 @@
+[user]
+	name = Jed Blenkhorn
+	email = hello@jedbillyb.com
+	signingkey = BB9BED32814014B8
+[commit]
+	gpgsign = true
+[credential "https://github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[credential "https://gist.github.com"]
+	helper = 
+	helper = !/usr/bin/gh auth git-credential
+[core]
+	editor = nano
+[gpg]
+	program = gpg
+[gpg "openpgp"]
+	program = gpg

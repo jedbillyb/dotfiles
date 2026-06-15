@@ -39,6 +39,14 @@ link i3/config     "$CONFIG/i3/config"
 link waybar        "$CONFIG/waybar"
 link wofi/config   "$CONFIG/wofi/config"
 
+echo "Shell + git (-> \$HOME):"
+link shell/bashrc       "$HOME/.bashrc"
+link shell/zshrc        "$HOME/.zshrc"
+link shell/bash_profile "$HOME/.bash_profile"
+link shell/profile      "$HOME/.profile"
+link shell/inputrc      "$HOME/.inputrc"
+link git/gitconfig      "$HOME/.gitconfig"
+
 echo "Scripts (-> $BIN):"
 mkdir -p "$BIN"
 for s in vpn-toggle.sh caffeine-toggle.sh sway-idle.sh openclaw-send; do
