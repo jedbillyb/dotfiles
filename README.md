@@ -45,6 +45,23 @@ sudo chmod 0440 /etc/sudoers.d/zz-wg-toggle
 sudo visudo -c
 ```
 
+### Fingerprint / lock screen
+
+`sway-idle.sh` runs swayidle and locks with **swaylock-fprintd**, a fork of
+swaylock that accepts a fingerprint and a typed password concurrently (neither
+blocks the other): <https://github.com/jedbillyb/swaylock-fprintd>. It expects
+the fork's split PAM services (`/etc/pam.d/swaylock` password-only +
+`/etc/pam.d/swaylock-fp` fprintd-only) and a non-setuid binary at
+`~/.local/bin/swaylock-fprintd` — see that repo's README for the build and PAM
+setup.
+
+The idle stages are: lock at 5 min, screen off at 10 min. The screen-off
+`timeout` carries a paired `resume 'swaymsg "output * dpms on"'` — without it
+the display never wakes after an idle blank and you get a black screen that
+needs a hard power-off. `after-resume` only covers system sleep, not the DPMS
+idle-blank, so both are needed. The caffeine toggle (`mod+c`) stops/restarts
+this script to inhibit idle locking.
+
 ## Sway keybindings
 
 `$mod` = **Super** (Mod4, the Windows key).
