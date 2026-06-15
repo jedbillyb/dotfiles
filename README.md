@@ -7,6 +7,7 @@ My personal configuration files.
 - `sway/config` - Sway window manager config
 - `i3/config` - i3 window manager config (legacy)
 - `waybar/` - Waybar config, style, and status scripts (VPN + caffeine indicators)
+- `wofi/config` - Wofi app launcher config (bound to mod+r)
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+v)
 - `scripts/caffeine-toggle.sh` - Stay-awake toggle: blocks idle lock + lid suspend (bound to mod+c)
 - `scripts/sway-idle.sh` - swayidle launcher (idle lock / screen-off), restartable by the caffeine toggle
@@ -23,7 +24,7 @@ cd ~/projects/dotfiles
 
 `install.sh` is idempotent - safe to re-run after pulling updates. It:
 
-- symlinks `sway/config`, `i3/config`, and `waybar/` into `~/.config`
+- symlinks `sway/config`, `i3/config`, `waybar/`, and `wofi/config` into `~/.config`
 - symlinks the helper scripts into `~/.local/bin` and marks them executable
 - copies the WireGuard template to `/etc/wireguard/wg0.conf` (via `sudo`) only
   if no config is already there

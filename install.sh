@@ -37,6 +37,7 @@ echo "Configs:"
 link sway/config   "$CONFIG/sway/config"
 link i3/config     "$CONFIG/i3/config"
 link waybar        "$CONFIG/waybar"
+link wofi/config   "$CONFIG/wofi/config"
 
 echo "Scripts (-> $BIN):"
 mkdir -p "$BIN"
