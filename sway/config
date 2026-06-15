@@ -77,7 +77,7 @@ bindsym $mod+p      exec Thunar
 
 bindsym $mod+v       exec $HOME/.local/bin/vpn-toggle.sh
 bindsym $mod+c       exec $HOME/.local/bin/caffeine-toggle.sh
-bindsym $mod+Shift+i exec /home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000
+bindsym $mod+Shift+i exec /home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000 --text-color 00000000 --text-ver-color 00000000 --text-wrong-color 00000000 --text-clear-color 00000000 --text-caps-lock-color 00000000
 bindsym $mod+Shift+o exec swaymsg exit
 bindsym $mod+Shift+p exec loginctl poweroff
 bindsym $mod+Shift+r reload
