@@ -1,0 +1,6 @@
+# Backups created by install.sh when replacing existing files
+*.bak
+
+# Real WireGuard config with live keys - only the template is tracked
+wireguard/wg0.conf
+*.conf.local
