@@ -98,7 +98,6 @@ bindsym XF86MonBrightnessDown exec brightnessctl set 5%-
 # ── Screenshots ───────────────────────────────────────────────────────────────
 
 bindsym $mod+Shift+s exec grim -g "$(slurp)" - | wl-copy
-bindsym F9           exec $HOME/.local/bin/screenrecord-toggle.sh
 
 # ── Window Management ─────────────────────────────────────────────────────────
 

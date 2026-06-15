@@ -137,12 +137,11 @@ this script to inhibit idle locking.
 | `XF86AudioPlay` / `Next` / `Prev` / `Stop` | playerctl media controls |
 | `XF86MonBrightnessUp` / `Down` | Brightness ±5% |
 
-### Screenshots / recording
+### Screenshots
 
 | Keybind | Action |
 | --- | --- |
 | `$mod+Shift+s` | Region screenshot to clipboard (grim + slurp) |
-| `F9` | Toggle screen recording |
 
 ### Bar
 
