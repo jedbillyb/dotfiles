@@ -5,7 +5,7 @@
     "exclusive": true,
     "modules-left": ["sway/workspaces"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/caffeine", "custom/vpn", "pulseaudio", "memory", "cpu", "battery"],
+    "modules-right": ["custom/caffeine", "custom/vpn", "network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
 
     "sway/workspaces": {
         "disable-scroll": true,
@@ -32,6 +32,24 @@
 
     "cpu": {
         "format": "cpu {usage}%",
+        "interval": 5,
+        "tooltip": false
+    },
+
+    "temperature": {
+        "hwmon-path-abs": "/sys/devices/pci0000:00/0000:00:18.3/hwmon",
+        "input-filename": "temp1_input",
+        "format": "temp {temperatureC}°C",
+        "critical-threshold": 90,
+        "format-critical": "temp {temperatureC}°C",
+        "interval": 5,
+        "tooltip": false
+    },
+
+    "network": {
+        "interface": "wlp2s0",
+        "format-wifi": "wifi {signalStrength}%",
+        "format-disconnected": "wifi off",
         "interval": 5,
         "tooltip": false
     },

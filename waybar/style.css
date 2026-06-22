@@ -30,6 +30,8 @@ window#waybar {
 #pulseaudio,
 #memory,
 #cpu,
+#temperature,
+#network,
 #battery,
 #custom-vpn,
 #custom-caffeine {
@@ -51,4 +53,8 @@ window#waybar {
 
 #custom-vpn.off {
     color: #aaaaaa;
+}
+
+#temperature.critical {
+    color: #f7768e;
 }
