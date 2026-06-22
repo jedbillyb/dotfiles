@@ -25,6 +25,7 @@ exec /home/jed/.local/bin/sway-idle.sh
 # ── Autostart ─────────────────────────────────────────────────────────────────
 
 exec nm-applet --indicator
+exec blueman-applet
 exec dunst
 exec foot --server
 exec pipewire
