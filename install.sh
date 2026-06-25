@@ -38,6 +38,8 @@ link sway/config   "$CONFIG/sway/config"
 link i3/config     "$CONFIG/i3/config"
 link waybar        "$CONFIG/waybar"
 link wofi/config   "$CONFIG/wofi/config"
+link xdg-desktop-portal/sway-portals.conf "$CONFIG/xdg-desktop-portal/sway-portals.conf"
+link xdg-desktop-portal/portals.conf      "$CONFIG/xdg-desktop-portal/portals.conf"
 
 echo "Shell + git (-> \$HOME):"
 link shell/bashrc       "$HOME/.bashrc"

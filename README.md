@@ -8,6 +8,7 @@ My personal configuration files.
 - `i3/config` - i3 window manager config (legacy)
 - `waybar/` - Waybar config, style, and status scripts (VPN + caffeine indicators)
 - `wofi/config` - Wofi app launcher config (bound to mod+r)
+- `xdg-desktop-portal/` - Portal backend selection so Flatpak apps get a working file picker on sway (`*-portals.conf`)
 - `shell/` - Shell dotfiles (`.bashrc`, `.zshrc`, `.bash_profile`, `.profile`, `.inputrc`)
 - `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`)
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+v)
@@ -36,6 +37,22 @@ Any existing real file in the way is backed up to `<file>.bak` before the
 symlink replaces it. Make sure `~/.local/bin` is on your `PATH`.
 
 The steps below are **not** automated and still need doing once per machine.
+
+### Flatpak file picker on sway
+
+Flatpak apps (e.g. OrcaSlicer) open file dialogs via xdg-desktop-portal. The
+wlroots backend only does screenshots/screencast, so install the GTK backend:
+
+```sh
+sudo xbps-install xdg-desktop-portal-gtk
+```
+
+The `xdg-desktop-portal/*-portals.conf` files (symlinked by `install.sh`) route
+FileChooser to gtk and keep screenshots/screencast on wlr. `gtk.portal` ships
+`UseIn=gnome`, so the explicit `FileChooser=gtk` line is required - the implicit
+`default=gtk` is not enough on sway. Restart the portal frontend after first
+install: `kill $(pgrep -f libexec/xdg-desktop-portal$)` (it re-activates on the
+next request).
 
 ### VPN passwordless sudo
 
