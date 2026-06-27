@@ -24,8 +24,13 @@ link() {
 	fi
 	# A real file/dir (or wrong link) is in the way - back it up.
 	if [ -e "$target" ] || [ -L "$target" ]; then
-		mv "$target" "$target.bak"
-		info "backup $target -> $target.bak"
+		backup="$target.bak"
+		# Don't clobber an existing backup; fall back to a timestamped name.
+		if [ -e "$backup" ] || [ -L "$backup" ]; then
+			backup="$target.bak.$(date +%Y%m%d%H%M%S)"
+		fi
+		mv "$target" "$backup"
+		info "backup $target -> $backup"
 	fi
 	ln -s "$src" "$target"
 	info "link  $target"
