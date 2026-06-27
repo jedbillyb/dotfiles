@@ -47,7 +47,6 @@
     },
 
     "network": {
-        "interface": "wlp2s0",
         "format-wifi": "wifi {signalStrength}%",
         "format-disconnected": "wifi off",
         "interval": 5,
