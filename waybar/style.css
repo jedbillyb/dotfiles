@@ -31,19 +31,13 @@ window#waybar {
 #memory,
 #cpu,
 #temperature,
-#network,
 #battery,
 #custom-vpn,
 #custom-caffeine,
+#custom-network,
 #custom-usbwifi {
     color: #aaaaaa;
     padding: 0 10px;
-}
-
-#network {
-    /* Reserve a fixed width so changing throughput values don't shift the bar.
-       Sized for the worst case (e.g. ↓117.5Mb/s) so the box never grows. */
-    min-width: 195px;
 }
 
 #custom-usbwifi.on {

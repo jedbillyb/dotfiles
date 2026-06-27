@@ -5,7 +5,7 @@
     "exclusive": true,
     "modules-left": ["sway/workspaces"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/caffeine", "custom/vpn", "custom/usbwifi", "network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
+    "modules-right": ["custom/caffeine", "custom/vpn", "custom/usbwifi", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
 
     "sway/workspaces": {
         "disable-scroll": true,
@@ -46,9 +46,9 @@
         "tooltip": false
     },
 
-    "network": {
-        "format-wifi": "wifi {signalStrength}%  ↓{bandwidthDownBits} ↑{bandwidthUpBits}",
-        "format-disconnected": "wifi off",
+    "custom/network": {
+        "exec": "~/.config/waybar/network-status.sh",
+        "return-type": "json",
         "interval": 2,
         "tooltip": false
     },
