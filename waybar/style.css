@@ -34,9 +34,18 @@ window#waybar {
 #network,
 #battery,
 #custom-vpn,
-#custom-caffeine {
+#custom-caffeine,
+#custom-usbwifi {
     color: #aaaaaa;
     padding: 0 10px;
+}
+
+#custom-usbwifi.on {
+    color: #7aa2f7;
+}
+
+#custom-usbwifi.off {
+    color: #aaaaaa;
 }
 
 #custom-caffeine.on {

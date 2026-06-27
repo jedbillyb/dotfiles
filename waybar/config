@@ -5,7 +5,7 @@
     "exclusive": true,
     "modules-left": ["sway/workspaces"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/caffeine", "custom/vpn", "network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
+    "modules-right": ["custom/caffeine", "custom/vpn", "custom/usbwifi", "network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
 
     "sway/workspaces": {
         "disable-scroll": true,
@@ -59,6 +59,13 @@
         "return-type": "json",
         "interval": 5,
         "signal": 8,
+        "tooltip": false
+    },
+
+    "custom/usbwifi": {
+        "exec": "~/.config/waybar/usbwifi-status.sh",
+        "return-type": "json",
+        "interval": 5,
         "tooltip": false
     },
 
