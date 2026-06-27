@@ -47,9 +47,9 @@
     },
 
     "network": {
-        "format-wifi": "wifi {signalStrength}%",
+        "format-wifi": "wifi {signalStrength}%  ↓{bandwidthDownBits} ↑{bandwidthUpBits}",
         "format-disconnected": "wifi off",
-        "interval": 5,
+        "interval": 2,
         "tooltip": false
     },
 
