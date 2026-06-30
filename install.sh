@@ -64,6 +64,17 @@ done
 # just make sure they are executable.
 chmod +x "$REPO"/waybar/*.sh
 
+echo "Resume hooks (elogind system-sleep):"
+SLEEP_HOOK="/usr/libexec/elogind/system-sleep/touchpad-resume-fix.sh"
+chmod +x "$REPO/scripts/touchpad-resume-fix.sh"
+if [ -L "$SLEEP_HOOK" ] && [ "$(readlink "$SLEEP_HOOK")" = "$REPO/scripts/touchpad-resume-fix.sh" ]; then
+	info "ok    $SLEEP_HOOK"
+else
+	sudo mkdir -p "$(dirname "$SLEEP_HOOK")"
+	sudo ln -sf "$REPO/scripts/touchpad-resume-fix.sh" "$SLEEP_HOOK"
+	info "link  $SLEEP_HOOK"
+fi
+
 echo "WireGuard:"
 WG_CONF="/etc/wireguard/wg0.conf"
 if [ -e "$WG_CONF" ]; then
