@@ -75,6 +75,10 @@ window#waybar {
     color: #888888;
 }
 
+#custom-calendar.soon {
+    color: #e0af68;
+}
+
 #custom-claude.none {
     padding: 0;
     margin: 0;
