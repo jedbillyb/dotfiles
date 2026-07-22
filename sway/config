@@ -12,11 +12,14 @@ for_window [app_id=".*"] border pixel 1
 focus_on_window_activation none
 floating_modifier $mod normal
 
+gaps inner 10
+gaps outer 4
+
 client.focused #222222 #222222 #ffffff #222222 #222222
 
 # ── Output / Wallpaper ────────────────────────────────────────────────────────
 
-output * bg /mnt/shared/projects/dotfiles/sway/wallpapers/void-linux.png fill
+output * bg /mnt/shared/wallpapers/garrett-parker-unsplash.jpg fill
 
 # ── Idle / Lock ───────────────────────────────────────────────────────────────
 
