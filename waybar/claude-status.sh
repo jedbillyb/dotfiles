@@ -1,0 +1,1 @@
+/mnt/shared/projects/waybar-claude-status/claude-status.sh

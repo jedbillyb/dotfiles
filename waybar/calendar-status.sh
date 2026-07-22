@@ -1,0 +1,1 @@
+/mnt/shared/projects/waybar-calendar/calendar-status.sh

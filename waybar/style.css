@@ -12,6 +12,12 @@ window#waybar {
     color: #cccccc;
 }
 
+/* Reserve a fixed width for the workspaces area so adding/removing windows
+   doesn't shift the calendar + claude modules that follow it. */
+#workspaces {
+    min-width: 220px;
+}
+
 #workspaces button {
     color: #666666;
     padding: 0 6px;
@@ -35,9 +41,55 @@ window#waybar {
 #custom-vpn,
 #custom-caffeine,
 #custom-network,
-#custom-usbwifi {
+#custom-usbwifi,
+#custom-claude,
+#custom-calendar {
     color: #aaaaaa;
     padding: 0 10px;
+}
+
+/* Spread calendar + claude evenly across the gap between the (fixed-width)
+   workspaces area and the centered clock. Fixed min-width slots + fixed
+   margins mean the positions never move as text length changes.
+   Tuned for a 1920px-wide output. */
+#custom-calendar {
+    margin-left: 140px;
+    min-width: 130px;
+}
+
+#custom-claude {
+    margin-left: 140px;
+    min-width: 130px;
+}
+
+#custom-calendar.none {
+    padding: 0;
+    margin: 0;
+}
+
+#custom-calendar.today {
+    color: #7aa2f7;
+}
+
+#custom-calendar.upcoming {
+    color: #888888;
+}
+
+#custom-claude.none {
+    padding: 0;
+    margin: 0;
+}
+
+#custom-claude.idle {
+    color: #7f849c;
+}
+
+#custom-claude.working {
+    color: #9ece6a;
+}
+
+#custom-claude.waiting {
+    color: #e0af68;
 }
 
 #custom-usbwifi.on {
