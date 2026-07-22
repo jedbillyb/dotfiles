@@ -8,7 +8,7 @@
 }
 
 window#waybar {
-    background: #111111;
+    background: linear-gradient(rgba(20, 20, 20, 0.55), rgba(10, 10, 10, 0.35));
     color: #cccccc;
 }
 
@@ -60,6 +60,16 @@ window#waybar {
 #custom-claude {
     margin-left: 140px;
     min-width: 130px;
+}
+
+/* Mirror of the left: spread caffeine + vpn across the gap between the centered
+   clock and the right-hand stats cluster. */
+#custom-caffeine {
+    margin-right: 140px;
+}
+
+#custom-vpn {
+    margin-right: 140px;
 }
 
 #custom-calendar.none {
