@@ -8,7 +8,9 @@ set $mod Mod4
 
 font pango:monospace 8
 
-for_window [app_id=".*"] border pixel 1
+for_window [app_id=".*"] border none
+default_border none
+default_floating_border none
 focus_on_window_activation none
 floating_modifier $mod normal
 
