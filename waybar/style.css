@@ -14,9 +14,10 @@ window#waybar {
 }
 
 /* Reserve a fixed width for the workspaces area so adding/removing windows
-   doesn't shift the calendar + claude modules that follow it. */
+   doesn't shift the calendar + claude modules that follow it. Holds ~6-7
+   workspace buttons before it would grow. */
 #workspaces {
-    min-width: 220px;
+    min-width: 140px;
 }
 
 #workspaces button {
@@ -49,30 +50,16 @@ window#waybar {
     padding: 0 10px;
 }
 
-/* Spread calendar + claude evenly across the gap between the (fixed-width)
-   workspaces area and the centered clock. Fixed min-width slots + fixed
-   margins mean the positions never move as text length changes.
-   Tuned for a 1920px-wide output. */
+/* Left-of-clock modules use fixed-width slots wide enough to hold their
+   longest content, so their positions never move as workspaces come and go
+   or as the text length changes. No hardcoded margins: each slot's width is
+   its own, and the default 10px padding provides the gap between them. */
 #custom-calendar {
-    margin-left: 140px;
-    min-width: 130px;
+    min-width: 240px;
 }
 
 #custom-claude {
-    margin-left: 140px;
-    min-width: 130px;
-}
-
-/* Keep caffeine + vpn together as a pair, sitting in the gap between the
-   centered clock and the right-hand stats cluster. caffeine is offset from the
-   clock; vpn carries the gap to the usbwifi/network cluster. Only the default
-   padding separates the two, so they read as a group. */
-#custom-caffeine {
-    margin-left: 140px;
-}
-
-#custom-vpn {
-    margin-right: 140px;
+    min-width: 160px;
 }
 
 #custom-calendar.none {
