@@ -2,8 +2,8 @@
 # Spotlight-style launcher: wofi centered on the focused output.
 # wofi 1.5.3's location=center is broken here, so compute offsets ourselves.
 
-BW=640
-BH=400
+BW=520
+BH=340
 
 read -r W H <<EOF
 $(swaymsg -t get_outputs | jq -r '.[] | select(.focused) | "\(.rect.width) \(.rect.height)"')

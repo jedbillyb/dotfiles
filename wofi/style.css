@@ -2,7 +2,7 @@
 
 * {
     font-family: "SF Pro Display", "Inter", "Cantarell", sans-serif;
-    font-size: 15px;
+    font-size: 14px;
     border: none;
     border-radius: 0;               /* keep it square */
 }
@@ -22,14 +22,14 @@ window {
 
 /* Search field — big Spotlight bar across the top */
 #input {
-    font-size: 24px;
+    font-size: 19px;
     font-weight: 300;
-    padding: 18px 20px;
+    padding: 13px 16px;
     margin: 0;
-    color: #f5f5f5;
-    caret-color: #0a84ff;
+    color: #cccccc;
+    caret-color: #7aa2f7;
     background-color: transparent;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.10);
     outline: none;
     box-shadow: none;
 }
@@ -55,9 +55,9 @@ window {
 
 /* Result rows */
 #entry {
-    padding: 10px 18px;
+    padding: 7px 16px;
     margin: 0;
-    color: #e8e8e8;
+    color: #cccccc;
     background-color: transparent;
 }
 
@@ -66,20 +66,20 @@ window {
 }
 
 #text {
-    color: #e8e8e8;
+    color: #cccccc;
 }
 
-/* Selected / hovered row — macOS accent blue */
+/* Selected / hovered row — Tokyo Night accent blue (matches waybar) */
 #entry:selected,
 #entry:focus,
 #entry:hover {
-    background-color: rgba(10, 132, 255, 0.85);
-    color: #ffffff;
+    background-color: rgba(122, 162, 247, 0.90);
+    color: #1a1b26;
 }
 
 #entry:selected #text,
 #entry:focus #text {
-    color: #ffffff;
+    color: #1a1b26;
 }
 
 #entry:selected #img {
