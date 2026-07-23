@@ -12,7 +12,7 @@ window {
     /* Match foot terminal / waybar: #242424 at 0.85 alpha. */
     background-color: rgba(36, 36, 36, 0.85);
     color: #f5f5f5;
-    border: 1px solid rgba(255, 255, 255, 0.10);
+    border: none;
 }
 
 #outer-box {
@@ -73,13 +73,13 @@ window {
 #entry:selected,
 #entry:focus,
 #entry:hover {
-    background-color: rgba(122, 162, 247, 0.90);
-    color: #1a1b26;
+    background-color: rgba(122, 162, 247, 0.18);
+    color: #ffffff;
 }
 
 #entry:selected #text,
 #entry:focus #text {
-    color: #1a1b26;
+    color: #ffffff;
 }
 
 #entry:selected #img {
