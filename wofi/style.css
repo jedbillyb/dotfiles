@@ -1,0 +1,80 @@
+/* macOS Spotlight-style wofi theme — square corners, dark translucent panel */
+
+* {
+    font-family: "SF Pro Display", "Inter", "Cantarell", sans-serif;
+    font-size: 15px;
+    border: none;
+    border-radius: 0;               /* keep it square */
+}
+
+/* The whole floating panel */
+window {
+    background-color: rgba(30, 30, 30, 0.92);
+    color: #f5f5f5;
+    border: 1px solid rgba(255, 255, 255, 0.10);
+}
+
+#outer-box {
+    margin: 0;
+    padding: 0;
+}
+
+/* Search field — big Spotlight bar across the top */
+#input {
+    font-size: 22px;
+    font-weight: 300;
+    padding: 16px 18px;
+    margin: 0;
+    color: #f5f5f5;
+    background-color: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.10);
+    outline: none;
+    box-shadow: none;
+}
+
+#input image {          /* the search-prompt icon area */
+    color: #8a8a8a;
+}
+
+#inner-box {
+    margin: 0;
+    padding: 6px 0;
+}
+
+#scroll {
+    margin: 0;
+    padding: 0;
+}
+
+/* Result rows */
+#entry {
+    padding: 9px 18px;
+    margin: 1px 6px;
+    color: #e8e8e8;
+    background-color: transparent;
+}
+
+#img {
+    margin-right: 12px;
+}
+
+#text {
+    color: #e8e8e8;
+}
+
+/* Selected / hovered row — macOS accent blue */
+#entry:selected,
+#entry:focus,
+#entry:hover {
+    background-color: rgba(10, 132, 255, 0.85);
+    color: #ffffff;
+}
+
+#entry:selected #text,
+#entry:focus #text {
+    color: #ffffff;
+}
+
+#entry:selected #img {
+    -gtk-icon-shadow: none;
+}

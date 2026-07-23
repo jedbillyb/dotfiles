@@ -1,7 +1,12 @@
-width=400
-height=300
+width=640
+height=400
 location=center
+yoffset=-100
 show=drun
-prompt=
+prompt=Spotlight Search
 allow_images=true
+image_size=28
 insensitive=true
+no_actions=true
+gtk_dark=true
+style=/home/jed/.config/wofi/style.css
