@@ -1,7 +1,5 @@
 width=640
 height=400
-location=center
-yoffset=-100
 show=drun
 prompt=Spotlight Search
 allow_images=true
