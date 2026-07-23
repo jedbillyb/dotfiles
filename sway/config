@@ -38,6 +38,9 @@ exec pipewire-pulse
 exec wireplumber
 exec udiskie
 
+# Spiral/dwindle tiling: auto-split along the longer edge of the focused window
+exec_always autotiling
+
 # ── Workspaces ────────────────────────────────────────────────────────────────
 
 set $ws1 "1"
