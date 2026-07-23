@@ -76,7 +76,7 @@ bindsym $mod+Shift+0 move container to workspace number $ws10
 # ── Applications ──────────────────────────────────────────────────────────────
 
 bindsym $mod+Return exec footclient
-bindsym $mod+r      exec spotlight
+bindsym $mod+r      exec $HOME/.local/bin/spotlight
 bindsym $mod+p      exec Thunar
 
 # ── System ────────────────────────────────────────────────────────────────────
@@ -119,7 +119,7 @@ bindsym $mod+w layout tabbed
 bindsym $mod+e layout toggle split
 
 bindsym $mod+Shift+space floating toggle
-bindsym $mod+space       exec spotlight
+bindsym $mod+space       exec $HOME/.local/bin/spotlight
 bindsym $mod+grave       focus mode_toggle
 bindsym $mod+a           focus parent
 
