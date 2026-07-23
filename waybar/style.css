@@ -56,10 +56,12 @@ window#waybar {
    its own, and the default 10px padding provides the gap between them. */
 #custom-calendar {
     min-width: 240px;
+    margin-left: 65px;
 }
 
 #custom-claude {
     min-width: 160px;
+    margin-left: 105px;
 }
 
 #custom-calendar.none {
