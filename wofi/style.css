@@ -5,6 +5,9 @@
     font-size: 14px;
     border: none;
     border-radius: 0;               /* keep it square */
+    outline: none;                  /* no dotted focus ring */
+    outline-style: none;
+    box-shadow: none;
 }
 
 /* The whole floating panel */
@@ -75,6 +78,10 @@ window {
 #entry:hover {
     background-color: rgba(122, 162, 247, 0.18);
     color: #ffffff;
+    outline: none;
+    outline-style: none;
+    -gtk-outline-radius: 0;
+    box-shadow: none;
 }
 
 #entry:selected #text,
