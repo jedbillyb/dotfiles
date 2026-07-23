@@ -38,11 +38,21 @@ link() {
 
 echo "Installing dotfiles from $REPO"
 
+echo "Packages:"
+# autotiling powers the spiral/dwindle layout (exec_always in sway/config).
+if command -v autotiling >/dev/null 2>&1; then
+	info "ok    autotiling"
+else
+	info "installing autotiling"
+	sudo xbps-install -y autotiling
+fi
+
 echo "Configs:"
 link sway/config   "$CONFIG/sway/config"
 link i3/config     "$CONFIG/i3/config"
 link waybar        "$CONFIG/waybar"
-link wofi/config   "$CONFIG/wofi/config"
+link wofi/config    "$CONFIG/wofi/config"
+link wofi/style.css "$CONFIG/wofi/style.css"
 link foot/foot.ini "$CONFIG/foot/foot.ini"
 link xdg-desktop-portal/sway-portals.conf "$CONFIG/xdg-desktop-portal/sway-portals.conf"
 link xdg-desktop-portal/portals.conf      "$CONFIG/xdg-desktop-portal/portals.conf"
@@ -60,6 +70,11 @@ mkdir -p "$BIN"
 for s in vpn-toggle.sh caffeine-toggle.sh sway-idle.sh openclaw-send wifi-compare.sh; do
 	chmod +x "$REPO/scripts/$s"
 	link "scripts/$s" "$BIN/$s"
+done
+# Standalone launchers living in bin/ (e.g. the Spotlight-style wofi wrapper).
+for b in spotlight; do
+	chmod +x "$REPO/bin/$b"
+	link "bin/$b" "$BIN/$b"
 done
 # Waybar status scripts run from the repo via the symlinked config dir;
 # just make sure they are executable.
