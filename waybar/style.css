@@ -8,7 +8,8 @@
 }
 
 window#waybar {
-    background: linear-gradient(rgba(20, 20, 20, 0.55), rgba(10, 10, 10, 0.35));
+    /* Match foot terminal: solid #242424 background at 0.85 alpha. */
+    background: rgba(36, 36, 36, 0.85);
     color: #cccccc;
 }
 
@@ -62,10 +63,12 @@ window#waybar {
     min-width: 130px;
 }
 
-/* Mirror of the left: spread caffeine + vpn across the gap between the centered
-   clock and the right-hand stats cluster. */
+/* Keep caffeine + vpn together as a pair, sitting in the gap between the
+   centered clock and the right-hand stats cluster. caffeine is offset from the
+   clock; vpn carries the gap to the usbwifi/network cluster. Only the default
+   padding separates the two, so they read as a group. */
 #custom-caffeine {
-    margin-right: 140px;
+    margin-left: 140px;
 }
 
 #custom-vpn {
