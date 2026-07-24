@@ -30,6 +30,15 @@ window#waybar {
     color: #ffffff;
 }
 
+/* Kill GTK's default button hover styling (background + inset box-shadow)
+   that makes the workspace numbers look like they change shape on hover. */
+#workspaces button:hover {
+    background: transparent;
+    box-shadow: none;
+    text-shadow: none;
+    border: none;
+}
+
 #clock {
     color: #ffffff;
     padding: 0 12px;
