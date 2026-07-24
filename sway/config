@@ -108,6 +108,7 @@ bindsym XF86MonBrightnessDown exec brightnessctl set 5%-
 
 bindsym $mod+Shift+s exec grim -g "$(slurp)" - | wl-copy
 bindsym --to-code grave exec mkdir -p /mnt/shared/pictures/Screenshots && f="/mnt/shared/pictures/Screenshots/$(date +'%Y-%m-%d_%H-%M-%S').png" && grim "$f" && notify-send -t 1200 "Screenshot saved" "$f"
+bindsym --to-code Shift+grave exec mkdir -p /mnt/shared/pictures/Screenshots && f="/mnt/shared/pictures/Screenshots/$(date +'%Y-%m-%d_%H-%M-%S').png" && grim -c "$f" && notify-send -t 1200 "Screenshot saved (cursor)" "$f"
 
 # ── Window Management ─────────────────────────────────────────────────────────
 
