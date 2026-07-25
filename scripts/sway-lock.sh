@@ -24,11 +24,18 @@ DURATION=700
 # bar sits over a blurred copy of itself and the two smear against each other
 # as the blur ramps -- jagged doubled text. So the bar's pixels have to go.
 #
-# They are replaced by mirroring the desktop from just below the bar upward,
-# rather than by a flat fill. A flat fill also kills the ghost, but it makes
-# the strip pop from flat colour to real wallpaper the instant the lock
-# releases, which is visible at the end of every unlock. Mirrored content
-# blurs along with the rest of the image and hands back over unnoticed.
+# They are replaced by taking the single row of desktop just below the bar and
+# stretching it up over the strip. Two rejected alternatives, both of which
+# swap one artifact for another:
+#   - a flat colour fill: kills the ghost, but the strip then pops from flat
+#     colour to real wallpaper the instant the lock releases, visible at the
+#     end of every unlock (and not on lock, which is the giveaway);
+#   - mirroring the desktop upward: colour-continuous, but it puts a flipped
+#     copy of whatever is below the bar behind a 15%-transparent bar, which
+#     shows as odd structure along the top.
+# Stretching one row leaves the strip colour-matched at the seam with no
+# vertical structure at all, so there is nothing to notice in either
+# direction.
 BAR_HEIGHT=16
 
 # Indicator theming, matched to waybar/style.css: #242424 at 0.85 alpha (d9)
@@ -107,7 +114,7 @@ if grim -l 0 "$FRAMES/raw.png" 2>/dev/null; then
 	# that uses it is about to be blurred. Together: ~280ms.
 	if magick "$FRAMES/raw.png" \
 		-define png:compression-level=0 -strip \
-		\( +clone -crop "x${BAR_HEIGHT}+0+${BAR_HEIGHT}" +repage -flip \) \
+		\( +clone -crop "x1+0+${BAR_HEIGHT}" +repage -resize "x${BAR_HEIGHT}!" \) \
 		-geometry +0+0 -composite \
 		-write "$FRAMES/frame-00.png" \
 		-filter Point -resize 25% \
