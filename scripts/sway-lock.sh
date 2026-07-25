@@ -101,10 +101,16 @@ if grim -l 0 "$FRAMES/raw.png" 2>/dev/null; then
 	# is only a few rows tall, so a 0x3+ blur washes the flat fill out entirely
 	# and drags desktop colour up into it. Re-drawing after every blur is what
 	# actually keeps the strip flat in all five frames.
+	# compression-level=0 matters as much here as grim's -l 0 does: magick now
+	# writes the full-resolution frame-00, and at default compression that one
+	# write costs ~670ms. -strip drops metadata, and Point sampling is the
+	# cheapest resize -- pointless to interpolate carefully when every frame
+	# that uses it is about to be blurred. Together: ~410ms instead of ~1140ms.
 	if magick "$FRAMES/raw.png" \
+		-define png:compression-level=0 -strip \
 		-fill "$BAR_COLOR" -draw "rectangle 0,0 99999,$((BAR_HEIGHT - 1))" \
 		-write "$FRAMES/frame-00.png" \
-		-resize 25% \
+		-filter Point -resize 25% \
 		-blur 0x3 -draw "rectangle 0,0 99999,$SCALED_BAR" -write "$FRAMES/frame-01.png" \
 		-blur 0x3 -draw "rectangle 0,0 99999,$SCALED_BAR" -write "$FRAMES/frame-02.png" \
 		-blur 0x4 -draw "rectangle 0,0 99999,$SCALED_BAR" -write "$FRAMES/frame-03.png" \
