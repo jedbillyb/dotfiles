@@ -7,8 +7,7 @@
 #
 # waybar stays visible on top of the lock surface; that is handled by the
 # compositor (see `lock_visible_namespace waybar` in the sway config), not
-# here. The blurred screenshot deliberately includes the bar area, so the real
-# waybar lines up over it.
+# here. The bar strip is flattened out of the blur frames -- see BAR_HEIGHT.
 
 set -eu
 
@@ -16,6 +15,19 @@ LOCKER="$HOME/.local/bin/swaylock-fprintd"
 # The locker eases this curve in and out, so the perceived motion is slower at
 # both ends than the raw number suggests -- 300ms felt like a snap.
 DURATION=700
+
+# Height of the waybar strip in physical pixels: the "height" in waybar/config
+# times the output scale (both 16 and 1 here). The strip is painted flat in the
+# blur frames because waybar's background is rgba(36,36,36,0.85) -- 15%
+# transparent. Without this the blurred screenshot's own copy of the bar shows
+# through the live bar and smears against it as the blur ramps, which reads as
+# jagged doubled text. Painting it the bar's own colour means the live bar
+# composites over a flat field and stays clean.
+BAR_HEIGHT=16
+BAR_COLOR='#242424'
+# Same strip at the quarter scale the blurred frames are generated at, rounded
+# up so it can never leave an uncovered row.
+SCALED_BAR=$(( (BAR_HEIGHT + 3) / 4 - 1 ))
 
 # Indicator theming, matched to waybar/style.css: #242424 at 0.85 alpha (d9)
 # background, #cccccc text, #666666 dim, #ffffff focus. Deliberately
@@ -79,14 +91,29 @@ trap cleanup EXIT INT TERM
 # has to survive a few hundred ms in tmpfs. This delay is time the screen is
 # still unlocked, so it is worth keeping short.
 blurred=false
-if grim -l 0 "$FRAMES/frame-00.png" 2>/dev/null; then
-	if magick "$FRAMES/frame-00.png" -resize 25% \
-		-blur 0x3 -write "$FRAMES/frame-01.png" \
-		-blur 0x3 -write "$FRAMES/frame-02.png" \
-		-blur 0x4 -write "$FRAMES/frame-03.png" \
-		-blur 0x5 "$FRAMES/frame-04.png" 2>/dev/null; then
+if grim -l 0 "$FRAMES/raw.png" 2>/dev/null; then
+	# The bar strip is flattened once, up front, so every frame including the
+	# sharp frame-00 is free of the ghost bar -- otherwise the artifact would
+	# come back at the tail of each unlock, where the animation lands on
+	# frame-00. The x2 coordinate is deliberately past the right edge;
+	# ImageMagick clips it, which keeps this independent of the output width.
+	# Each blur has to be followed by another fill: at quarter scale the strip
+	# is only a few rows tall, so a 0x3+ blur washes the flat fill out entirely
+	# and drags desktop colour up into it. Re-drawing after every blur is what
+	# actually keeps the strip flat in all five frames.
+	if magick "$FRAMES/raw.png" \
+		-fill "$BAR_COLOR" -draw "rectangle 0,0 99999,$((BAR_HEIGHT - 1))" \
+		-write "$FRAMES/frame-00.png" \
+		-resize 25% \
+		-blur 0x3 -draw "rectangle 0,0 99999,$SCALED_BAR" -write "$FRAMES/frame-01.png" \
+		-blur 0x3 -draw "rectangle 0,0 99999,$SCALED_BAR" -write "$FRAMES/frame-02.png" \
+		-blur 0x4 -draw "rectangle 0,0 99999,$SCALED_BAR" -write "$FRAMES/frame-03.png" \
+		-blur 0x5 -draw "rectangle 0,0 99999,$SCALED_BAR" "$FRAMES/frame-04.png" 2>/dev/null; then
 		blurred=true
 	fi
+	# Not one of the frames, and it is the one copy still holding an
+	# un-flattened image of the desktop.
+	rm -f "$FRAMES/raw.png"
 fi
 
 # Fall back to a plain black lock if grim or ImageMagick failed, so a broken
