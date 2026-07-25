@@ -2,7 +2,7 @@
 # Idle/lock daemon for sway. Factored into its own script so the caffeine
 # toggle (caffeine-toggle.sh) can cleanly stop and restart it.
 
-LOCK='/home/jed/.local/bin/swaylock-fprintd --fingerprint -c 000000'
+LOCK='/home/jed/.local/bin/sway-lock.sh'
 
 exec swayidle -w \
     timeout 300 "$LOCK" \

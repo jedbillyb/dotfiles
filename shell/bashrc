@@ -7,3 +7,7 @@ alias ls='ls --color=auto'
 PS1='[\u@\h \W]\$ '
 
 . "$HOME/.local/bin/env"
+
+# spicetify
+export PATH="$HOME/.spicetify:$PATH"
+export PATH="$HOME/.npm-global/bin:$PATH"
