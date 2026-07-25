@@ -174,8 +174,13 @@ bindsym $mod+Shift+d mode "resize"
 
 # ── Bar ───────────────────────────────────────────────────────────────────────
 
-exec_always sh -c 'pkill -x waybar; waybar'
+# Supervised so a waybar crash brings the bar straight back. The script is
+# safe to run again on reload -- it hands over to the existing supervisor
+# rather than starting a second one.
+exec_always ~/.local/bin/waybar-run.sh
 
+# Toggles waybar's visibility only; the process stays alive, so the supervisor
+# above leaves a hidden bar alone.
 bindsym $mod+b exec pkill -SIGUSR1 waybar
 
 # ── Input ─────────────────────────────────────────────────────────────────────
