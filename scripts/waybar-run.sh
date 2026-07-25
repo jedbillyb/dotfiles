@@ -13,6 +13,11 @@ set -u
 
 WAYBAR=${WAYBAR:-waybar}
 LOCKFILE=/tmp/waybar-run.$(id -u).lock
+# Set by a reload handover just before it kills the bar, so the supervisor can
+# tell "sway reloaded" from "waybar fell over" -- otherwise a few reloads in
+# quick succession look like a crash loop and the bar comes back slower each
+# time.
+RESTART_FLAG=/tmp/waybar-run.$(id -u).restart
 
 # Restarts closer together than this are treated as a crash loop rather than
 # an ordinary respawn.
@@ -25,17 +30,22 @@ exec 9>"$LOCKFILE"
 if ! flock -n 9; then
 	# A supervisor is already running. This is a sway reload, so just drop the
 	# current bar -- the existing supervisor respawns it and picks up any
-	# changed waybar config.
+	# changed waybar config. Flag it first so that respawn is immediate rather
+	# than treated as a crash and backed off.
+	: >"$RESTART_FLAG" 2>/dev/null || true
 	pkill -x waybar 2>/dev/null || true
 	exit 0
 fi
 
 # Inherited from a previous session (or a hand-started bar): adopt it rather
-# than leaving an unsupervised copy behind.
+# than leaving an unsupervised copy behind. Any flag left by a dead supervisor
+# is stale.
+rm -f "$RESTART_FLAG"
 pkill -x waybar 2>/dev/null || true
 
 cleanup() {
 	# Don't leave the bar behind when the supervisor goes down with the session.
+	rm -f "$RESTART_FLAG"
 	pkill -x waybar 2>/dev/null || true
 	exit 0
 }
@@ -48,10 +58,18 @@ while :; do
 	status=$?
 	end=$(date +%s)
 
-	# A clean exit means something asked waybar to quit; respect that instead
-	# of fighting it.
-	if [ "$status" -eq 0 ]; then
-		exit 0
+	# Deliberately no special case for a zero exit status. waybar exits 0 when
+	# it is SIGTERMed, which is exactly what the reload handover above does --
+	# so treating a clean exit as "stop" made every second sway reload kill the
+	# bar and leave it dead until the next reload. There is no way to tell a
+	# deliberate quit from the handover here, and a supervisor that stops
+	# supervising is the worse failure. To stop the bar, stop the supervisor.
+	# A reload asked for this restart, so come straight back and forget any
+	# accumulated backoff.
+	if [ -e "$RESTART_FLAG" ]; then
+		rm -f "$RESTART_FLAG"
+		delay=$MIN_DELAY
+		continue
 	fi
 
 	if [ $((end - start)) -lt "$CRASH_WINDOW" ]; then
