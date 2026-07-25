@@ -13,7 +13,9 @@
 set -eu
 
 LOCKER="$HOME/.local/bin/swaylock-fprintd"
-DURATION=300
+# The locker eases this curve in and out, so the perceived motion is slower at
+# both ends than the raw number suggests -- 300ms felt like a snap.
+DURATION=700
 
 # Indicator theming, matched to waybar/style.css: #242424 at 0.85 alpha (d9)
 # background, #cccccc text, #666666 dim, #ffffff focus. Deliberately
@@ -92,7 +94,9 @@ fi
 # $THEME is deliberately unquoted: it must word-split into separate flags.
 if [ "$blurred" = true ]; then
 	# shellcheck disable=SC2086
-	"$LOCKER" --fingerprint -s fill \
+	# -c is a safety net: without it swaylock's background defaults to white,
+	# which flashes if anything is ever painted before a blur frame.
+	"$LOCKER" --fingerprint -s fill -c 1a1a1a \
 		--blur-frames "$FRAMES" --blur-duration "$DURATION" $THEME "$@"
 else
 	# shellcheck disable=SC2086
