@@ -15,6 +15,44 @@ set -eu
 LOCKER="$HOME/.local/bin/swaylock-fprintd"
 DURATION=300
 
+# Indicator theming, matched to waybar/style.css: #242424 at 0.85 alpha (d9)
+# background, #cccccc text, #666666 dim, #ffffff focus. Deliberately
+# monochrome -- swaylock's stock green/blue states clash badly with it.
+# The line between inside and ring is transparent, which is what removes the
+# hard black circle outline; the translucent inside lets the blur show through.
+THEME="
+--indicator-radius 90
+--indicator-thickness 5
+--inside-color 242424d9
+--ring-color 666666ff
+--line-color 00000000
+--separator-color 00000000
+--text-color ccccccff
+--key-hl-color ffffffff
+--bs-hl-color 888888ff
+--inside-ver-color 242424d9
+--ring-ver-color ccccccff
+--line-ver-color 00000000
+--text-ver-color ffffffff
+--inside-clear-color 242424d9
+--ring-clear-color 888888ff
+--line-clear-color 00000000
+--text-clear-color ccccccff
+--inside-wrong-color 2b1e1ed9
+--ring-wrong-color a05a5aff
+--line-wrong-color 00000000
+--text-wrong-color d09090ff
+--inside-caps-lock-color 242424d9
+--ring-caps-lock-color 998866ff
+--line-caps-lock-color 00000000
+--text-caps-lock-color ddccaaff
+--caps-lock-key-hl-color ffffffff
+--caps-lock-bs-hl-color 888888ff
+--layout-bg-color 242424d9
+--layout-border-color 00000000
+--layout-text-color ccccccff
+"
+
 # swayidle and the keybind can both fire; only ever run one locker.
 LOCKFILE=/tmp/sway-lock.$(id -u).lock
 exec 9>"$LOCKFILE"
@@ -51,9 +89,12 @@ fi
 
 # Fall back to a plain black lock if grim or ImageMagick failed, so a broken
 # screenshot can never leave the machine unlocked.
+# $THEME is deliberately unquoted: it must word-split into separate flags.
 if [ "$blurred" = true ]; then
+	# shellcheck disable=SC2086
 	"$LOCKER" --fingerprint -s fill \
-		--blur-frames "$FRAMES" --blur-duration "$DURATION" "$@"
+		--blur-frames "$FRAMES" --blur-duration "$DURATION" $THEME "$@"
 else
-	"$LOCKER" --fingerprint -c 000000 "$@"
+	# shellcheck disable=SC2086
+	"$LOCKER" --fingerprint -c 1a1a1a $THEME "$@"
 fi
