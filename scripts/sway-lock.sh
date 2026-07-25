@@ -70,9 +70,18 @@ build_bar_strip() {
 # monochrome -- swaylock's stock green/blue states clash badly with it.
 # The line between inside and ring is transparent, which is what removes the
 # hard black circle outline; the translucent inside lets the blur show through.
+# Kept out of $THEME because that is word-split on purpose, and this name
+# contains spaces. Matches waybar/style.css so the lock screen reads as part of
+# the same desktop rather than stock swaylock.
+FONT="DejaVu Sans Mono"
+
+# Left to itself swaylock sizes the text as arc_radius / 3, which is ~23px at
+# this radius and far too heavy inside the ring. Set explicitly instead, so it
+# also stays put if the radius is tuned again.
 THEME="
---indicator-radius 90
---indicator-thickness 5
+--indicator-radius 70
+--indicator-thickness 4
+--font-size 18
 --inside-color 242424d9
 --ring-color 666666ff
 --line-color 00000000
@@ -197,9 +206,9 @@ if [ "$blurred" = true ]; then
 	# shellcheck disable=SC2086
 	# -c is a safety net: without it swaylock's background defaults to white,
 	# which flashes if anything is ever painted before a blur frame.
-	"$LOCKER" --fingerprint -s fill -c 1a1a1a \
+	"$LOCKER" --fingerprint -s fill -c 1a1a1a --font "$FONT" \
 		--blur-frames "$FRAMES" --blur-duration "$DURATION" $THEME "$@"
 else
 	# shellcheck disable=SC2086
-	"$LOCKER" --fingerprint -c 1a1a1a $THEME "$@"
+	"$LOCKER" --fingerprint -c 1a1a1a --font "$FONT" $THEME "$@"
 fi
