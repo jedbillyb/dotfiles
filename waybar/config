@@ -57,7 +57,7 @@
     "custom/calendar": {
         "exec": "CAL_GCAL_DIR=/mnt/shared/projects/waybar-gcal ~/.config/waybar/calendar-status.sh",
         "return-type": "json",
-        "interval": 60,
+        "interval": 10,
         "tooltip": true
     },
 
