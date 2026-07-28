@@ -84,6 +84,42 @@ needs a hard power-off. `after-resume` only covers system sleep, not the DPMS
 idle-blank, so both are needed. The caffeine toggle (`mod+c`) stops/restarts
 this script to inhibit idle locking.
 
+### Touchpad wedges after resume
+
+The I2C-HID touchpad (`CRQ1080:00 0488:1051`, on `i2c-6` under the
+`AMDI0010:03` platform controller) can come back broken after suspend.
+`scripts/touchpad-resume-fix.sh` handles both failure modes, and runs from two
+places: elogind calls it as a system-sleep hook (symlinked into
+`/usr/libexec/elogind/system-sleep/`, recreated by `install.sh`), and
+`$mod+Shift+r` runs it alongside the config reload as a manual escape hatch.
+The touchscreen is on a separate controller and is never affected.
+
+The two modes look different, and it's worth knowing which you have:
+
+- **Cursor moves nowhere, but clicks still register.** The device re-enumerates
+  but `hid-multitouch` leaves it in a degenerate mode: it streams bare
+  coordinates (`ABS_X/Y`, `ABS_MT_POSITION_X/Y`) with no `BTN_TOUCH` and no
+  `ABS_MT_TRACKING_ID`. libinput won't synthesise motion from a touchpad that
+  never reports a finger down, so motion is dropped while the separate
+  `BTN_LEFT` path keeps working. Fixed by rebinding at the `i2c_hid_acpi`
+  level, which re-probes the HID device and re-sends the mode-switch feature
+  report.
+- **Cursor fully frozen or only twitching.** The AMD I2C controller itself is
+  dead. The `i2c_hid_acpi` rebind fails with "No such device" and you have to
+  reset one level up, at the `i2c_designware` platform driver.
+
+To tell them apart, compare what the kernel emits against what libinput makes
+of it — if the kernel shows coordinates but libinput shows nothing but
+`DEVICE_ADDED`, it's the first mode:
+
+```sh
+sudo libinput debug-events --device /dev/input/eventN
+```
+
+Note that `dwt` (disable-while-typing) is on, so libinput legitimately drops
+motion while you type. Test by swiping with the keyboard idle, or you'll
+misread normal behaviour as the bug.
+
 ## Sway keybindings
 
 `$mod` = **Super** (Mod4, the Windows key).
@@ -106,7 +142,7 @@ this script to inhibit idle locking.
 | `$mod+Shift+i` | Lock screen (swaylock-fprintd, auto fingerprint) |
 | `$mod+Shift+o` | Exit sway, back to TTY |
 | `$mod+Shift+p` | Power off |
-| `$mod+Shift+r` | Reload sway config |
+| `$mod+Shift+r` | Reload sway config (also re-probes a wedged touchpad) |
 
 ### Window management
 
