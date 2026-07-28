@@ -180,9 +180,11 @@ bindsym $mod+Shift+d mode "resize"
 # rather than starting a second one.
 exec_always ~/.local/bin/waybar-run.sh
 
-# Toggles waybar's visibility only; the process stays alive, so the supervisor
-# above leaves a hidden bar alone.
-bindsym $mod+b exec pkill -SIGUSR1 waybar
+# Hide/show the bar. Normally that is just waybar's visibility toggle -- the
+# process stays alive, so the supervisor above leaves a hidden bar alone -- but
+# if the bar has crashed and stayed down, the same key brings it back instead
+# of signalling a process that is not there.
+bindsym $mod+b exec ~/.local/bin/waybar-toggle.sh
 
 # ── Input ─────────────────────────────────────────────────────────────────────
 
