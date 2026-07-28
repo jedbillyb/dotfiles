@@ -6,14 +6,21 @@ My personal configuration files.
 
 - `sway/config` - Sway window manager config
 - `i3/config` - i3 window manager config (legacy)
-- `waybar/` - Waybar config, style, and status scripts (VPN + caffeine indicators)
-- `wofi/config` - Wofi app launcher config (bound to mod+r)
+- `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
+  USB WiFi, calendar, and Claude indicators)
+- `wofi/config`, `wofi/style.css` - Wofi app launcher config and theme
+- `foot/foot.ini` - foot terminal config (sway runs `footclient` against a foot server)
 - `xdg-desktop-portal/` - Portal backend selection so Flatpak apps get a working file picker on sway (`*-portals.conf`)
 - `shell/` - Shell dotfiles (`.bashrc`, `.zshrc`, `.bash_profile`, `.profile`, `.inputrc`)
 - `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`)
-- `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+v)
-- `scripts/caffeine-toggle.sh` - Stay-awake toggle: blocks idle lock + lid suspend (bound to mod+c)
+- `bin/spotlight` - Spotlight-style centered wofi launcher (bound to mod+r and mod+space)
+- `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
+- `scripts/caffeine-toggle.sh` - Stay-awake toggle: blocks idle lock + lid suspend (bound to mod+Shift+c)
 - `scripts/sway-idle.sh` - swayidle launcher (idle lock / screen-off), restartable by the caffeine toggle
+- `scripts/sway-lock.sh` - Lock screen launcher (swaylock-fprintd, bound to mod+Shift+i)
+- `scripts/touchpad-resume-fix.sh` - Unsticks the touchpad after resume (elogind hook + mod+Shift+r)
+- `scripts/waybar-toggle.sh`, `scripts/waybar-run.sh` - Show/hide waybar (mod+b) and launch it
+- `scripts/wifi-compare.sh` - Compares onboard vs USB WiFi adapter throughput
 - `scripts/openclaw-send` - openclaw helper script
 - `wireguard/wg0.conf.template` - WireGuard client config template (fill in private key)
 
@@ -27,9 +34,13 @@ cd ~/projects/dotfiles
 
 `install.sh` is idempotent - safe to re-run after pulling updates. It:
 
-- symlinks `sway/config`, `i3/config`, `waybar/`, and `wofi/config` into `~/.config`
+- symlinks `sway/config`, `i3/config`, `waybar/`, `wofi/`, `foot/foot.ini`, and
+  the `xdg-desktop-portal/*-portals.conf` files into `~/.config`
 - symlinks the shell dotfiles and `gitconfig` into `~`
-- symlinks the helper scripts into `~/.local/bin` and marks them executable
+- symlinks the `scripts/` and `bin/` helpers into `~/.local/bin` and marks them
+  executable
+- symlinks `scripts/touchpad-resume-fix.sh` into
+  `/usr/libexec/elogind/system-sleep/` (via `sudo`) so elogind runs it on resume
 - copies the WireGuard template to `/etc/wireguard/wg0.conf` (via `sudo`) only
   if no config is already there
 
@@ -81,7 +92,7 @@ The idle stages are: lock at 5 min, screen off at 10 min. The screen-off
 `timeout` carries a paired `resume 'swaymsg "output * dpms on"'` — without it
 the display never wakes after an idle blank and you get a black screen that
 needs a hard power-off. `after-resume` only covers system sleep, not the DPMS
-idle-blank, so both are needed. The caffeine toggle (`mod+c`) stops/restarts
+idle-blank, so both are needed. The caffeine toggle (`mod+Shift+c`) stops/restarts
 this script to inhibit idle locking.
 
 ### Touchpad wedges after resume
@@ -129,16 +140,18 @@ misread normal behaviour as the bug.
 | Keybind | Action |
 | --- | --- |
 | `$mod+Return` | Terminal (footclient) |
-| `$mod+r` | App launcher (wofi) |
+| `$mod+r` | App launcher (`spotlight` - wofi centered on the focused output) |
+| `$mod+space` | App launcher (same as `$mod+r`) |
 | `$mod+f` | Firefox |
+| `$mod+c` | Google Chrome |
 | `$mod+p` | File manager (Thunar) |
 
 ### System / session
 
 | Keybind | Action |
 | --- | --- |
-| `$mod+v` | Toggle WireGuard VPN (status in bar, green when on) |
-| `$mod+c` | Toggle caffeine / stay-awake (blocks idle lock + lid suspend; status in bar) |
+| `$mod+Shift+v` | Toggle WireGuard VPN (status in bar, green when on) |
+| `$mod+Shift+c` | Toggle caffeine / stay-awake (blocks idle lock + lid suspend; status in bar) |
 | `$mod+Shift+i` | Lock screen (swaylock-fprintd, auto fingerprint) |
 | `$mod+Shift+o` | Exit sway, back to TTY |
 | `$mod+Shift+p` | Power off |
@@ -155,7 +168,7 @@ misread normal behaviour as the bug.
 | `$mod+e` | Toggle split layout |
 | `$mod+Shift+f` | Toggle fullscreen |
 | `$mod+Shift+space` | Toggle floating |
-| `$mod+space` | Toggle focus tiling/floating |
+| `$mod+grave` | Toggle focus between tiling and floating |
 | `$mod+a` | Focus parent |
 | `$mod+Shift+d` | Enter resize mode |
 
@@ -198,6 +211,12 @@ misread normal behaviour as the bug.
 | Keybind | Action |
 | --- | --- |
 | `$mod+Shift+s` | Region screenshot to clipboard (grim + slurp) |
+| `` grave `` | Full screenshot saved to `/mnt/shared/pictures/Screenshots/` |
+| `` Shift+grave `` | Same, with the cursor included |
+
+The two `grave` binds are deliberately **not** prefixed with `$mod` - a bare
+backtick takes the screenshot. They use `--to-code` so they follow the physical
+key rather than the keymap symbol.
 
 ### Bar
 
