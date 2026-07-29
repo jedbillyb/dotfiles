@@ -1,9 +1,3 @@
-/* noted: transient overrides live here. The file is written by
-   noted-quickadd.sh to blank the bar while the quick-add input is up,
-   and emptied again on close. It must always exist -- GTK treats a
-   missing @import as a parse error. */
-@import url("file:///home/jed/.cache/noted/waybar-overlay.css");
-
 * {
     font-family: "DejaVu Sans Mono";
     font-size: 9px;
