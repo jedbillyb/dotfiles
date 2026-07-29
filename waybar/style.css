@@ -54,6 +54,7 @@ window#waybar {
 #custom-network,
 #custom-usbwifi,
 #custom-claude,
+#custom-notes,
 #custom-calendar {
     color: #aaaaaa;
     padding: 0 10px;
@@ -71,6 +72,17 @@ window#waybar {
 #custom-claude {
     min-width: 160px;
     margin-left: 105px;
+}
+
+/* Same fixed-slot approach: the count never gets wider than two digits, so a
+   40px slot keeps it from nudging anything as items come and go. */
+#custom-notes {
+    min-width: 40px;
+    margin-left: 30px;
+}
+
+#custom-notes.has-items {
+    color: #7aa2f7;
 }
 
 #custom-calendar.none {
