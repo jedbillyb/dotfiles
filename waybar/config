@@ -3,7 +3,7 @@
     "height": 16,
     "layer": "overlay",
     "exclusive": true,
-    "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude", "custom/notes"],
+    "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude"],
     "modules-center": ["clock"],
     "modules-right": ["custom/caffeine", "custom/vpn", "custom/usbwifi", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
 
@@ -52,14 +52,6 @@
         "interval": 10,
         "signal": 10,
         "tooltip": true
-    },
-
-    "custom/notes": {
-        "exec": "/mnt/shared/projects/noted/waybar/notes-status.sh --loop",
-        "return-type": "json",
-        "restart-interval": 5,
-        "tooltip": true,
-        "on-click": "/mnt/shared/projects/noted/local/noted-quickadd.sh"
     },
 
     "custom/calendar": {
