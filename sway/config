@@ -46,6 +46,21 @@ exec udiskie
 # Spiral/dwindle tiling: auto-split along the longer edge of the focused window
 exec_always autotiling
 
+# noted - shared note: local cache poller + wallpaper-layer widget
+exec_always /mnt/shared/projects/noted/local/noted-sync.sh
+exec_always python3 /mnt/shared/projects/noted/desktop/noted-barbg.py
+# Guard loop (not exec_always+kill) so a crashed eww respawns without
+# needing a sway reload, and boots reliably on login.
+exec_always /mnt/shared/projects/noted/local/eww-guard.sh
+bindsym $mod+n exec /mnt/shared/projects/noted/local/noted-quickadd.sh
+
+# Escape dismisses the quick-add bar. A binding mode only captures the keys
+# bound in it, so typing still reaches the input.
+mode "noted" {
+    bindsym Escape exec /mnt/shared/projects/noted/local/noted-quickadd.sh close
+    bindsym $mod+n exec /mnt/shared/projects/noted/local/noted-quickadd.sh close
+}
+
 # ── Workspaces ────────────────────────────────────────────────────────────────
 
 set $ws1 "1"
