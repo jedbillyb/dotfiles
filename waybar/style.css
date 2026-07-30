@@ -59,6 +59,15 @@ window#waybar {
     padding: 0 10px;
 }
 
+/* Kill GTK's default hover styling (background + inset box-shadow), same as
+   the workspace buttons above. */
+#custom-calendar:hover {
+    background: transparent;
+    box-shadow: none;
+    text-shadow: none;
+    border: none;
+}
+
 /* Left-of-clock modules use fixed-width slots wide enough to hold their
    longest content, so their positions never move as workspaces come and go
    or as the text length changes. No hardcoded margins: each slot's width is

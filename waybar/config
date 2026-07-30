@@ -73,6 +73,7 @@
         "return-type": "json",
         "interval": 5,
         "signal": 8,
+        "on-click": "~/.local/bin/vpn-toggle.sh",
         "tooltip": false
     },
 
