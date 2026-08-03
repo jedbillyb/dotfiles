@@ -137,6 +137,10 @@ window#waybar {
     color: #9ece6a;
 }
 
+#custom-vpn.proxy {
+    color: #e0af68;
+}
+
 #custom-vpn.off {
     color: #aaaaaa;
 }
