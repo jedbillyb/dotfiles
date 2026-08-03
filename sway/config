@@ -110,7 +110,7 @@ bindsym $mod+Shift+i exec /home/jed/.local/bin/sway-lock.sh
 bindsym $mod+Shift+o exec swaymsg exit
 bindsym $mod+Shift+p exec loginctl poweroff
 # Also re-probes the touchpad, which wakes up wedged after suspend.
-bindsym $mod+Shift+r reload, exec sudo /usr/libexec/elogind/system-sleep/touchpad-resume-fix.sh
+bindsym $mod+Shift+r reload, exec sudo /usr/libexec/elogind/system-sleep/touchpad-resume-fix.sh, exec $HOME/.local/bin/wifi-recover.sh
 
 # ── Media ─────────────────────────────────────────────────────────────────────
 
@@ -139,6 +139,7 @@ bindsym $mod+h split h
 bindsym $mod+f       exec firefox
 bindsym $mod+c       exec google-chrome-stable
 bindsym $mod+Shift+f fullscreen toggle
+bindsym $mod+d       exec $HOME/.local/bin/show-desktop.sh
 
 bindsym $mod+s layout stacking
 bindsym $mod+w layout tabbed
