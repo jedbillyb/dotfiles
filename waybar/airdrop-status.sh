@@ -1,0 +1,1 @@
+/mnt/shared/projects/airdrop-mt7921/waybar/airdrop-status.sh

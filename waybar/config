@@ -5,7 +5,7 @@
     "exclusive": true,
     "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/caffeine", "custom/vpn", "custom/usbwifi", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
+    "modules-right": ["custom/airdrop", "custom/caffeine", "custom/vpn", "custom/usbwifi", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
 
     "sway/workspaces": {
         "disable-scroll": true,
@@ -81,6 +81,14 @@
         "exec": "~/.config/waybar/usbwifi-status.sh",
         "return-type": "json",
         "interval": 5,
+        "tooltip": false
+    },
+
+    "custom/airdrop": {
+        "exec": "~/.config/waybar/airdrop-status.sh",
+        "return-type": "json",
+        "interval": 2,
+        "on-click": "~/.config/waybar/airdrop-status.sh toggle",
         "tooltip": false
     },
 

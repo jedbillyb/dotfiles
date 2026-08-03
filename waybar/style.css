@@ -53,6 +53,7 @@ window#waybar {
 #custom-caffeine,
 #custom-network,
 #custom-usbwifi,
+#custom-airdrop,
 #custom-claude,
 #custom-calendar {
     color: #aaaaaa;
@@ -138,6 +139,20 @@ window#waybar {
 
 #custom-vpn.off {
     color: #aaaaaa;
+}
+
+#custom-airdrop.off {
+    color: #aaaaaa;
+}
+
+#custom-airdrop.idle,
+#custom-airdrop.waking,
+#custom-airdrop.armed {
+    color: #7aa2f7;
+}
+
+#custom-airdrop.error {
+    color: #f7768e;
 }
 
 #temperature.critical {
