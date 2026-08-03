@@ -151,6 +151,14 @@ window#waybar {
     color: #7aa2f7;
 }
 
+/* Moving the Wi-Fi to the SSID's 5GHz BSS so a GO can coexist with it. The
+   switch is on and this clears itself in seconds, but the association is
+   bouncing while it happens, so it gets its own colour rather than looking
+   like a normal bring-up. */
+#custom-airdrop.switching {
+    color: #e0af68;
+}
+
 #custom-airdrop.error {
     color: #f7768e;
 }
