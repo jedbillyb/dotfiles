@@ -8,7 +8,9 @@
 # away the split layout, so they never land in the same spots again. Switching
 # workspaces leaves the tree completely untouched.
 
-desktop_ws="desktop"
+# Single character, so waybar shows it as "D" alongside the numbered
+# workspaces instead of a wide label that shoves the clock off centre.
+desktop_ws="D"
 state_dir="${XDG_RUNTIME_DIR:-/tmp}/sway-show-desktop"
 mkdir -p "$state_dir"
 
