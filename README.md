@@ -27,6 +27,8 @@ My personal configuration files.
 - `scripts/wifi-recover.sh` - Forces WiFi back to a known-good state after
   suspend or AWDL/AirDrop testing (bound alongside the touchpad fix on
   mod+Shift+r)
+- `scripts/wifi-recover-root.sh` - Privileged half of that recovery, installed
+  as a root-owned copy at `/usr/local/bin/wifi-recover-root`
 - `scripts/openclaw-send` - openclaw helper script
 - `wireguard/wg0.conf.template` - WireGuard client config template (fill in private key)
 
@@ -83,6 +85,45 @@ echo 'jed ALL=(ALL) NOPASSWD: /usr/bin/wg-quick up wg0, /usr/bin/wg-quick down w
 sudo chmod 0440 /etc/sudoers.d/zz-wg-toggle
 sudo visudo -c
 ```
+
+### WiFi recovery after AirDrop/AWDL testing
+
+`$mod+Shift+r` reloads the sway config, re-probes a wedged touchpad, and runs
+`wifi-recover.sh`, which is meant to always be able to get the network back
+however AirDrop/AWDL testing left it. Restarting NetworkManager alone is not
+enough: most of the damage is below it, in the driver and the kernel's netdevs,
+and NetworkManager cannot associate through any of it. The three layers are:
+
+1. `airdrop-helper wifi-reset` (from the airdrop-mt7921 repo) - monitor and
+   P2P-GO vifs, mt76 `runtime-pm`/`deep-sleep`, rfkill, interface up.
+2. `wifi-recover-root` (this repo) - everything that does not cover: an owl
+   still running under its repo name, a stranded `awdl0`, the regulatory
+   domain left where a run set it, the managed interface left in monitor type,
+   mt76 power management when debugfs is unmounted (layer 1 mounts it in `up`
+   but not in `wifi-reset`, so both knob writes fail silently), and
+   NetworkManager or avahi-daemon still stopped because an `airdrop.sh` run
+   was killed before its exit trap.
+3. `nmcli` as the desktop user - radio on, networking on, interface managed,
+   autoconnect back on, and a reconnect **only** if it is not already
+   connected.
+
+Every step is conditional, because this binding also fires on plain config
+reloads with nothing wrong - it must never bounce a healthy association.
+
+The root half runs as a root-owned copy at `/usr/local/bin/wifi-recover-root`
+(a symlink into this repo would let anything able to write the repo run code as
+root). `install.sh` copies it; the sudoers rule is manual, and like the VPN one
+must be **named so it sorts after `wheel`**:
+
+```sh
+printf 'jed ALL=(root) NOPASSWD: /usr/local/bin/wifi-recover-root\n' \
+  | sudo tee /etc/sudoers.d/zz-wifi-recover
+sudo chmod 0440 /etc/sudoers.d/zz-wifi-recover
+sudo visudo -c
+```
+
+Without the rule the keybinding still works - the privileged layers no-op
+silently (there is no TTY to prompt on) and only the `nmcli` layer runs.
 
 ### Fingerprint / lock screen
 

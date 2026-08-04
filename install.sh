@@ -67,7 +67,7 @@ link git/gitconfig      "$HOME/.gitconfig"
 
 echo "Scripts (-> $BIN):"
 mkdir -p "$BIN"
-for s in vpn-toggle.sh caffeine-toggle.sh sway-idle.sh sway-lock.sh waybar-run.sh openclaw-send wifi-compare.sh; do
+for s in vpn-toggle.sh vpn-proxy.sh caffeine-toggle.sh sway-idle.sh sway-lock.sh waybar-run.sh openclaw-send wifi-compare.sh wifi-recover.sh; do
 	chmod +x "$REPO/scripts/$s"
 	link "scripts/$s" "$BIN/$s"
 done
@@ -79,6 +79,16 @@ done
 # Waybar status scripts run from the repo via the symlinked config dir;
 # just make sure they are executable.
 chmod +x "$REPO"/waybar/*.sh
+
+echo "Privileged Wi-Fi recovery helper:"
+# Installed as a root-owned COPY, not a symlink: it runs as root from the
+# $mod+Shift+r keybinding, and a symlink back into this repo would make
+# anything able to write the repo able to run code as root. The copy is
+# unconditional so it tracks changes to the script. The matching sudoers rule
+# is a manual step (see README), like the wg-quick one.
+WIFI_ROOT="/usr/local/bin/wifi-recover-root"
+sudo install -o root -g root -m 755 "$REPO/scripts/wifi-recover-root.sh" "$WIFI_ROOT"
+info "copy  $WIFI_ROOT"
 
 echo "Resume hooks (elogind system-sleep):"
 SLEEP_HOOK="/usr/libexec/elogind/system-sleep/touchpad-resume-fix.sh"
@@ -106,6 +116,7 @@ cat <<EOF
 Done. Manual steps not handled here (see README):
   - WireGuard: edit $WG_CONF with your PrivateKey and IP
   - VPN passwordless sudo rule (/etc/sudoers.d/zz-wg-toggle)
+  - Wi-Fi recovery passwordless sudo rule (/etc/sudoers.d/zz-wifi-recover)
   - swaylock-fprintd build + PAM setup for the lock screen
 Make sure "$BIN" is on your PATH.
 EOF
