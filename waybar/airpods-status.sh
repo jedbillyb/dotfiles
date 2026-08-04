@@ -1,1 +1,1 @@
-/mnt/shared/projects/airpods-linux/waybar/airpods-status.sh
+/mnt/shared/projects/waybar-airpods/waybar/airpods-status.sh

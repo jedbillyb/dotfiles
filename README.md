@@ -89,7 +89,7 @@ sudo visudo -c
 ### AirPods battery module
 
 `waybar/airpods-status.sh` is a symlink into the
-[airpods-linux](https://github.com/jedbillyb/airpods-linux) repo, following the
+[waybar-airpods](https://github.com/jedbillyb/waybar-airpods) repo, following the
 same convention as the AirDrop module: the script lives with the project that
 owns it, this repo only carries the link and the waybar wiring.
 
