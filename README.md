@@ -7,7 +7,7 @@ My personal configuration files.
 - `sway/config` - Sway window manager config
 - `i3/config` - i3 window manager config (legacy)
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
-  USB WiFi, calendar, and Claude indicators)
+  USB WiFi, AirDrop, calendar, and Claude indicators)
 - `wofi/config`, `wofi/style.css` - Wofi app launcher config and theme
 - `foot/foot.ini` - foot terminal config (sway runs `footclient` against a foot server)
 - `xdg-desktop-portal/` - Portal backend selection so Flatpak apps get a working file picker on sway (`*-portals.conf`)
@@ -15,12 +15,18 @@ My personal configuration files.
 - `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`)
 - `bin/spotlight` - Spotlight-style centered wofi launcher (bound to mod+r and mod+space)
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
+- `scripts/vpn-proxy.sh` - TCP-over-SSH fallback for networks that block UDP, so
+  there is still a tunnel when WireGuard can't handshake (`up|down|status`)
+- `scripts/show-desktop.sh` - Show-desktop toggle (bound to mod+d)
 - `scripts/caffeine-toggle.sh` - Stay-awake toggle: blocks idle lock + lid suspend (bound to mod+Shift+c)
 - `scripts/sway-idle.sh` - swayidle launcher (idle lock / screen-off), restartable by the caffeine toggle
 - `scripts/sway-lock.sh` - Lock screen launcher (swaylock-fprintd, bound to mod+Shift+i)
 - `scripts/touchpad-resume-fix.sh` - Unsticks the touchpad after resume (elogind hook + mod+Shift+r)
 - `scripts/waybar-toggle.sh`, `scripts/waybar-run.sh` - Show/hide waybar (mod+b) and launch it
 - `scripts/wifi-compare.sh` - Compares onboard vs USB WiFi adapter throughput
+- `scripts/wifi-recover.sh` - Forces WiFi back to a known-good state after
+  suspend or AWDL/AirDrop testing (bound alongside the touchpad fix on
+  mod+Shift+r)
 - `scripts/openclaw-send` - openclaw helper script
 - `wireguard/wg0.conf.template` - WireGuard client config template (fill in private key)
 
@@ -145,6 +151,7 @@ misread normal behaviour as the bug.
 | `$mod+f` | Firefox |
 | `$mod+c` | Google Chrome |
 | `$mod+p` | File manager (Thunar) |
+| `$mod+n` | noted quick-add bar (from the separate `noted` project); `$mod+n` again or `Escape` dismisses it |
 
 ### System / session
 
@@ -155,13 +162,14 @@ misread normal behaviour as the bug.
 | `$mod+Shift+i` | Lock screen (swaylock-fprintd, auto fingerprint) |
 | `$mod+Shift+o` | Exit sway, back to TTY |
 | `$mod+Shift+p` | Power off |
-| `$mod+Shift+r` | Reload sway config (also re-probes a wedged touchpad) |
+| `$mod+Shift+r` | Reload sway config (also re-probes a wedged touchpad and recovers WiFi) |
 
 ### Window management
 
 | Keybind | Action |
 | --- | --- |
 | `$mod+q` | Close window |
+| `$mod+d` | Show desktop (hide everything); press again to come back |
 | `$mod+h` | Split horizontal |
 | `$mod+s` | Stacking layout |
 | `$mod+w` | Tabbed layout |
@@ -171,6 +179,16 @@ misread normal behaviour as the bug.
 | `$mod+grave` | Toggle focus between tiling and floating |
 | `$mod+a` | Focus parent |
 | `$mod+Shift+d` | Enter resize mode |
+
+`show-desktop.sh` works by switching to an empty workspace named `D` and
+switching straight back, tracking the previous workspace per output. It
+deliberately does **not** stash windows in the scratchpad: the scratchpad forces
+a window floating and resizes it (a visible size-pop when it returns), and
+lifting containers out of the tree loses the split layout, so they never land
+back in the same spots. Switching workspaces leaves the tree untouched, so the
+restore is exact and instant. The workspace is a single character because
+waybar 0.15's `sway/workspaces` has no ignore-list - a longer name would sit in
+the bar and shove the centred clock off.
 
 ### Focus / move
 
@@ -195,6 +213,10 @@ misread normal behaviour as the bug.
 | --- | --- |
 | `$mod+1`..`$mod+0` | Switch to workspace 1..10 |
 | `$mod+Shift+1`..`$mod+Shift+0` | Move window to workspace 1..10 |
+
+Workspace `D` is the show-desktop scratch workspace (see above). It only exists
+while `$mod+d` is toggled on - sway drops it again as soon as it is empty and
+unfocused.
 
 ### Media / hardware keys
 
