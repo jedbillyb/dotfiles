@@ -1,0 +1,1 @@
+/mnt/shared/projects/airpods-linux/waybar/airpods-status.sh

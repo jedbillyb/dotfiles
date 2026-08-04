@@ -5,7 +5,7 @@
     "exclusive": true,
     "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/airdrop", "custom/caffeine", "custom/vpn", "custom/usbwifi", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
+    "modules-right": ["custom/airdrop", "custom/caffeine", "custom/vpn", "custom/usbwifi", "custom/network", "custom/airpods", "pulseaudio", "memory", "cpu", "temperature", "battery"],
 
     "sway/workspaces": {
         "disable-scroll": true,
@@ -90,6 +90,14 @@
         "interval": 2,
         "on-click": "~/.config/waybar/airdrop-status.sh toggle",
         "tooltip": false
+    },
+
+    "custom/airpods": {
+        "exec": "~/.config/waybar/airpods-status.sh",
+        "return-type": "json",
+        "interval": 30,
+        "signal": 11,
+        "tooltip": true
     },
 
     "custom/caffeine": {

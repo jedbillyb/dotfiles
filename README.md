@@ -7,7 +7,7 @@ My personal configuration files.
 - `sway/config` - Sway window manager config
 - `i3/config` - i3 window manager config (legacy)
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
-  USB WiFi, AirDrop, calendar, and Claude indicators)
+  USB WiFi, AirDrop, AirPods, calendar, and Claude indicators)
 - `wofi/config`, `wofi/style.css` - Wofi app launcher config and theme
 - `foot/foot.ini` - foot terminal config (sway runs `footclient` against a foot server)
 - `xdg-desktop-portal/` - Portal backend selection so Flatpak apps get a working file picker on sway (`*-portals.conf`)
@@ -85,6 +85,21 @@ echo 'jed ALL=(ALL) NOPASSWD: /usr/bin/wg-quick up wg0, /usr/bin/wg-quick down w
 sudo chmod 0440 /etc/sudoers.d/zz-wg-toggle
 sudo visudo -c
 ```
+
+### AirPods battery module
+
+`waybar/airpods-status.sh` is a symlink into the
+[airpods-linux](https://github.com/jedbillyb/airpods-linux) repo, following the
+same convention as the AirDrop module: the script lives with the project that
+owns it, this repo only carries the link and the waybar wiring.
+
+BlueZ exposes no battery interface for AirPods, so the numbers come from a
+daemon in that repo which talks Apple's AACP protocol over L2CAP. Sway starts it
+with `exec_always`; that is safe because the daemon takes an flock and a second
+copy exits immediately. The module pushes updates to waybar with `SIGRTMIN+11`
+rather than being polled, because AirPods only send battery on change. When the
+buds are disconnected the module emits empty text and waybar drops it from the
+bar.
 
 ### WiFi recovery after AirDrop/AWDL testing
 

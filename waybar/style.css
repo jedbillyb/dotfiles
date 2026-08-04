@@ -54,6 +54,7 @@ window#waybar {
 #custom-network,
 #custom-usbwifi,
 #custom-airdrop,
+#custom-airpods,
 #custom-claude,
 #custom-calendar {
     color: #aaaaaa;
@@ -164,6 +165,24 @@ window#waybar {
 }
 
 #custom-airdrop.error {
+    color: #f7768e;
+}
+
+/* AirPods battery. The module emits empty text when the buds are disconnected,
+   so waybar drops it from the bar entirely and no colour applies. */
+#custom-airpods.ok {
+    color: #aaaaaa;
+}
+
+#custom-airpods.charging {
+    color: #9ece6a;
+}
+
+#custom-airpods.warning {
+    color: #e0af68;
+}
+
+#custom-airpods.critical {
     color: #f7768e;
 }
 

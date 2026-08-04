@@ -46,6 +46,10 @@ exec udiskie
 # Spiral/dwindle tiling: auto-split along the longer edge of the focused window
 exec_always autotiling
 
+# AirPods battery for the bar. Safe under exec_always: the daemon takes an
+# flock and a second copy exits immediately on reload.
+exec_always /mnt/shared/projects/airpods-linux/daemon/airpodsd
+
 # noted - shared note: local cache poller + wallpaper-layer widget
 exec_always /mnt/shared/projects/noted/local/noted-sync.sh
 exec_always python3 /mnt/shared/projects/noted/desktop/noted-barbg.py
