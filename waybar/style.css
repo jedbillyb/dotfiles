@@ -168,8 +168,18 @@ window#waybar {
     color: #f7768e;
 }
 
-/* AirPods battery. The module emits empty text when the buds are disconnected,
-   so waybar drops it from the bar entirely and no colour applies. */
+/* AirPods battery. Unlike the other modules this stays on the bar when
+   disconnected, dimmed, because it doubles as the connect switch - AirPods
+   hand themselves back to a phone constantly. */
+#custom-airpods.off,
+#custom-airpods.dead {
+    color: #666666;
+}
+
+#custom-airpods.connecting {
+    color: #e0af68;
+}
+
 #custom-airpods.ok {
     color: #aaaaaa;
 }

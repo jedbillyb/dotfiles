@@ -97,9 +97,18 @@ BlueZ exposes no battery interface for AirPods, so the numbers come from a
 daemon in that repo which talks Apple's AACP protocol over L2CAP. Sway starts it
 with `exec_always`; that is safe because the daemon takes an flock and a second
 copy exits immediately. The module pushes updates to waybar with `SIGRTMIN+11`
-rather than being polled, because AirPods only send battery on change. When the
-buds are disconnected the module emits empty text and waybar drops it from the
-bar.
+rather than being polled, because AirPods only send battery on change.
+
+It sits left of the AirDrop switch and doubles as a connect toggle: dimmed
+`pods --` when disconnected, amber `pods ...` while connecting, then the battery
+levels. Clicking connects or disconnects.
+
+AirPods hold only one audio link at a time, and multipoint only works between
+Apple devices on the same iCloud account, so a phone reclaims them constantly
+and they never auto-connect back to this machine. When the phone has them,
+BlueZ fails with `br-connection-unknown` and the link visibly flaps (a new
+`(AVRCP)` input device appears in `dmesg` each attempt). There is no fix on this
+end - disconnect them on the phone first, then click.
 
 ### Silencing blueman connect/disconnect popups
 
