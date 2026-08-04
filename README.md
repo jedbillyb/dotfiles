@@ -101,6 +101,30 @@ rather than being polled, because AirPods only send battery on change. When the
 buds are disconnected the module emits empty text and waybar drops it from the
 bar.
 
+### Silencing blueman connect/disconnect popups
+
+blueman-applet's `ConnectionNotifier` plugin fires a desktop notification every
+time any Bluetooth device connects or disconnects. With AirPods that is constant
+noise, and the bar already shows the state. Disable just that plugin (the
+leading `!` is how blueman marks one disabled) and restart the applet:
+
+```sh
+gsettings set org.blueman.general plugin-list "['!ConnectionNotifier']"
+pkill -f blueman-applet && (setsid blueman-applet >/dev/null 2>&1 &)
+```
+
+This lives in dconf rather than in this repo, so it does not survive a fresh
+machine. Confirm it took with:
+
+```sh
+busctl --user call org.blueman.Applet /org/blueman/Applet \
+  org.blueman.Applet QueryPlugins | grep -c ConnectionNotifier
+```
+
+which should print `0`. Note the setting **replaces** the plugin list, so add
+any other `!Plugin` entries to the same array rather than running the command
+again with a different one.
+
 ### WiFi recovery after AirDrop/AWDL testing
 
 `$mod+Shift+r` reloads the sway config, re-probes a wedged touchpad, and runs
