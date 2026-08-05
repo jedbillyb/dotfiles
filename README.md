@@ -7,7 +7,10 @@ My personal configuration files.
 - `sway/config` - Sway window manager config
 - `i3/config` - i3 window manager config (legacy)
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
-  USB WiFi, AirDrop, AirPods, calendar, and Claude indicators)
+  USB WiFi, AirDrop, AirPods, calendar, and Claude indicators). The calendar
+  module styles two failure states, `auth` (Google OAuth token expired or
+  revoked) and `stale` (fetching is failing and the cache has aged out), so a
+  broken backend is visible instead of collapsing to an empty module
 - `wofi/config`, `wofi/style.css` - Wofi app launcher config and theme
 - `foot/foot.ini` - foot terminal config (sway runs `footclient` against a foot server)
 - `xdg-desktop-portal/` - Portal backend selection so Flatpak apps get a working file picker on sway (`*-portals.conf`)

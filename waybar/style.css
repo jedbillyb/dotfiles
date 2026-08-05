@@ -101,6 +101,16 @@ window#waybar {
     color: #e0af68;
 }
 
+/* Backend is broken, not quiet: the OAuth token needs re-authorising. */
+#custom-calendar.auth {
+    color: #f7768e;
+}
+
+/* Fetching is failing and the cache has aged out. */
+#custom-calendar.stale {
+    color: #c07a5a;
+}
+
 #custom-claude.none {
     padding: 0;
     margin: 0;
