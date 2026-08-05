@@ -96,10 +96,10 @@ owns it, this repo only carries the link and the waybar wiring.
 ### LibreOffice Discord presence
 
 The sway config autostarts
-[lo-discord-rpc](https://github.com/jedbillyb/lo-discord-rpc), which shows the
-LibreOffice document you're working on as Discord Rich Presence. It subscribes to
-sway window events rather than polling, and holds the presence for as long as any
-LibreOffice window is open.
+[libreoffice-discord-rpc](https://github.com/jedbillyb/libreoffice-discord-rpc),
+which shows the LibreOffice document you're working on as Discord Rich Presence.
+It subscribes to sway window events rather than polling, and holds the presence
+for as long as any LibreOffice window is open.
 
 It runs from that project's venv, so the binary must exist before the `exec` line
 does anything:
