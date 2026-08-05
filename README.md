@@ -93,6 +93,26 @@ sudo visudo -c
 same convention as the AirDrop module: the script lives with the project that
 owns it, this repo only carries the link and the waybar wiring.
 
+### LibreOffice Discord presence
+
+The sway config autostarts
+[lo-discord-rpc](https://github.com/jedbillyb/lo-discord-rpc), which shows the
+LibreOffice document you're working on as Discord Rich Presence. It subscribes to
+sway window events rather than polling, and holds the presence for as long as any
+LibreOffice window is open.
+
+It runs from that project's venv, so the binary must exist before the `exec` line
+does anything:
+
+```sh
+cd /mnt/shared/projects/libreoffice-discord-rpc
+python -m venv .venv && .venv/bin/pip install .
+```
+
+Plain `exec`, not `exec_always` — the daemon has no single-instance lock, so a
+sway reload would leave a second copy fighting over the presence. Void has no
+systemd, so there is no user unit for it here; the sway config *is* the autostart.
+
 BlueZ exposes no battery interface for AirPods, so the numbers come from a
 daemon in that repo which talks Apple's AACP protocol over L2CAP. Sway starts it
 with `exec_always`; that is safe because the daemon takes an flock and a second
