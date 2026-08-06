@@ -36,6 +36,8 @@ My personal configuration files.
 - `scripts/zed-wrapper` - Launches Zed with `CLAUDE_LOCAL_API_KEY` set, so Zed
   accepts the local `claude-local` provider (see "Zed and the local Claude
   shim" below)
+- `zed/dev.zed.Zed.desktop` - Patched Zed launcher entry (uses the wrapper, no
+  duplicate launcher result)
 - `wireguard/wg0.conf.template` - WireGuard client config template (fill in private key)
 
 ## Install
@@ -276,17 +278,28 @@ the provider name, so provider `claude-local` reads `CLAUDE_LOCAL_API_KEY`.
 secret: the shim listens on loopback and runs with `SHIM_API_KEY` unset, so it
 never checks the token; Zed only requires the variable to be present.
 
-`install.sh` symlinks the wrapper into `~/.local/bin` like any other script,
-but pointing Zed's launcher at it is a manual step, because the desktop entry
-belongs to Zed rather than this repo:
+`install.sh` symlinks the wrapper into `~/.local/bin` like any other script.
+Pointing Zed's launcher at it is a manual step, because the desktop entry
+belongs to Zed rather than this repo. The patched copy is kept here:
 
 ```sh
-sed -i 's|^Exec=/home/jed/.local/zed.app/bin/zed|Exec=/home/jed/.local/bin/zed-wrapper|' \
-  ~/.local/share/applications/dev.zed.Zed.desktop
+cp zed/dev.zed.Zed.desktop ~/.local/share/applications/dev.zed.Zed.desktop
 ```
 
-A Zed update can rewrite that file and revert the `Exec` lines. If the commit
-button starts saying "configure an LLM provider" again, check them first.
+**A Zed update overwrites that file**, reverting `Exec` to the raw binary. If
+the commit button starts saying "configure an LLM provider" again after an
+upgrade, re-run the copy above. Zed's own template lives at
+`~/.local/zed.app/share/applications/dev.zed.Zed.desktop` with a bare
+`Exec=zed`, which the installer rewrites to an absolute path, so patching the
+template is not reliable, hence the copy.
+
+Two other fixes are baked into that entry:
+
+- **`Actions=NewWorkspace` is removed.** wofi's drun mode lists desktop actions
+  as their own result, so Zed showed up twice in the launcher.
+- **`Categories` is trimmed** from `Utility;TextEditor;Development;IDE` to drop
+  `Utility`. `Utility` and `Development` are both main categories, which lists
+  the app twice in categorised menus.
 
 ## Sway keybindings
 

@@ -1,0 +1,22 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=Zed
+GenericName=Text Editor
+Comment=A high-performance, multiplayer code editor.
+TryExec=/home/jed/.local/zed.app/bin/zed
+StartupNotify=true
+# Launched via the wrapper so CLAUDE_LOCAL_API_KEY is set for the local Claude
+# shim. See /mnt/shared/projects/dotfiles/scripts/zed-wrapper
+Exec=/home/jed/.local/bin/zed-wrapper %U
+Icon=/home/jed/.local/zed.app/share/icons/hicolor/512x512/apps/zed.png
+# Upstream ships Utility;TextEditor;Development;IDE, but Utility and Development
+# are both main categories, which lists Zed twice in categorised menus.
+Categories=Development;IDE;TextEditor;
+Keywords=zed;
+# To add Zed to "Open Folder With..." context menu, add `inode/directory` to the MimeType field (semicolon separated)
+MimeType=text/plain;application/x-zerosize;x-scheme-handler/zed;
+# The NewWorkspace action is intentionally omitted: wofi's drun mode lists
+# desktop actions as their own entry, so it showed up as a second "Zed".
+# To restore it, add "Actions=NewWorkspace;" here plus a
+# [Desktop Action NewWorkspace] group with Exec and Name.
