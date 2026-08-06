@@ -1,0 +1,22 @@
+#!/bin/sh
+# Launch Zed with the environment it needs for the local Claude shim.
+#
+# Why this exists: Zed requires an API key before it will treat a custom
+# openai_compatible provider as configured, and it normally stores that key in
+# the Secret Service keyring. No keyring daemon runs on this machine, so the
+# UI path is unavailable. Zed's fallback is an env var derived from the
+# provider name: provider "claude-local" -> CLAUDE_LOCAL_API_KEY.
+#
+# emptty does not source ~/.profile, so the sway session environment is bare
+# and exports there never reach GUI apps. Setting the var here is the narrowest
+# fix that actually reaches Zed.
+#
+# The value is deliberately not a secret. zed-claude-shim listens on loopback
+# only and runs with SHIM_API_KEY unset, so it does not check the token; Zed
+# just needs the variable to be present and non-empty.
+#
+# See /mnt/shared/projects/zed-claude-shim
+
+export CLAUDE_LOCAL_API_KEY="unused-local-shim"
+
+exec "$HOME/.local/zed.app/bin/zed" "$@"

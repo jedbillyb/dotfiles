@@ -33,6 +33,9 @@ My personal configuration files.
 - `scripts/wifi-recover-root.sh` - Privileged half of that recovery, installed
   as a root-owned copy at `/usr/local/bin/wifi-recover-root`
 - `scripts/openclaw-send` - openclaw helper script
+- `scripts/zed-wrapper` - Launches Zed with `CLAUDE_LOCAL_API_KEY` set, so Zed
+  accepts the local `claude-local` provider (see "Zed and the local Claude
+  shim" below)
 - `wireguard/wg0.conf.template` - WireGuard client config template (fill in private key)
 
 ## Install
@@ -248,6 +251,42 @@ sudo libinput debug-events --device /dev/input/eventN
 Note that `dwt` (disable-while-typing) is on, so libinput legitimately drops
 motion while you type. Test by swiping with the keyboard idle, or you'll
 misread normal behaviour as the bug.
+
+### Zed and the local Claude shim
+
+Zed's commit-message button is pointed at `zed-claude-shim`
+(`/mnt/shared/projects/zed-claude-shim`), a localhost OpenAI-compatible server
+that forwards to the `claude` CLI. Zed will not use a custom
+`openai_compatible` provider until it has an API key for it, and it normally
+keeps that key in the Secret Service keyring.
+
+Two things get in the way on this machine:
+
+1. **No keyring daemon runs**, so Zed cannot store or read a key at all. The
+   log shows `org.freedesktop.secrets was not provided by any .service files`
+   and `Failed to authenticate provider: ...` for every key-based provider.
+2. **emptty does not source `~/.profile`.** The sway session environment is
+   bare (`PATH=/usr/bin:/usr/sbin`), so exports in `shell/profile` never reach
+   GUI apps. Worth knowing beyond Zed: `GDK_BACKEND` and `SAL_USE_VCLPLUGIN`
+   set there are currently not applied to anything.
+
+Zed's fallback for a missing keyring is an environment variable derived from
+the provider name, so provider `claude-local` reads `CLAUDE_LOCAL_API_KEY`.
+`scripts/zed-wrapper` sets it and execs the real binary. The value is not a
+secret: the shim listens on loopback and runs with `SHIM_API_KEY` unset, so it
+never checks the token; Zed only requires the variable to be present.
+
+`install.sh` symlinks the wrapper into `~/.local/bin` like any other script,
+but pointing Zed's launcher at it is a manual step, because the desktop entry
+belongs to Zed rather than this repo:
+
+```sh
+sed -i 's|^Exec=/home/jed/.local/zed.app/bin/zed|Exec=/home/jed/.local/bin/zed-wrapper|' \
+  ~/.local/share/applications/dev.zed.Zed.desktop
+```
+
+A Zed update can rewrite that file and revert the `Exec` lines. If the commit
+button starts saying "configure an LLM provider" again, check them first.
 
 ## Sway keybindings
 
