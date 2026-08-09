@@ -69,7 +69,8 @@ flock -n 9 || exit 0
 #
 # Edge-anchored (R/L) rather than anywhere-on-screen on purpose -- lisgd cannot
 # swallow the touches it watches, so a mid-screen swipe would also scroll
-# whatever is underneath it. The edge strip is 50px of mostly-dead space.
+# whatever is underneath it. The edge strip is 100px of mostly-dead space (50px
+# scaled by -s below).
 #
 # One or two fingers resizes the boundary the gesture started near --
 # touch-resize.sh does its own hit test with 60px of slop, which is how the gap
@@ -86,34 +87,34 @@ flock -n 9 || exit 0
 # whole drag: the leg start only advances on a match, so a swipe begun at the
 # edge keeps measuring from the edge and never looks like edge N.
 #
-# The cost is that a resize stops once the drag reaches the 50px edge strip,
-# which is also roughly where the outermost windows have no boundary left to
-# drag.
+# The cost is that a resize stops once the drag reaches the edge strip, which is
+# also roughly where the outermost windows have no boundary left to drag.
 #
 # The finger count is passed through because it sets how far from the cached
 # anchor a fire may stray: two fingers report two anchors a hand's width apart,
 # one finger reports one and wants a tight match.
 #
-# -t is how far a swipe has to travel before it counts at all. 35px is ~6mm,
-# tuned down from 100 by feel; it is short enough to flick but still past what a
-# tap or a shaky finger produces. It applies to the release-mode gestures only.
+# -t is how far a swipe has to travel before it counts at all. 25px is ~4.5mm,
+# tuned down from 100 by feel over several rounds. It applies to the
+# release-mode gestures only.
 #
 # Distance was never the reason a swipe failed to register, though. Three
 # defaults were, and all three are loosened here:
 #
-#   -r 30   Direction leniency, in degrees, default 15. A swipe had to be within
+#   -r 40   Direction leniency, in degrees, default 15. A swipe had to be within
 #           15 degrees of dead horizontal or it was thrown away -- and a thumb
-#           coming in from the edge arcs, so plenty of real swipes missed. 30 is
-#           forgiving without reaching the 45 where every angle matches
-#           something; nothing diagonal is bound here anyway.
+#           coming in from the edge arcs, so plenty of real swipes missed. 45 is
+#           the ceiling, where every angle matches something; 40 is just short of
+#           it, which is fine because only the four cardinal directions are
+#           bound and nothing diagonal competes.
 #
-#   -m 2500 The whole gesture must finish this long after touch-down, default
+#   -m 3000 The whole gesture must finish this long after touch-down, default
 #           800. A slow, deliberate swipe simply never fired. It also gates the
 #           pressed path, where the clock restarts on each fire -- so at 1000 a
 #           pause of more than a second mid-drag killed resizing until you
 #           lifted your fingers.
 #
-#   -s 1.6  Scales the 50px edge strips to 80px. The workspace swipes only count
+#   -s 2.0  Scales the 50px edge strips to 100px. The workspace swipes only count
 #           when they start (or end) in one, and starting a little inboard of a
 #           50px strip is easy to do without noticing.
 #
@@ -124,15 +125,22 @@ flock -n 9 || exit 0
 # speeds 10px already fires faster than the display refreshes, so the extra
 # updates would be thrown away, while each one still makes clients relayout.
 #
-# Four fingers resizes the focused window from anywhere, no aiming. It stays
-# because two fingers cannot be made exclusive: a browser reads a 2-finger
-# horizontal swipe as back/forward, and lisgd cannot swallow the touch.
+# Nothing is bound to three or four fingers any more. Those gestures fire on
+# release, and a release gesture only counts the fingers whose *own* swipe
+# matched: with three or four down, one of them almost always drifts off
+# direction, so the count falls short and nothing happens. Close-window was the
+# clearest case -- it fired rarely enough to be useless and, when it did fire,
+# closed a window with no confirmation.
+#
+# Dropping them is also what makes the loose recognition above safe. The only
+# things left are switching workspace, the launcher, and resizing, and none of
+# them destroys anything, so a stray match costs a swipe back.
 exec "$LISGD" -d "$DEV" \
-    -t 35 \
+    -t 25 \
     -T 10 \
-    -r 30 \
-    -m 2500 \
-    -s 1.6 \
+    -r 40 \
+    -m 3000 \
+    -s 2.0 \
     -g "1,RL,R,*,R,swaymsg workspace next_on_output" \
     -g "1,LR,L,*,R,swaymsg workspace prev_on_output" \
     -g "1,DU,B,*,R,$HOME/.local/bin/spotlight" \
@@ -143,12 +151,4 @@ exec "$LISGD" -d "$DEV" \
     -g "2,LR,*,*,P,$RESIZE right 2" \
     -g "2,RL,*,*,P,$RESIZE left 2" \
     -g "2,UD,*,*,P,$RESIZE down 2" \
-    -g "2,DU,*,*,P,$RESIZE up 2" \
-    -g "4,LR,*,*,R,swaymsg resize grow width 60 px" \
-    -g "4,RL,*,*,R,swaymsg resize shrink width 60 px" \
-    -g "4,UD,*,*,R,swaymsg resize grow height 60 px" \
-    -g "4,DU,*,*,R,swaymsg resize shrink height 60 px" \
-    -g "3,RL,*,*,R,swaymsg focus right" \
-    -g "3,LR,*,*,R,swaymsg focus left" \
-    -g "3,DU,*,*,R,swaymsg fullscreen toggle" \
-    -g "3,UD,*,*,R,swaymsg kill"
+    -g "2,DU,*,*,P,$RESIZE up 2"

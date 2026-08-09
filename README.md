@@ -289,24 +289,30 @@ reason it exists.
 | 1 finger, up from the **bottom** edge | Spotlight launcher |
 | 1 finger, near a window boundary (not on an edge) | Drag that boundary (see below) |
 | 2 fingers, near a window boundary | Drag that boundary (see below) |
-| 4 fingers, left / right (anywhere) | Grow / shrink focused window width |
-| 4 fingers, down / up (anywhere) | Grow / shrink focused window height |
-| 3 fingers, left / right (anywhere) | Focus window left / right |
-| 3 fingers, up (anywhere) | Toggle fullscreen |
-| 3 fingers, down (anywhere) | Close window |
 
-`-t 35` is how far a swipe must travel to count at all (~6mm here). Distance was
+Nothing is bound to three or four fingers. A release gesture only counts the
+fingers whose *own* swipe matched, and with three or four down one of them
+almost always drifts off direction, so the count falls short and nothing
+happens. Close-window was the clearest case: too unreliable to use, and when it
+did fire it closed a window with no confirmation.
+
+Dropping them is what makes the loose recognition below safe — switching
+workspace, opening the launcher and resizing are all reversible, so a stray
+match costs a swipe back.
+
+`-t 25` is how far a swipe must travel to count at all (~4.5mm here). Distance was
 never what made a swipe fail to register, though — three other defaults were,
 and all three are loosened:
 
 | flag | default | here | why |
 | --- | --- | --- | --- |
-| `-r` | 15 | 30 | Degrees of slack on direction. A swipe had to be within 15° of dead horizontal, and a thumb coming in from the edge arcs. |
-| `-m` | 800 | 2500 | How long the gesture may take. A slow, deliberate swipe never fired. Also gates the pressed path, so at 1000 a pause of more than a second mid-drag killed resizing until you lifted. |
-| `-s` | 1.0 | 1.6 | Scales the 50px edge strips to 80px. Workspace swipes only count if they start or end in one. |
+| `-r` | 15 | 40 | Degrees of slack on direction. A swipe had to be within 15° of dead horizontal, and a thumb coming in from the edge arcs. |
+| `-m` | 800 | 3000 | How long the gesture may take. A slow, deliberate swipe never fired. Also gates the pressed path, so at 1000 a pause of more than a second mid-drag killed resizing until you lifted. |
+| `-s` | 1.0 | 2.0 | Scales the 50px edge strips to 100px. Workspace swipes only count if they start or end in one. |
 
-45 is the ceiling on `-r`, where every angle matches something; 30 is forgiving
-without going there, and nothing diagonal is bound anyway.
+45 is the ceiling on `-r`, where every angle matches something. 40 sits just
+short of it, which is safe here because only the four cardinal directions are
+bound and nothing diagonal competes for the match.
 
 The single-finger *workspace* gestures are anchored to a screen edge on purpose.
 lisgd cannot swallow the touches it watches, so the app underneath sees them
@@ -721,11 +727,6 @@ key rather than the keymap symbol.
 | 1 finger, up from bottom edge | Spotlight launcher |
 | 1 finger near a window boundary (not on an edge) | Drag that boundary |
 | 2 fingers near a window boundary | Drag that boundary |
-| 4 fingers left / right | Grow / shrink focused window width |
-| 4 fingers down / up | Grow / shrink focused window height |
-| 3 fingers left / right | Focus window left / right |
-| 3 fingers up | Toggle fullscreen |
-| 3 fingers down | Close window |
 
 Windows also resize by dragging their (invisible) edges. See "Touchscreen
 gestures" and "Touch-resizing windows and invisible borders" above.
