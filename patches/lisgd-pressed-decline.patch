@@ -1,0 +1,169 @@
+Let a pressed gesture's command decline the swipe it was matched for.
+
+lisgd fires a pressed gesture repeatedly during a drag, and on each match it
+advances that slot's leg start, so what a release gesture is finally measured
+over is only the travel since the last pressed fire. It treats a *binding match*
+as success, whatever the command did.
+
+That is wrong whenever a pressed binding is conditional. Here the one-finger
+resize bindings run touch-resize.sh, which does nothing unless the finger is
+near a window boundary -- and it usually is not, because dragging a finger is
+also how you scroll. Every such drag still counted, so any release gesture that
+began away from a screen edge arrived at touch-up measuring about 10px and was
+read as no swipe at all. Close-window never fired once; a verbose capture showed
+four attempts in a row arriving as swipe -1, against four no-op resize fires.
+
+So: a command that exits non-zero has matched but declined, and the leg is left
+alone to go on growing into whatever gesture it turns out to be. Exiting zero
+keeps the old meaning. Anything odd -- system() failing, a signal -- counts as
+acted upon, which is also the old behaviour.
+
+Declining still has to advance *something*, or a binding that never acts would
+fire on every motion event for the whole drag. Hence xfire[], the point of the
+last fire, kept separate from xstart[]: the pressed leg is measured from it, so
+the throttle stays one fire per distancethreshold_pressed of travel either way,
+while xstart keeps meaning "where the swipe a release gesture will see began".
+
+Applies on top of lisgd-export-gesture-coords.patch and
+lisgd-cardinals-before-diagonals.patch.
+
+--- a/lisgd.c
++++ b/lisgd.c
+@@ -8,6 +8,7 @@
+ #include <string.h>
+ #include <sys/prctl.h>
+ #include <sys/select.h>
++#include <sys/wait.h>
+ #include <time.h>
+ #include <unistd.h>
+ #ifdef WITH_X11
+@@ -48,6 +49,14 @@
+ };
+ typedef int Edge;
+ 
++/* What gestureexecute() did. A command may match a binding and still decline to
++ * act on it, by exiting non-zero -- see the comment there. */
++enum {
++	GestureNoMatch,
++	GestureActed,
++	GestureDeclined
++};
++
+ enum {
+ 	DistanceAny,
+ 	DistanceShort,
+@@ -88,6 +97,11 @@
+  * gestureexecute() runs on release. A command that cares about position wants
+  * the point the drag was anchored at, which neither of those still holds. */
+ double xdown[MAXSLOTS], ydown[MAXSLOTS];
++/* Where this slot last *fired* a pressed gesture. Separate from xstart, which is
++ * the start of the leg a release gesture will be measured over: a declined
++ * pressed gesture has to advance the throttle without disturbing that leg, or a
++ * conditional binding that never acts would still fire on every motion event. */
++double xfire[MAXSLOTS], yfire[MAXSLOTS];
+ double lastxstart = -1, lastystart = -1;
+ /* Where the finger is *now*. A command that positions something absolutely
+  * needs this rather than a step count: it can then be idempotent, so a backlog
+@@ -233,7 +247,7 @@
+ 
+ int
+ gestureexecute(Swipe swipe, int nfingers, Edge edge, Distance distance, ActMode actmode) {
+-	int i;
++	int i, status;
+ 
+ 	for (i = 0; i < gestsarrlen; i++) {
+ 		if (verbose) {
+@@ -264,11 +278,19 @@
+ 			setenv("LISGD_CUR_X", coordbuf, 1);
+ 			snprintf(coordbuf, sizeof(coordbuf), "%d", (int)lastycur);
+ 			setenv("LISGD_CUR_Y", coordbuf, 1);
+-			system(gestsarr[i].command);
+-			return 1; //execute first match only
++			status = system(gestsarr[i].command);
++			/* A command that exits non-zero has *declined* the gesture: it
++			 * matched the binding but did nothing. Report that separately, so a
++			 * pressed gesture bound to something conditional -- resizing only
++			 * when there is a boundary under the finger -- does not consume a
++			 * swipe it never acted on. Anything unusual (system() failing, a
++			 * signal) counts as acted-upon, which is the old behaviour. */
++			if (status != -1 && WIFEXITED(status) && WEXITSTATUS(status) != 0)
++				return GestureDeclined;
++			return GestureActed; //execute first match only
+ 		}
+ 	}
+-	return 0;
++	return GestureNoMatch;
+ }
+ 
+ static int
+@@ -334,6 +356,8 @@
+ 	ystart[slot] = libinput_event_touch_get_y_transformed(tevent, screenheight);
+ 	xdown[slot] = xstart[slot];
+ 	ydown[slot] = ystart[slot];
++	xfire[slot] = xstart[slot];
++	yfire[slot] = ystart[slot];
+ 	if (nfdown == 0) clock_gettime(CLOCK_MONOTONIC_RAW, &timedown);
+ 	nfdown++;
+ }
+@@ -344,6 +368,8 @@
+ 	yend[slot] = NOMOTION;
+ 	xstart[slot] = NOMOTION;
+ 	ystart[slot] = NOMOTION;
++	xfire[slot] = NOMOTION;
++	yfire[slot] = NOMOTION;
+ }
+ 
+ 
+@@ -360,12 +386,15 @@
+ 	yend[slot] = libinput_event_touch_get_y_transformed(tevent, screenheight);
+ 
+ 	if (have_actmode_pressed) {
++		/* Measured from the last fire rather than from xstart, so that a
++		 * declined gesture can still throttle the next attempt. While a
++		 * command keeps acting the two are the same point. */
+ 		Swipe swipe = gesturecalculateswipe(
+-			xstart[slot], ystart[slot], xend[slot], yend[slot], distancethreshold_pressed
++			xfire[slot], yfire[slot], xend[slot], yend[slot], distancethreshold_pressed
+ 		);
+ 		if (swipe != -1) {
+ 			Edge edge = gesturecalculateedge(
+-				xstart[slot], ystart[slot], xend[slot], yend[slot]
++				xfire[slot], yfire[slot], xend[slot], yend[slot]
+ 			);
+ 			clock_gettime(CLOCK_MONOTONIC_RAW, &now);
+ 			if (
+@@ -377,12 +406,24 @@
+ 				lastystart = ydown[slot];
+ 				lastxcur = xend[slot];
+ 				lastycur = yend[slot];
+-				if (gestureexecute(swipe, nfdown, edge, DistanceAny, ActModePressed)) {
++				int result = gestureexecute(swipe, nfdown, edge, DistanceAny, ActModePressed);
++				if (result != GestureNoMatch) {
++					/* Either way the throttle moves up, so the next attempt
++					 * waits for another distancethreshold_pressed of travel. */
++					xfire[slot] = xend[slot];
++					yfire[slot] = yend[slot];
++				}
++				if (result == GestureActed) {
+ 					//we found and executed a matching gesture, reset the slot
+ 					if (verbose) fprintf(stderr, "(Pressed gestured Executed)\n");
+ 					xstart[slot] = xend[slot];
+ 					ystart[slot] = yend[slot];
+ 					timedown = now;
++				} else if (result == GestureDeclined) {
++					/* The command matched but did nothing, so this was not
++					 * really the user's gesture: leave the leg alone and let it
++					 * go on growing into whatever release gesture it becomes. */
++					if (verbose) fprintf(stderr, "(Pressed gesture declined)\n");
+ 				}
+ 			}
+ 		}
+@@ -471,6 +512,8 @@
+ 		yend[i] = NOMOTION;
+ 		xstart[i] = NOMOTION;
+ 		ystart[i] = NOMOTION;
++		xfire[i] = NOMOTION;
++		yfire[i] = NOMOTION;
+ 	}
+ 
+ 	FD_ZERO(&fdset);

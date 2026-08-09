@@ -66,6 +66,20 @@ ANCHOR_SLOP = {1: 60, 2: 250}
 # default is only for running this by hand.
 FIFO = os.environ.get("TOUCH_RESIZE_FIFO") or f"/tmp/touch-resize-{os.getuid()}.fifo"
 
+# Exists only while a drag is actually holding a boundary. touch-resize.sh tests
+# for it and exits non-zero when it is missing, which the patched lisgd reads as
+# "this gesture was declined" and so leaves the swipe intact -- see
+# patches/lisgd-pressed-decline.patch. Without it a one-finger drag that grabbed
+# nothing (a scroll, or a swipe aimed at the top edge that started a little low)
+# still counted as a resize and quietly destroyed the swipe it was part of.
+#
+# A file rather than anything cleverer because the reader is one `sh` on the
+# gesture's critical path, and a test for existence is a single syscall there.
+# It necessarily describes the *previous* fire, which costs nothing: a real drag
+# spends one extra fire before lisgd starts consuming its swipe, and a miss is
+# reported from the first fire onwards, which is the case that matters.
+GRABBED = os.environ.get("TOUCH_RESIZE_GRABBED") or f"/tmp/touch-resize-{os.getuid()}.grabbed"
+
 
 class Sway:
     """Just enough of the i3 IPC to ask for the tree and run a command."""
@@ -169,6 +183,19 @@ def pick_boundary(tree, x, y, horizontal):
     return None if best is None else best[1]
 
 
+def set_grabbed(held):
+    """Publish whether a boundary is currently held, for touch-resize.sh."""
+    try:
+        if held:
+            os.close(os.open(GRABBED, os.O_CREAT | os.O_WRONLY, 0o600))
+        else:
+            os.unlink(GRABBED)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        pass
+
+
 class Resizer:
     def __init__(self, sway):
         self.sway = sway
@@ -196,7 +223,9 @@ class Resizer:
                 ttl = NEG_TTL if con is None else TTL
                 self.drag = (time.monotonic() + ttl, dx, dy, daxis, con, osize)
                 if con is None:
+                    set_grabbed(False)
                     return
+                set_grabbed(True)
                 self.resize(con, osize, axis, x, y, cur_x, cur_y)
                 return
 
@@ -205,9 +234,11 @@ class Resizer:
         low = pick_boundary(self.sway.tree(), x, y, horizontal)
         if low is None:
             self.drag = (time.monotonic() + NEG_TTL, x, y, axis, None, 0)
+            set_grabbed(False)
             return
         osize = low["rect"]["width"] if horizontal else low["rect"]["height"]
         self.drag = (time.monotonic() + TTL, x, y, axis, low["id"], osize)
+        set_grabbed(True)
         self.resize(low["id"], osize, axis, x, y, cur_x, cur_y)
 
     def resize(self, con, osize, axis, x, y, cur_x, cur_y):
@@ -242,6 +273,10 @@ def main():
     swaysock = os.environ.get("SWAYSOCK")
     if not swaysock:
         sys.exit("touch-resized: no SWAYSOCK")
+
+    # Nothing is held yet, and a flag left behind by a previous daemon would
+    # otherwise let the first gesture of this one eat a swipe.
+    set_grabbed(False)
 
     resizer = Resizer(Sway(swaysock))
     fd = open_fifo()

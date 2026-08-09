@@ -19,6 +19,7 @@ LISGD=$HOME/.local/bin/lisgd
 RESIZE=$HOME/.local/bin/touch-resize.sh
 RESIZED=$HOME/.local/bin/touch-resized.py
 RESIZED_LOCK=/tmp/touch-resized.lock
+WSNEW=$HOME/.local/bin/workspace-new.py
 
 # Passed down to touch-resize.sh through lisgd, so that script does not have to
 # fork `id -u` to name it. It is now small enough that a fork would be most of
@@ -26,10 +27,17 @@ RESIZED_LOCK=/tmp/touch-resized.lock
 TOUCH_RESIZE_FIFO=/tmp/touch-resize-$(id -u).fifo
 export TOUCH_RESIZE_FIFO
 
+# Present only while the daemon actually holds a window boundary. touch-resize.sh
+# exits non-zero when it is missing, which the patched lisgd takes as "declined"
+# and so leaves the swipe intact for whatever release gesture it turns out to be.
+TOUCH_RESIZE_GRABBED=/tmp/touch-resize-$(id -u).grabbed
+export TOUCH_RESIZE_GRABBED
+
 [ -e "$DEV" ] || { echo "touch-gestures: no $DEV, is the udev rule installed?" >&2; exit 1; }
 [ -x "$LISGD" ] || { echo "touch-gestures: no lisgd at $LISGD" >&2; exit 1; }
 [ -x "$RESIZE" ] || { echo "touch-gestures: no touch-resize.sh at $RESIZE" >&2; exit 1; }
 [ -x "$RESIZED" ] || { echo "touch-gestures: no touch-resized.py at $RESIZED" >&2; exit 1; }
+[ -x "$WSNEW" ] || { echo "touch-gestures: no workspace-new.py at $WSNEW" >&2; exit 1; }
 
 # usermod only takes effect at the next login, so on the session where the
 # group was first granted this process still lacks it. sg picks the membership
@@ -67,6 +75,17 @@ flock -n 9 || exit 0
 # Edge swipes switch workspaces, iPad style: drag in from the right edge and
 # the workspace to the right comes with your finger.
 #
+# The same swipe carried two thirds of the way across the screen (L, ~1270px
+# here) instead goes to a new *empty* workspace in that direction, via
+# workspace-new.py. `workspace next_on_output` only cycles what already exists,
+# so without this there is no way to reach somewhere blank to start something in
+# -- which matters far more without a keyboard than with one.
+#
+# Those two bindings must come before the plain ones: lisgd takes the first
+# match and a binding written `*` matches every distance, so an L binding listed
+# after one would never be reached. Distance is a floor, not a band -- the check
+# is `configured <= measured`.
+#
 # Edge-anchored (R/L) rather than anywhere-on-screen on purpose -- lisgd cannot
 # swallow the touches it watches, so a mid-screen swipe would also scroll
 # whatever is underneath it. The edge strip is 100px of mostly-dead space (50px
@@ -101,18 +120,38 @@ flock -n 9 || exit 0
 # Distance was never the reason a swipe failed to register, though. Three
 # defaults were, and all three are loosened here:
 #
-#   -r 40   Direction leniency, in degrees, default 15. A swipe had to be within
+#   -r 45   Direction leniency, in degrees, default 15. A swipe had to be within
 #           15 degrees of dead horizontal or it was thrown away -- and a thumb
-#           coming in from the edge arcs, so plenty of real swipes missed. 45 is
-#           the ceiling, where every angle matches something; 40 is just short of
-#           it, which is fine because only the four cardinal directions are
-#           bound and nothing diagonal competes.
+#           coming in from the edge arcs, so plenty of real swipes missed.
 #
-#   -m 3000 The whole gesture must finish this long after touch-down, default
+#           Raising it alone made things worse, not better, and it took a verbose
+#           log to see why: lisgd tests the eight directions in ascending angle
+#           order and takes the first whose band contains the swipe, so once the
+#           bands overlap a diagonal claims angles belonging to the cardinal
+#           after it. At 40 a right-to-left swipe was accepted only between 265
+#           and 310 degrees -- 40 degrees of slack anticlockwise, 5 clockwise --
+#           and ten of twelve real edge swipes came out as the unbound diagonal
+#           URDL and did nothing. That is the "only works one in three".
+#
+#           patches/lisgd-cardinals-before-diagonals.patch asks the cardinals
+#           first, which is what makes a wide leniency behave the way it reads.
+#           With that in place 45 is the value that covers the whole circle: every
+#           swipe lands in exactly one cardinal band, so there is no angle at
+#           which a swipe is silently discarded. Nothing diagonal is bound, so
+#           giving the diagonals no room costs nothing.
+#
+#   -m 5000 The whole gesture must finish this long after touch-down, default
 #           800. A slow, deliberate swipe simply never fired. It also gates the
 #           pressed path, where the clock restarts on each fire -- so at 1000 a
 #           pause of more than a second mid-drag killed resizing until you
 #           lifted your fingers.
+#
+#           3000 was enough until the new-workspace gesture below, which asks for
+#           a swipe two thirds of the way across the screen: that is an arm
+#           movement rather than a thumb flick, and doing it slowly and
+#           deliberately -- which is the point of it -- can take longer than
+#           three seconds. The ceiling only ever discards gestures, so raising it
+#           costs nothing.
 #
 #   -s 2.0  Scales the 50px edge strips to 100px. The workspace swipes only count
 #           when they start (or end) in one, and starting a little inboard of a
@@ -125,22 +164,37 @@ flock -n 9 || exit 0
 # speeds 10px already fires faster than the display refreshes, so the extra
 # updates would be thrown away, while each one still makes clients relayout.
 #
-# Two fingers up closes the window, and is the one destructive gesture here, so
-# it carries a distance guard the others do not: the M in that binding means at
+# A swipe down from the top edge closes the window. It is the one destructive
+# gesture here, so it carries a distance guard the others do not: the M means at
 # least a *medium* swipe, a third of the screen height (400px), which is not
-# something a stray touch produces.
+# something a stray touch produces. The top edge is otherwise unused -- left and
+# right switch workspace, bottom opens the launcher -- and waybar is only 16px of
+# the 100px strip, so there is room to start the drag on the window itself.
+#
+# It is deliberately anchored to an edge rather than bound to two fingers
+# anywhere, because edge-anchored is the only kind of release gesture that
+# survives here. A *pressed* gesture that matches advances that finger's leg
+# start (lisgd.c, touchmotion), and lisgd counts a binding match as success even
+# when the command did nothing -- which the resize bindings below usually do,
+# since there is rarely a window boundary within 60px. So any release gesture
+# starting mid-screen gets ground down to a ~10px stub and reads as no swipe at
+# all. That is what killed the old `2,DU,*,M,R` close: a verbose log showed all
+# four attempts arriving as swipe -1. A swipe begun in an edge strip is immune,
+# because the edge is computed from the touch-down point and stays L/R/T/B for
+# the whole drag, so the N-gated resize bindings can never match it.
 #
 # Three and four fingers are bound to nothing. Those gestures fire on release,
 # and a release gesture only counts the fingers whose *own* swipe matched: with
 # three or four down one always drifts off direction, the count falls short, and
 # nothing happens -- which is exactly why close-window never worked on three.
-# Two is the most that stays reliable.
 exec "$LISGD" -d "$DEV" \
     -t 25 \
     -T 10 \
-    -r 40 \
-    -m 3000 \
+    -r 45 \
+    -m 5000 \
     -s 2.0 \
+    -g "1,RL,R,L,R,$WSNEW right" \
+    -g "1,LR,L,L,R,$WSNEW left" \
     -g "1,RL,R,*,R,swaymsg workspace next_on_output" \
     -g "1,LR,L,*,R,swaymsg workspace prev_on_output" \
     -g "1,DU,B,*,R,$HOME/.local/bin/spotlight" \
@@ -148,4 +202,4 @@ exec "$LISGD" -d "$DEV" \
     -g "1,RL,N,*,P,$RESIZE left 1" \
     -g "1,UD,N,*,P,$RESIZE down 1" \
     -g "1,DU,N,*,P,$RESIZE up 1" \
-    -g "2,DU,*,M,R,swaymsg kill"
+    -g "1,UD,T,M,R,swaymsg kill"

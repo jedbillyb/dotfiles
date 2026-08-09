@@ -43,13 +43,23 @@ My personal configuration files.
   swipe does not also land on the app underneath. **Unfinished and disabled in
   the sway config** — see "Stopping the swipe from also hitting the app"
 - `scripts/touch-resize.sh` - What a resize gesture runs: writes one line to a
-  FIFO and exits, so the gesture pays ~1ms
+  FIFO and exits, so the gesture pays ~1ms. Its exit status tells lisgd whether
+  the gesture was really a resize
 - `scripts/touch-resized.py` - The daemon behind it, holding the sway IPC socket
   open; resizes the tiled window boundary nearest the gesture, giving the 10px
   gap a fingertip-sized grab region
+- `scripts/workspace-new.py` - Switches to the nearest *unused* workspace number
+  in one direction, which a long edge swipe runs; `workspace next_on_output`
+  only cycles ones that already exist
 - `patches/lisgd-export-gesture-coords.patch` - Local lisgd patch exporting
   `LISGD_X`/`LISGD_Y` (anchor) and `LISGD_CUR_X`/`LISGD_CUR_Y` (live position),
   which touch resize depends on
+- `patches/lisgd-cardinals-before-diagonals.patch` - Matches the four cardinal
+  directions before the diagonals, so a wide `-r` stops the diagonals swallowing
+  most real swipes
+- `patches/lisgd-pressed-decline.patch` - Lets a pressed gesture's command exit
+  non-zero to say it did nothing, so a no-op resize stops destroying the swipe
+  it was part of
 - `udev/99-touchscreen-lisgd.rules` - Stable `/dev/input/touchscreen` symlink
   and group access for that daemon
 - `scripts/openclaw-send` - openclaw helper script
@@ -289,21 +299,38 @@ reason it exists.
 | --- | --- |
 | 1 finger, in from the **right** edge | Next workspace |
 | 1 finger, in from the **left** edge | Previous workspace |
+| 1 finger, in from the **right/left** edge, **two thirds across** | New *empty* workspace that way |
 | 1 finger, up from the **bottom** edge | Spotlight launcher |
+| 1 finger, down from the **top** edge, a third of the screen or more | Close the focused window |
 | 1 finger, near a window boundary (not on an edge) | Drag that boundary (see below) |
-| 2 fingers, up, a third of the screen or more | Close the focused window |
 
-Close-window carries a distance guard (`M` in its binding — at least a *medium*
-swipe, 400px here) that nothing else does, because it is the only destructive
-gesture. Two fingers is also the most that stays reliable: a release gesture
-counts only the fingers whose own swipe matched, and on three or four one always
-drifts off direction, which is why it never worked on three.
+`workspace next_on_output` only cycles the workspaces that already exist, so
+there is otherwise no way to swipe to somewhere blank and start something in it —
+which matters much more without a keyboard than with one. Carrying the same edge
+swipe two thirds of the way across the screen (`L`, ~1270px) runs
+`scripts/workspace-new.py` instead, which switches to the nearest *unused*
+number in that direction. Numbers here are sparse, so going right from 1 lands
+on 3 rather than one past the end, keeping the new workspace next to where you
+were. It does nothing if you are already on an empty workspace, so repeating the
+swipe cannot leave a trail of empties.
+
+Those two bindings are listed **before** the plain ones. lisgd takes the first
+match and a distance of `*` matches everything, so an `L` binding placed after
+one would never be reached. Distance is a floor, not a band — the test is
+`configured <= measured`.
+
+Close-window carries a distance guard (`M` — at least a *medium* swipe, 400px
+here) that nothing else does, because it is the only destructive gesture, and it
+is anchored to the top edge rather than bound to two fingers anywhere. That is
+not cosmetic: it is the only shape of release gesture that survives here, for
+the reason described under "a pressed gesture can decline" below. The old
+`2,DU,*,M,R` never fired once — a verbose capture caught all four attempts
+arriving as *swipe -1*, ground down by no-op resize fires.
 
 Nothing is bound to three or four fingers. A release gesture only counts the
 fingers whose *own* swipe matched, and with three or four down one of them
 almost always drifts off direction, so the count falls short and nothing
-happens. Close-window was the clearest case: too unreliable to use, and when it
-did fire it closed a window with no confirmation.
+happens.
 
 Dropping them is what makes the loose recognition below safe — switching
 workspace, opening the launcher and resizing are all reversible, so a stray
@@ -315,23 +342,36 @@ and all three are loosened:
 
 | flag | default | here | why |
 | --- | --- | --- | --- |
-| `-r` | 15 | 40 | Degrees of slack on direction. A swipe had to be within 15° of dead horizontal, and a thumb coming in from the edge arcs. |
-| `-m` | 800 | 3000 | How long the gesture may take. A slow, deliberate swipe never fired. Also gates the pressed path, so at 1000 a pause of more than a second mid-drag killed resizing until you lifted. |
+| `-r` | 15 | 45 | Degrees of slack on direction. A swipe had to be within 15° of dead horizontal, and a thumb coming in from the edge arcs. |
+| `-m` | 800 | 5000 | How long the gesture may take. A slow, deliberate swipe never fired. Also gates the pressed path, so at 1000 a pause of more than a second mid-drag killed resizing until you lifted. Raised again for the new-workspace swipe, which is an arm movement rather than a flick. |
 | `-s` | 1.0 | 2.0 | Scales the 50px edge strips to 100px. Workspace swipes only count if they start or end in one. |
 
-45 is the ceiling on `-r`, where every angle matches something. 40 sits just
-short of it, which is safe here because only the four cardinal directions are
-bound and nothing diagonal competes for the match.
+**Raising `-r` on its own made swipes worse, and this is worth knowing before
+touching it again.** lisgd tests the eight directions in ascending angle order
+and takes the first whose band — the direction ±`-r` — contains the swipe. Past
+22.5° those bands overlap, and since the diagonals are interleaved with the
+cardinals, a diagonal claims part of the range belonging to the cardinal after
+it. At `-r 40`, `URDL` (225°) covered everything up to 265°, leaving a
+right-to-left swipe accepting only 265–310°: 40° of slack one way and 5° the
+other. Real swipes arc, so they mostly landed in the stolen range and came out
+as a diagonal nothing was bound to. A verbose capture showed **ten of twelve**
+edge swipes lost this way — the "only works one in three" symptom.
+
+`patches/lisgd-cardinals-before-diagonals.patch` asks the four cardinals first
+and leaves the diagonals the gaps. With that applied, `-r 45` makes the cardinals
+tile the whole circle: every swipe resolves to exactly one of them and none is
+silently discarded. Nothing diagonal is bound, so they lose nothing.
 
 The single-finger *workspace* gestures are anchored to a screen edge on purpose.
 lisgd cannot swallow the touches it watches, so the app underneath sees them
 too — a mid-screen swipe would scroll the page as well as switch workspace. The
-edge strips are 50px of mostly dead space, which keeps the two apart.
+edge strips are 100px of mostly dead space (50px scaled by `-s 2.0`), which
+keeps the two apart.
 
-One- and two-finger swipes resize the *boundary the gesture started near*, via
-`scripts/touch-resize.sh`. They are bound in lisgd's **pressed** mode (`P`
-rather than `R`), so they fire every 20px *during* the drag instead of once on
-release — the window tracks your fingers rather than hopping when you let go.
+A single-finger swipe resizes the *boundary the gesture started near*, via
+`scripts/touch-resize.sh`. It is bound in lisgd's **pressed** mode (`P` rather
+than `R`), so it fires every 10px *during* the drag instead of once on
+release — the window tracks your finger rather than hopping when you let go.
 That script does its own hit test with 60px of slop, which is the whole point:
 it gives the gap between two windows a fingertip-sized grab region while the gap
 itself stays 10px on screen. Sway cannot do this — `find_edge()` tests against
@@ -352,20 +392,54 @@ stub and no longer registers as a swipe; with `*` the edge swipes above would
 simply never fire. `N` keeps them apart for the whole drag, because that leg
 start only advances on a match — a swipe begun at the edge keeps measuring from
 the edge and never looks like edge `N`. The cost is that a one-finger resize
-stops when the drag reaches the 50px edge strip; two fingers have no such
-restriction.
+stops when the drag reaches the edge strip.
 
-That needs to know *where* the gesture started, which upstream lisgd does not
-tell the command — it calls `system()` and nothing else. `patches/`
-`lisgd-export-gesture-coords.patch` adds `LISGD_X` / `LISGD_Y` to the
-environment first (capturing them before `resetslot()` wipes them). Reapply it
-after any lisgd update, or touch resize silently stops working:
+`N` is only half the answer, though: it protects gestures that *start* on an
+edge, and nothing else. See "a pressed gesture can decline" below for the rest.
+
+#### A pressed gesture can decline
+
+Binding a conditional action to pressed mode has a trap in it, and it cost every
+mid-screen release gesture in this config until it was found. lisgd advances the
+slot's leg start on each pressed match, and it counts a **binding match** as
+success regardless of what the command did. The resize bindings usually do
+nothing — there is rarely a boundary within 60px, since dragging a finger is
+mostly just scrolling — yet each no-op still consumed the swipe. Anything that
+began away from a screen edge therefore arrived at touch-up measuring about 10px
+and read as *no swipe at all*, which is why close-window could never fire.
+
+`patches/lisgd-pressed-decline.patch` makes a non-zero exit mean "matched but
+declined": the leg is left alone to grow into whatever gesture it turns out to
+be. `touch-resized.py` keeps a flag file present exactly while it holds a
+boundary and `touch-resize.sh` tests for it, so the decision stays where the
+knowledge is and costs one syscall on the gesture's critical path. Declining
+still advances a separate throttle (`xfire[]`), or a binding that never acts
+would fire on every motion event of every scroll.
+
+This is why close-window is anchored to an **edge** rather than bound to two
+fingers mid-screen: an edge-anchored swipe was immune even before the patch,
+since the edge is computed from the touch-down point and stays `L`/`R`/`T`/`B`
+for the whole drag, so an `N`-gated resize can never match it.
+
+#### Keeping the patches applied
+
+Three local patches are needed, in this order. Reapply after any lisgd update, or
+touch resize silently stops working and gestures start eating each other:
 
 ```sh
 cd /mnt/shared/projects/lisgd
-git apply /mnt/shared/projects/dotfiles/patches/lisgd-export-gesture-coords.patch
+for p in lisgd-export-gesture-coords \
+         lisgd-cardinals-before-diagonals \
+         lisgd-pressed-decline; do
+  git apply /mnt/shared/projects/dotfiles/patches/$p.patch
+done
 make WITHOUT_X11=1 && install -m755 lisgd ~/.local/bin/lisgd
 ```
+
+The first exists because upstream lisgd does not tell the command *where* the
+gesture started — it calls `system()` and nothing else. It adds `LISGD_X` /
+`LISGD_Y` (and `LISGD_CUR_X` / `LISGD_CUR_Y`) to the environment first,
+capturing them before `resetslot()` wipes them.
 
 **The boundary is moved *to* the finger, not *by* a step**, and that is the
 whole reason it keeps up. Stepping (`resize grow width N px` per fire) makes
@@ -401,7 +475,7 @@ died permanently, because a re-pick searches near the original anchor and by
 then the boundary has been dragged well clear of it.
 
 **Per-fire cost is the lag**, because lisgd blocks in `system()` until the
-command returns, and in pressed mode that is every 20px of finger travel. So the
+command returns, and in pressed mode that is every 10px of finger travel. So the
 work is not done there at all. `scripts/touch-resized.py` is a daemon holding
 the sway IPC socket open with the drag state in memory, and `touch-resize.sh` —
 the thing lisgd actually runs — is one `sh` that writes a line to a FIFO and
@@ -776,9 +850,10 @@ key rather than the keymap symbol.
 | --- | --- |
 | 1 finger, in from right edge | Next workspace |
 | 1 finger, in from left edge | Previous workspace |
+| 1 finger, in from right/left edge, two thirds across | New empty workspace that way |
 | 1 finger, up from bottom edge | Spotlight launcher |
+| 1 finger, down from top edge, a third of the screen | Close the focused window |
 | 1 finger near a window boundary (not on an edge) | Drag that boundary |
-| 2 fingers up, a third of the screen | Close the focused window |
 
 Windows also resize by dragging their (invisible) edges. See "Touchscreen
 gestures" and "Touch-resizing windows and invisible borders" above.

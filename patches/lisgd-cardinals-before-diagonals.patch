@@ -1,0 +1,59 @@
+Ask the cardinal directions before the diagonal ones.
+
+lisgd matches a swipe by testing the eight directions in ascending angle order
+and taking the first whose band -- the direction plus or minus the -r leniency
+-- contains it. Past a leniency of 22.5 degrees those bands overlap, and because
+the diagonals are interleaved with the cardinals a diagonal claims part of the
+range belonging to the cardinal tested after it.
+
+The window that matters here is right-to-left. At -r 40, URDL (225 degrees)
+covers 185..265 and so takes everything below 265, leaving RL (270) with
+265..310: 40 degrees of leniency on one side and 5 on the other. Since a thumb
+swiping in from the screen edge arcs, most real swipes landed in the stolen
+range and came out as a diagonal that nothing was bound to -- in one verbose
+capture, ten of twelve edge swipes. Raising -r made this worse rather than
+better, which is the opposite of what the flag reads like it does.
+
+Testing the four cardinals first gives each its full symmetric band and leaves
+the diagonals the gaps in between. At -r 45 the cardinals tile the whole circle,
+so every swipe resolves to one of them and none is silently discarded.
+
+Applies on top of lisgd-export-gesture-coords.patch.
+
+--- a/lisgd.c
++++ b/lisgd.c
+@@ -116,21 +127,30 @@ gesturecalculateswipe(double x0, double y0, double x1, double y1, int mindistanc
+ 	dist = sqrt(pow(x1 - x0, 2) + pow(y1 - y0, 2));
+ 
+ 	if (verbose)
+ 		fprintf(stderr, "Swipe distance=[%.2f]; degrees=[%.2f]\n", dist, degrees);
+ 
+ 	if (dist < mindistance) return -1;
++	/* Cardinals before diagonals. Each direction matches a symmetric band of
++	 * +/- degreesleniency, so past 22.5 the bands overlap and, tested in
++	 * ascending order, a diagonal claims angles that belong to the cardinal
++	 * after it. At -r 40 that left a right-to-left swipe accepting 265..310
++	 * degrees -- 40 degrees of slack on one side and 5 on the other -- because
++	 * URDL (225) reached up to 265 and was asked first. Real swipes arc, so
++	 * most of them landed in the stolen range and matched a diagonal nobody
++	 * had bound. Asking the cardinals first gives each one its full symmetric
++	 * band and leaves the diagonals whatever is left over. */
+ 	else if (gesturecalculateswipewithindegrees(degrees, 0))   return SwipeDU;
+-	else if (gesturecalculateswipewithindegrees(degrees, 45))  return SwipeDLUR;
+ 	else if (gesturecalculateswipewithindegrees(degrees, 90))  return SwipeLR;
+-	else if (gesturecalculateswipewithindegrees(degrees, 135)) return SwipeULDR;
+ 	else if (gesturecalculateswipewithindegrees(degrees, 180)) return SwipeUD;
+-	else if (gesturecalculateswipewithindegrees(degrees, 225)) return SwipeURDL;
+ 	else if (gesturecalculateswipewithindegrees(degrees, 270)) return SwipeRL;
+-	else if (gesturecalculateswipewithindegrees(degrees, 315)) return SwipeDRUL;
+ 	else if (gesturecalculateswipewithindegrees(degrees, 360)) return SwipeDU;
++	else if (gesturecalculateswipewithindegrees(degrees, 45))  return SwipeDLUR;
++	else if (gesturecalculateswipewithindegrees(degrees, 135)) return SwipeULDR;
++	else if (gesturecalculateswipewithindegrees(degrees, 225)) return SwipeURDL;
++	else if (gesturecalculateswipewithindegrees(degrees, 315)) return SwipeDRUL;
+ 
+ 	return -1;
+ }
+ 
+ Distance
+ gesturecalculatedistance(double x0, double y0, double x1, double y1, Swipe swipe) {
