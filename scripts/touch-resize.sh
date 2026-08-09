@@ -28,7 +28,12 @@ esac
 
 CACHE="/tmp/touch-resize-$(id -u).cache"
 SLOP=60
-TTL_MS=600
+# Generous, because it only has to cover the pause between two fires of one
+# drag, and a slow careful drag can easily leave a second between them. Safe at
+# this length because the anchor check below is what actually scopes the cache:
+# a grab somewhere else misses it and re-picks, and a grab in the same spot
+# meant the same boundary anyway.
+TTL_MS=3000
 
 case "$DIR" in
 	right|down) OP=grow ;;
@@ -45,6 +50,12 @@ if [ -r "$CACHE" ]; then
 		[ $((now - ${ts:-0})) -lt "$TTL_MS" ] &&
 		[ $((LISGD_X - cx)) -le "$SLOP" ] && [ $((cx - LISGD_X)) -le "$SLOP" ] &&
 		[ $((LISGD_Y - cy)) -le "$SLOP" ] && [ $((cy - LISGD_Y)) -le "$SLOP" ]; then
+		# Bump the timestamp, so the TTL measures the gap *between* fires
+		# rather than the age of the drag. Without this the cache goes stale
+		# 600ms after the first fire and the drag dies mid-way -- and it dies
+		# for good, because the fallback searches near the original anchor,
+		# which the boundary has by then been dragged well away from.
+		echo "$now $cx $cy $caxis $con" > "$CACHE"
 		exec swaymsg -q "[con_id=$con] resize $OP $AXIS 60 px"
 	fi
 fi

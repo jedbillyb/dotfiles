@@ -314,6 +314,13 @@ git apply /mnt/shared/projects/dotfiles/patches/lisgd-export-gesture-coords.patc
 make WITHOUT_X11=1 && install -m755 lisgd ~/.local/bin/lisgd
 ```
 
+The cache's TTL measures the gap *between* fires, not the age of the drag —
+the fast path rewrites the timestamp every time. Getting that wrong is
+invisible until you drag: the cache went stale a fixed time after the *first*
+fire, so a drag died after 3-5 steps, and died permanently, because the
+fallback re-searches near the original anchor and by then the boundary has been
+dragged well clear of it.
+
 Pressed mode makes per-call cost matter, because lisgd blocks in `system()`
 until the command returns. Doing the whole job in Python cost 49ms *per fire*,
 which stutters visibly at 60px increments — and nearly all of it was the
