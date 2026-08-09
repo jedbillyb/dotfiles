@@ -33,6 +33,16 @@ esac
 CACHE="/tmp/touch-resize-$UID.cache"
 SLOP=60
 
+# Deliberately much wider than SLOP. lisgd tracks each finger in its own slot
+# and exports the anchor of whichever one fired, so a two-finger drag reports
+# two anchors a hand's width apart. Matching the cache as tightly as the
+# boundary pick made every other fire miss, fall through to the picker (60ms
+# against 5ms) and rewrite the cache with the other finger's anchor -- the two
+# fingers thrashing it between them, which reads as lag punctuated by snaps.
+# Scoping the cache is still done here: a grab in a different part of the
+# screen is far further away than this.
+CACHE_SLOP=250
+
 # The boundary is moved TO the finger, not BY a step. That matters more than it
 # sounds: stepping makes the work proportional to how far you drag, so a fast
 # drag queues up fires faster than they can run (lisgd blocks on each one) and
@@ -53,22 +63,27 @@ now=$((now / 1000))          # -> milliseconds
 # Mid-drag: same axis, anchored within a fingertip of where this drag started,
 # and recent enough to still be the same drag.
 if [ -r "$CACHE" ]; then
-	read -r ts cx cy caxis con origin < "$CACHE" || true
+	read -r ts cx cy caxis con osize < "$CACHE" || true
 	if [ "${caxis:-}" = "$AXIS" ] &&
 		[ $((now - ${ts:-0})) -lt "$TTL_MS" ] &&
-		[ $((LISGD_X - cx)) -le "$SLOP" ] && [ $((cx - LISGD_X)) -le "$SLOP" ] &&
-		[ $((LISGD_Y - cy)) -le "$SLOP" ] && [ $((cy - LISGD_Y)) -le "$SLOP" ]; then
+		[ $((LISGD_X - cx)) -le "$CACHE_SLOP" ] && [ $((cx - LISGD_X)) -le "$CACHE_SLOP" ] &&
+		[ $((LISGD_Y - cy)) -le "$CACHE_SLOP" ] && [ $((cy - LISGD_Y)) -le "$CACHE_SLOP" ]; then
 		# Bump the timestamp, so the TTL measures the gap *between* fires
 		# rather than the age of the drag. Without this the cache goes stale
 		# 600ms after the first fire and the drag dies mid-way -- and it dies
 		# for good, because the fallback searches near the original anchor,
 		# which the boundary has by then been dragged well away from.
-		echo "$now $cx $cy $caxis $con $origin" > "$CACHE"
-		# Size the grabbed window so its far edge lands under the finger.
+		echo "$now $cx $cy $caxis $con $osize" > "$CACHE"
+		# Original size plus how far THIS finger has travelled from its own
+		# anchor. Both values come from the same slot, so the delta is the same
+		# whichever finger fired -- driving it off an absolute finger position
+		# instead would make the boundary flip between the two fingers, i.e.
+		# oscillate by the width of your grip. Still absolute rather than
+		# incremental, so a backlog of fires collapses to the newest.
 		if [ "$AXIS" = width ]; then
-			size=$((LISGD_CUR_X - origin))
+			size=$((osize + LISGD_CUR_X - LISGD_X))
 		else
-			size=$((LISGD_CUR_Y - origin))
+			size=$((osize + LISGD_CUR_Y - LISGD_Y))
 		fi
 		[ "$size" -lt "$MIN" ] && size=$MIN
 		exec swaymsg -q "[con_id=$con] resize set $AXIS $size px"

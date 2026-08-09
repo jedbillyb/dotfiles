@@ -324,9 +324,22 @@ still catching up after your fingers have stopped. Shrinking the step makes it
 to the newest fire and drag speed stops mattering.
 
 That needs the live touch position, so the lisgd patch exports `LISGD_CUR_X` /
-`LISGD_CUR_Y` alongside the anchor, and the cache carries the grabbed window's
-origin — its left/top edge, which stays put while the far edge is dragged — so
-the shell can size it absolutely without re-reading the tree.
+`LISGD_CUR_Y` alongside the anchor, and the cache carries the window's size at
+the moment it was grabbed. Each fire sets it to that size plus how far the
+*firing finger* has travelled from *its own* anchor.
+
+Both halves of that matter, because **lisgd tracks each finger in a separate
+slot** and reports whichever one fired — so a two-finger drag reports two
+anchors and two live positions, a hand's width apart:
+
+- Driving the size off an absolute finger position makes the boundary flip
+  between the two fingers, oscillating by the width of your grip. Using each
+  finger's delta from its own anchor gives the same answer for both.
+- Matching the cache as tightly as the boundary pick (60px) makes every other
+  fire miss, fall through to the picker at 60px against 5px, and rewrite the
+  cache with the other finger's anchor — the fingers thrash it between them,
+  which reads as lag punctuated by snaps. Hence `CACHE_SLOP` of 250px, far
+  wider than the 60px `SLOP` used to pick the boundary in the first place.
 
 The cache's TTL measures the gap *between* fires, not the age of the drag —
 the fast path rewrites the timestamp every time. Getting that wrong is

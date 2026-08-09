@@ -33,10 +33,10 @@ SLOP = 60
 MIN = 100  # keep in step with touch-resize.sh
 
 # Shared with touch-resize.sh, which reads it on subsequent fires:
-#   <epoch ms> <anchor x> <anchor y> <axis> <container id> <container origin>
-# The origin is the grabbed window's left/top edge. It stays put while its far
-# edge is dragged, so the shell can size the window absolutely from the finger
-# position without ever re-reading the tree.
+#   <epoch ms> <anchor x> <anchor y> <axis> <container id> <size at grab>
+# The size is what the grabbed window measured when the drag started. Every
+# fire sets it to that plus the firing finger's travel from its own anchor,
+# so the shell never has to re-read the tree.
 CACHE = f"/tmp/touch-resize-{os.getuid()}.cache"
 
 
@@ -71,16 +71,17 @@ def focused_workspace(node, current=None):
     return None
 
 
-def apply_resize(con, origin, axis):
-    """Size the grabbed window so its far edge lands under the finger."""
-    cur = int(os.environ["LISGD_CUR_X" if axis == "width" else "LISGD_CUR_Y"])
-    sway(f"[con_id={con}] resize set {axis} {max(cur - origin, MIN)} px")
+def apply_resize(con, osize, axis):
+    """Original size, plus how far the firing finger has moved from its anchor."""
+    k = "X" if axis == "width" else "Y"
+    delta = int(os.environ[f"LISGD_CUR_{k}"]) - int(os.environ[f"LISGD_{k}"])
+    sway(f"[con_id={con}] resize set {axis} {max(osize + delta, MIN)} px")
 
 
-def write_cache(x, y, axis, con, origin):
+def write_cache(x, y, axis, con, osize):
     try:
         with open(CACHE, "w") as f:
-            f.write(f"{int(time.time() * 1000)} {x} {y} {axis} {con} {origin}")
+            f.write(f"{int(time.time() * 1000)} {x} {y} {axis} {con} {osize}")
     except OSError:
         pass
 
@@ -144,9 +145,9 @@ def main():
 
     _, low_side = best
     con = low_side["id"]
-    origin = low_side["rect"]["x"] if horizontal else low_side["rect"]["y"]
-    write_cache(x, y, axis, con, origin)
-    apply_resize(con, origin, axis)
+    osize = low_side["rect"]["width"] if horizontal else low_side["rect"]["height"]
+    write_cache(x, y, axis, con, osize)
+    apply_resize(con, osize, axis)
 
 
 if __name__ == "__main__":
