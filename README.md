@@ -280,6 +280,7 @@ reason it exists.
 | 1 finger, in from the **right** edge | Next workspace |
 | 1 finger, in from the **left** edge | Previous workspace |
 | 1 finger, up from the **bottom** edge | Spotlight launcher |
+| 1 finger, near a window boundary (not on an edge) | Drag that boundary (see below) |
 | 2 fingers, near a window boundary | Drag that boundary (see below) |
 | 4 fingers, left / right (anywhere) | Grow / shrink focused window width |
 | 4 fingers, down / up (anywhere) | Grow / shrink focused window height |
@@ -287,26 +288,39 @@ reason it exists.
 | 3 fingers, up (anywhere) | Toggle fullscreen |
 | 3 fingers, down (anywhere) | Close window |
 
-The single-finger gestures are anchored to a screen edge on purpose. lisgd
-cannot swallow the touches it watches, so the app underneath sees them too — a
-mid-screen swipe would scroll the page as well as switch workspace. The edge
-strips are 50px of mostly dead space, which keeps the two apart.
+The single-finger *workspace* gestures are anchored to a screen edge on purpose.
+lisgd cannot swallow the touches it watches, so the app underneath sees them
+too — a mid-screen swipe would scroll the page as well as switch workspace. The
+edge strips are 50px of mostly dead space, which keeps the two apart.
 
-Two-finger swipes resize the *boundary the gesture started near*, via
+One- and two-finger swipes resize the *boundary the gesture started near*, via
 `scripts/touch-resize.sh`. They are bound in lisgd's **pressed** mode (`P`
-rather than `R`), so they fire every 60px *during* the drag instead of once on
-release — the window tracks your fingers rather than hopping when you let go. That script does its own hit test with 60px of slop,
-which is the whole point: it gives the gap between two windows a
-fingertip-sized grab region while the gap itself stays 10px on screen. Sway
-cannot do this — `find_edge()` tests against `border_thickness`, so its own
-grab region is exactly the visible border. Away from any boundary the script is
-a no-op, so a stray two-finger swipe mid-window changes nothing.
+rather than `R`), so they fire every 20px *during* the drag instead of once on
+release — the window tracks your fingers rather than hopping when you let go.
+That script does its own hit test with 60px of slop, which is the whole point:
+it gives the gap between two windows a fingertip-sized grab region while the gap
+itself stays 10px on screen. Sway cannot do this — `find_edge()` tests against
+`border_thickness`, so its own grab region is exactly the visible border. Away
+from any boundary the script is a no-op, so a stray swipe mid-window changes
+nothing.
+
+That no-op is also what makes binding a **single** finger safe, since one finger
+dragging is how you scroll everything. It has to be cheap as well as silent,
+though: a miss leaves a negative cache entry (`con 0`, on a 1s TTL rather than
+the 3s a live drag gets), so the fires that follow it cost ~5ms instead of
+re-running the 60ms tree search over and over while you scroll.
+
+The single-finger resize is bound to edge `N` — *not* near any edge — rather
+than `*`. A pressed gesture `resetslot()`s the moment it matches, which eats the
+pending release gesture, so with `*` the edge swipes above would simply never
+fire. The cost is that a one-finger resize stops when the drag reaches the 50px
+edge strip; two fingers have no such restriction.
 
 That needs to know *where* the gesture started, which upstream lisgd does not
 tell the command — it calls `system()` and nothing else. `patches/`
 `lisgd-export-gesture-coords.patch` adds `LISGD_X` / `LISGD_Y` to the
 environment first (capturing them before `resetslot()` wipes them). Reapply it
-after any lisgd update, or two-finger resize silently stops working:
+after any lisgd update, or touch resize silently stops working:
 
 ```sh
 cd /mnt/shared/projects/lisgd
@@ -601,6 +615,7 @@ key rather than the keymap symbol.
 | 1 finger, in from right edge | Next workspace |
 | 1 finger, in from left edge | Previous workspace |
 | 1 finger, up from bottom edge | Spotlight launcher |
+| 1 finger near a window boundary (not on an edge) | Drag that boundary |
 | 2 fingers near a window boundary | Drag that boundary |
 | 4 fingers left / right | Grow / shrink focused window width |
 | 4 fingers down / up | Grow / shrink focused window height |

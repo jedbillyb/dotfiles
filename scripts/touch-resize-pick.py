@@ -16,8 +16,11 @@ the hit against border_thickness, so its grab region is exactly the visible
 10px. Here the hit test is ours, so SLOP can be as generous as a fingertip
 while the gap stays 10px.
 
-Away from any boundary this exits silently, which is what keeps a stray
-two-finger swipe in the middle of a window from resizing something at random.
+Away from any boundary this exits silently, which is what keeps a stray swipe in
+the middle of a window from resizing something at random -- and is the whole
+reason a single finger can be bound to this at all, given one finger dragging is
+also how you scroll. It leaves a negative cache entry when it finds nothing, so
+those misses stay cheap.
 """
 
 import json
@@ -78,6 +81,19 @@ def apply_resize(con, osize, axis):
     sway(f"[con_id={con}] resize set {axis} {max(osize + delta, MIN)} px")
 
 
+def no_boundary(x, y, axis):
+    """Record the miss, then get out of the way.
+
+    Without this every fire of every one-finger drag that is not on a boundary
+    -- which is most of them, since one finger dragging is also how you scroll
+    -- would re-run this whole search, at 60ms a time, while lisgd blocks.
+    touch-resize.sh reads con 0 as 'already looked, nothing here' and returns in
+    ~5ms, on a much shorter TTL than a live drag gets.
+    """
+    write_cache(x, y, axis, 0, 0)
+    sys.exit(0)
+
+
 def write_cache(x, y, axis, con, osize):
     try:
         with open(CACHE, "w") as f:
@@ -104,12 +120,12 @@ def main():
     tree = json.loads(sway("-t", "get_tree"))
     ws = focused_workspace(tree)
     if ws is None:
-        sys.exit(0)
+        no_boundary(x, y, axis)
 
     wins = []
     tiled_windows(ws, wins)
     if len(wins) < 2:
-        sys.exit(0)
+        no_boundary(x, y, axis)
 
     # A boundary is where one window ends and another begins. Pair them up by
     # the shared coordinate so the window on the low side can be identified --
@@ -141,7 +157,7 @@ def main():
                 best = (dist, a)
 
     if best is None:
-        sys.exit(0)
+        no_boundary(x, y, axis)
 
     _, low_side = best
     con = low_side["id"]

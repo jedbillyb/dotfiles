@@ -16,10 +16,11 @@
 # Python cost 49ms per fire, which stutters visibly at 60px increments.
 
 DIR=$1
+NFINGERS=${2:-2}
 case "$DIR" in
 	left|right) AXIS=width ;;
 	up|down)    AXIS=height ;;
-	*) echo "usage: touch-resize.sh left|right|up|down" >&2; exit 2 ;;
+	*) echo "usage: touch-resize.sh left|right|up|down [fingers]" >&2; exit 2 ;;
 esac
 
 # Set by the patched lisgd: LISGD_X/Y is where the finger first landed (which
@@ -33,15 +34,21 @@ esac
 CACHE="/tmp/touch-resize-$UID.cache"
 SLOP=60
 
-# Deliberately much wider than SLOP. lisgd tracks each finger in its own slot
-# and exports the anchor of whichever one fired, so a two-finger drag reports
-# two anchors a hand's width apart. Matching the cache as tightly as the
-# boundary pick made every other fire miss, fall through to the picker (60ms
-# against 5ms) and rewrite the cache with the other finger's anchor -- the two
-# fingers thrashing it between them, which reads as lag punctuated by snaps.
-# Scoping the cache is still done here: a grab in a different part of the
-# screen is far further away than this.
-CACHE_SLOP=250
+# How far from the cached anchor a fire may land and still count as the same
+# drag. With two fingers this has to be deliberately much wider than SLOP:
+# lisgd tracks each finger in its own slot and exports the anchor of whichever
+# one fired, so a two-finger drag reports two anchors a hand's width apart.
+# Matching as tightly as the boundary pick made every other fire miss, fall
+# through to the picker (60ms against 5ms) and rewrite the cache with the other
+# finger's anchor -- the two fingers thrashing it between them, which reads as
+# lag punctuated by snaps. One finger reports one anchor and so wants the tight
+# match, which also keeps a stale entry from being inherited by an unrelated
+# drag nearby.
+if [ "$NFINGERS" = 1 ]; then
+	CACHE_SLOP=60
+else
+	CACHE_SLOP=250
+fi
 
 # The boundary is moved TO the finger, not BY a step. That matters more than it
 # sounds: stepping makes the work proportional to how far you drag, so a fast
@@ -57,6 +64,14 @@ MIN=100  # refuse to drive a window below this; sway would clamp anyway
 # meant the same boundary anyway.
 TTL_MS=3000
 
+# "I already looked here and there was no boundary" expires much faster than a
+# live drag. One finger dragging is also how you scroll, so most one-finger
+# drags land nowhere near a boundary, and without a negative entry every single
+# fire of every scroll would pay the 60ms picker. But a miss must not be
+# remembered for long either: after failing to grab a gap you will try again in
+# the same spot within a second, and that retry has to be allowed to search.
+NEG_TTL_MS=1000
+
 now=${EPOCHREALTIME/./}      # microseconds, no subprocess
 now=$((now / 1000))          # -> milliseconds
 
@@ -64,8 +79,11 @@ now=$((now / 1000))          # -> milliseconds
 # and recent enough to still be the same drag.
 if [ -r "$CACHE" ]; then
 	read -r ts cx cy caxis con osize < "$CACHE" || true
+	# con 0 is the negative entry: this drag was already found to be nowhere
+	# near a boundary, so stay out of the way cheaply.
+	[ "${con:-}" = 0 ] && ttl=$NEG_TTL_MS || ttl=$TTL_MS
 	if [ "${caxis:-}" = "$AXIS" ] &&
-		[ $((now - ${ts:-0})) -lt "$TTL_MS" ] &&
+		[ $((now - ${ts:-0})) -lt "$ttl" ] &&
 		[ $((LISGD_X - cx)) -le "$CACHE_SLOP" ] && [ $((cx - LISGD_X)) -le "$CACHE_SLOP" ] &&
 		[ $((LISGD_Y - cy)) -le "$CACHE_SLOP" ] && [ $((cy - LISGD_Y)) -le "$CACHE_SLOP" ]; then
 		# Bump the timestamp, so the TTL measures the gap *between* fires
@@ -74,6 +92,7 @@ if [ -r "$CACHE" ]; then
 		# for good, because the fallback searches near the original anchor,
 		# which the boundary has by then been dragged well away from.
 		echo "$now $cx $cy $caxis $con $osize" > "$CACHE"
+		[ "$con" = 0 ] && exit 0
 		# Original size plus how far THIS finger has travelled from its own
 		# anchor. Both values come from the same slot, so the delta is the same
 		# whichever finger fired -- driving it off an absolute finger position
