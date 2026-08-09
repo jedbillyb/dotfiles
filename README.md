@@ -304,8 +304,8 @@ reason it exists.
 | 1 finger, in from the **right** edge | Next workspace |
 | 1 finger, in from the **left** edge | Previous workspace |
 | **2 fingers**, in from the **right/left** edge | Step one workspace by number, creating it |
-| 1 finger, up from the **bottom** edge | Spotlight launcher |
-| 1 finger, down from the **top** edge, 180px or more | Close the focused window |
+| **2 fingers**, up from the **bottom** edge | Spotlight launcher |
+| **2 fingers**, down from the **top** edge, 180px or more | Close the focused window |
 | 1 finger, near a window boundary (not on an edge) | Drag that boundary (see below) |
 
 `workspace next_on_output` only walks the workspaces that already **exist**, so
@@ -326,13 +326,26 @@ An earlier version also skipped to the nearest unused number and refused to move
 while already on an empty workspace. Both were wrong in use: stepping back and
 forth behaved differently depending on what happened to be open.
 
-Close-window carries a distance guard (**180px**) that nothing else does,
-because it is the only destructive gesture, and it is anchored to the top edge
-rather than bound to two fingers anywhere. That is not cosmetic: it is the only
-shape of release gesture that survives here, for the reason described under "a
-pressed gesture can decline" below. The old `2,DU,*,M,R` never fired once — a
-verbose capture caught all four attempts arriving as *swipe -1*, ground down by
-no-op resize fires.
+**One finger navigates what already exists; two fingers do everything else.**
+That split is forced, not stylistic. Scrolling is a one-finger drag, and lisgd's
+edge test looks at *both* ends of a swipe, so a one-finger scroll near a screen
+edge simply *is* these gestures:
+
+| what you are doing | what lisgd sees |
+| --- | --- |
+| scroll down a page | swipe up, starting near the bottom → the launcher |
+| scroll up a page | swipe down, starting near the top → close the window |
+
+Both were bound to one finger, and both fired while reading email. No distance
+guard fixes it — a real scroll runs 200–500px, well past anything low enough to
+leave the gesture usable. It is the same lesson as the long-swipe attempt above:
+**a threshold cannot separate two gestures that are the same gesture.** A finger
+count can, because scrolling never uses two.
+
+Close-window additionally carries a distance guard (**180px**), being the only
+destructive gesture — two fingers *and* a deliberate drag, not two fingers
+alone. The launcher needs none. Anchoring both to an edge also matters for a
+second reason, described under "a pressed gesture can decline" below.
 
 180 is a pixel count rather than one of lisgd's buckets, which needed
 `patches/lisgd-distance-px.patch`. The buckets are thirds of the screen, so the
@@ -879,8 +892,8 @@ key rather than the keymap symbol.
 | 1 finger, in from right edge | Next workspace |
 | 1 finger, in from left edge | Previous workspace |
 | 2 fingers, in from right/left edge | Step one workspace by number, creating it |
-| 1 finger, up from bottom edge | Spotlight launcher |
-| 1 finger, down from top edge, 180px | Close the focused window |
+| 2 fingers, up from bottom edge | Spotlight launcher |
+| 2 fingers, down from top edge, 180px | Close the focused window |
 | 1 finger near a window boundary (not on an edge) | Drag that boundary |
 
 Windows also resize by dragging their (invisible) edges. See "Touchscreen

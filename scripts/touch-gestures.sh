@@ -126,7 +126,8 @@ flock -n 9 || exit 0
 # tuned down from 100 by feel over several rounds. It applies to the
 # release-mode gestures only, and everything bound to one is reversible -- a
 # workspace step costs a swipe back -- so it can afford to sit low. The one
-# destructive gesture does not rely on it, carrying its own 180px guard instead.
+# destructive gesture does not rely on it, carrying two fingers and its own 180px
+# guard instead.
 #
 # Distance was never the reason a swipe failed to register, though. Three
 # defaults were, and all three are loosened here:
@@ -175,12 +176,27 @@ flock -n 9 || exit 0
 # speeds 10px already fires faster than the display refreshes, so the extra
 # updates would be thrown away, while each one still makes clients relayout.
 #
-# A swipe down from the top edge closes the window. It is the one destructive
-# gesture here, so it carries a distance guard the others do not: 180px, which a
-# stray touch does not produce but a deliberate drag clears easily. The top edge
-# is otherwise unused -- left and right switch workspace, bottom opens the
-# launcher -- and waybar is only 16px of the 100px strip, so there is room to
-# start the drag on the window itself.
+# TWO fingers down from the top edge closes the window, and two fingers up from
+# the bottom opens the launcher. The finger count is what makes them safe, and it
+# is not a preference: scrolling is a one-finger drag, and an edge test looks at
+# both ends of the swipe, so a one-finger scroll *is* these gestures.
+#
+#   scroll down a page = swipe up, starting near the bottom  = the launcher
+#   scroll up a page   = swipe down, starting near the top   = close the window
+#
+# Both were bound to one finger and both fired while reading email. No distance
+# guard fixes it: a real scroll runs 200-500px, past anything low enough for the
+# gesture to stay usable. The same lesson as the "long swipe" for new-workspace
+# further up -- a threshold cannot separate two gestures that are the same
+# gesture. Two fingers can, because scrolling never uses two.
+#
+# So the whole scheme is now: one finger navigates between things that already
+# exist (workspace next/prev) or drags a boundary; two fingers do the rest.
+#
+# Close keeps a distance guard anyway at 180px, being the only destructive
+# gesture -- two fingers plus a deliberate drag, not two fingers alone. The
+# launcher needs none. waybar is only 16px of the 100px top strip, so there is
+# still room to start the close drag on the window itself.
 #
 # 180 is a pixel count, not one of lisgd's S/M/L buckets, and that needed
 # patches/lisgd-distance-px.patch. The buckets are thirds of the screen, so the
@@ -221,9 +237,9 @@ exec "$LISGD" -d "$DEV" \
     -g "2,LR,L,*,R,$WSSTEP left" \
     -g "1,RL,R,*,R,swaymsg workspace next_on_output" \
     -g "1,LR,L,*,R,swaymsg workspace prev_on_output" \
-    -g "1,DU,B,*,R,$HOME/.local/bin/spotlight" \
+    -g "2,DU,B,*,R,$HOME/.local/bin/spotlight" \
     -g "1,LR,N,*,P,$RESIZE right 1" \
     -g "1,RL,N,*,P,$RESIZE left 1" \
     -g "1,UD,N,*,P,$RESIZE down 1" \
     -g "1,DU,N,*,P,$RESIZE up 1" \
-    -g "1,UD,T,180,R,swaymsg kill"
+    -g "2,UD,T,180,R,swaymsg kill"
