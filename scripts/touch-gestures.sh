@@ -52,6 +52,7 @@ flock -n 9 || exit 0
 # horizontal swipe as back/forward, and lisgd cannot swallow the touch.
 exec "$LISGD" -d "$DEV" \
     -t 100 \
+    -T 20 \
     -m 1000 \
     -g "1,RL,R,*,R,swaymsg workspace next_on_output" \
     -g "1,LR,L,*,R,swaymsg workspace prev_on_output" \

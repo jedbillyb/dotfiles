@@ -314,6 +314,14 @@ git apply /mnt/shared/projects/dotfiles/patches/lisgd-export-gesture-coords.patc
 make WITHOUT_X11=1 && install -m755 lisgd ~/.local/bin/lisgd
 ```
 
+Step size is the thing that decides whether it feels attached to your finger.
+lisgd fires once per `-T` pixels of travel and each fire moves the boundary by
+`TOUCH_RESIZE_STEP`, so **the two must match** — mismatched, the boundary
+overshoots or trails by exactly their ratio. They are 20px here; at the
+original 60 the boundary sat up to a full 60px behind the finger, which reads
+as lag even though each call only takes ~5ms. Smaller tracks tighter and fires
+proportionally more often, and lisgd blocks on each one, so it is a real trade.
+
 The cache's TTL measures the gap *between* fires, not the age of the drag —
 the fast path rewrites the timestamp every time. Getting that wrong is
 invisible until you drag: the cache went stale a fixed time after the *first*

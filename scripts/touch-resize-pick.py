@@ -30,7 +30,7 @@ import sys
 # ~50px on this screen (~5.6 px/mm), so 60 covers a finger placed on the gap
 # with a little to spare, without reaching halfway across a narrow window.
 SLOP = 60
-STEP = "60 px"
+STEP = os.environ.get("TOUCH_RESIZE_STEP", "20") + " px"
 
 # Shared with touch-resize.sh, which reads it on subsequent fires:
 #   <epoch ms> <anchor x> <anchor y> <axis> <container id>
