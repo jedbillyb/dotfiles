@@ -4,3 +4,4 @@
 # Real WireGuard config with live keys - only the template is tracked
 wireguard/wg0.conf
 *.conf.local
+__pycache__/

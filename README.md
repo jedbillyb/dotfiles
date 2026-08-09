@@ -34,6 +34,10 @@ My personal configuration files.
   as a root-owned copy at `/usr/local/bin/wifi-recover-root`
 - `scripts/touch-gestures.sh` - Touchscreen swipe gestures via `lisgd` (see
   "Touchscreen gestures" below)
+- `scripts/touch-resize.sh` - Resizes the tiled window boundary nearest a
+  gesture, giving the 10px gap a fingertip-sized grab region
+- `patches/lisgd-export-gesture-coords.patch` - Local lisgd patch exporting
+  `LISGD_X`/`LISGD_Y`, which `touch-resize.sh` depends on
 - `udev/99-touchscreen-lisgd.rules` - Stable `/dev/input/touchscreen` symlink
   and group access for that daemon
 - `scripts/openclaw-send` - openclaw helper script
@@ -274,6 +278,7 @@ reason it exists.
 | 1 finger, in from the **right** edge | Next workspace |
 | 1 finger, in from the **left** edge | Previous workspace |
 | 1 finger, up from the **bottom** edge | Spotlight launcher |
+| 2 fingers, near a window boundary | Drag that boundary (see below) |
 | 4 fingers, left / right (anywhere) | Grow / shrink focused window width |
 | 4 fingers, down / up (anywhere) | Grow / shrink focused window height |
 | 3 fingers, left / right (anywhere) | Focus window left / right |
@@ -285,11 +290,33 @@ cannot swallow the touches it watches, so the app underneath sees them too — a
 mid-screen swipe would scroll the page as well as switch workspace. The edge
 strips are 50px of mostly dead space, which keeps the two apart.
 
-The same problem is why resize sits on **four** fingers rather than two. Two is
-already spoken for by applications: horizontal is back/forward in browsers,
-vertical is scroll, so a 2-finger resize fires the app's gesture as well as
-sway's. Nothing binds four, and the digitiser tracks 10 simultaneous contacts
-(`ABS_MT_SLOT` max 9), so there is room to spare.
+Two-finger swipes resize the *boundary the gesture started near*, via
+`scripts/touch-resize.sh`. That script does its own hit test with 60px of slop,
+which is the whole point: it gives the gap between two windows a
+fingertip-sized grab region while the gap itself stays 10px on screen. Sway
+cannot do this — `find_edge()` tests against `border_thickness`, so its own
+grab region is exactly the visible border. Away from any boundary the script is
+a no-op, so a stray two-finger swipe mid-window changes nothing.
+
+That needs to know *where* the gesture started, which upstream lisgd does not
+tell the command — it calls `system()` and nothing else. `patches/`
+`lisgd-export-gesture-coords.patch` adds `LISGD_X` / `LISGD_Y` to the
+environment first (capturing them before `resetslot()` wipes them). Reapply it
+after any lisgd update, or two-finger resize silently stops working:
+
+```sh
+cd /mnt/shared/projects/lisgd
+git apply /mnt/shared/projects/dotfiles/patches/lisgd-export-gesture-coords.patch
+make WITHOUT_X11=1 && install -m755 lisgd ~/.local/bin/lisgd
+```
+
+**Two fingers cannot be made exclusive.** lisgd can't swallow the touch, so a
+browser sitting under that 60px strip still reads a horizontal 2-finger swipe
+as back/forward and will navigate while the window resizes. Only about 10px of
+the strip (the gap itself) is free of any app surface. The 4-finger bindings
+exist for that reason: nothing binds four, and the digitiser tracks 10
+simultaneous contacts (`ABS_MT_SLOT` max 9), so they resize the focused window
+from anywhere with no aiming and no app conflict.
 
 Build and install it with:
 
@@ -528,6 +555,7 @@ key rather than the keymap symbol.
 | 1 finger, in from right edge | Next workspace |
 | 1 finger, in from left edge | Previous workspace |
 | 1 finger, up from bottom edge | Spotlight launcher |
+| 2 fingers near a window boundary | Drag that boundary |
 | 4 fingers left / right | Grow / shrink focused window width |
 | 4 fingers down / up | Grow / shrink focused window height |
 | 3 fingers left / right | Focus window left / right |

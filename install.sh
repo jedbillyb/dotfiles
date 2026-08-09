@@ -67,7 +67,7 @@ link git/gitconfig      "$HOME/.gitconfig"
 
 echo "Scripts (-> $BIN):"
 mkdir -p "$BIN"
-for s in vpn-toggle.sh vpn-proxy.sh caffeine-toggle.sh sway-idle.sh sway-lock.sh waybar-run.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh; do
+for s in vpn-toggle.sh vpn-proxy.sh caffeine-toggle.sh sway-idle.sh sway-lock.sh waybar-run.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh; do
 	chmod +x "$REPO/scripts/$s"
 	link "scripts/$s" "$BIN/$s"
 done

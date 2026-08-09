@@ -16,9 +16,11 @@ LOCK=/tmp/touch-gestures.lock
 # Absolute, not bare `lisgd`: sway hands its children a PATH of just
 # /usr/bin:/usr/sbin, so anything in ~/.local/bin is invisible to exec_always.
 LISGD=$HOME/.local/bin/lisgd
+RESIZE=$HOME/.local/bin/touch-resize.sh
 
 [ -e "$DEV" ] || { echo "touch-gestures: no $DEV, is the udev rule installed?" >&2; exit 1; }
 [ -x "$LISGD" ] || { echo "touch-gestures: no lisgd at $LISGD" >&2; exit 1; }
+[ -x "$RESIZE" ] || { echo "touch-gestures: no touch-resize.sh at $RESIZE" >&2; exit 1; }
 
 # usermod only takes effect at the next login, so on the session where the
 # group was first granted this process still lacks it. sg picks the membership
@@ -40,16 +42,24 @@ flock -n 9 || exit 0
 # swallow the touches it watches, so a mid-screen swipe would also scroll
 # whatever is underneath it. The edge strip is 50px of mostly-dead space.
 #
-# The same "app sees it too" problem is why resize sits on 4 fingers and not 2.
-# Two fingers is already spoken for everywhere: horizontal is back/forward in
-# browsers, vertical is scroll. Nothing binds 4, and the digitiser tracks 10
-# contacts, so there is room.
+# Two fingers resizes the boundary the gesture started near -- touch-resize.sh
+# does its own hit test with 60px of slop, which is how the gap gets a
+# fingertip-sized grab region while staying 10px on screen. Away from a
+# boundary it is a no-op, so the rest of the screen is left alone.
+#
+# Four fingers resizes the focused window from anywhere, no aiming. It stays
+# because two fingers cannot be made exclusive: a browser reads a 2-finger
+# horizontal swipe as back/forward, and lisgd cannot swallow the touch.
 exec "$LISGD" -d "$DEV" \
     -t 100 \
     -m 1000 \
     -g "1,RL,R,*,R,swaymsg workspace next_on_output" \
     -g "1,LR,L,*,R,swaymsg workspace prev_on_output" \
     -g "1,DU,B,*,R,$HOME/.local/bin/spotlight" \
+    -g "2,LR,*,*,R,$RESIZE right" \
+    -g "2,RL,*,*,R,$RESIZE left" \
+    -g "2,UD,*,*,R,$RESIZE down" \
+    -g "2,DU,*,*,R,$RESIZE up" \
     -g "4,LR,*,*,R,swaymsg resize grow width 60 px" \
     -g "4,RL,*,*,R,swaymsg resize shrink width 60 px" \
     -g "4,UD,*,*,R,swaymsg resize grow height 60 px" \

@@ -1,0 +1,37 @@
+diff --git a/lisgd.c b/lisgd.c
+index 921f5bc..ebc6341 100644
+--- a/lisgd.c
++++ b/lisgd.c
+@@ -82,6 +82,9 @@ Swipe pendingswipe;
+ Edge pendingedge;
+ Distance pendingdistance;
+ double xstart[MAXSLOTS], xend[MAXSLOTS], ystart[MAXSLOTS], yend[MAXSLOTS];
++/* Where the gesture began, kept for the command's benefit. resetslot() wipes
++ * xstart/ystart before gestureexecute() runs, so it is captured beforehand. */
++double lastxstart = -1, lastystart = -1;
+ unsigned nfdown = 0, nfpendingswipe = 0;
+ struct timespec timedown;
+ static int screen;
+@@ -233,6 +236,13 @@ gestureexecute(Swipe swipe, int nfingers, Edge edge, Distance distance, ActMode
+ 			&& (actmode == ActModeReleased || gestsarr[i].actmode == actmode)
+ 			) {
+ 			if (verbose) fprintf(stderr, "Execute %s\n", gestsarr[i].command);
++			/* Hand the start position to the command, so a binding can care
++			 * about where on screen the gesture began. */
++			char coordbuf[32];
++			snprintf(coordbuf, sizeof(coordbuf), "%d", (int)lastxstart);
++			setenv("LISGD_X", coordbuf, 1);
++			snprintf(coordbuf, sizeof(coordbuf), "%d", (int)lastystart);
++			setenv("LISGD_Y", coordbuf, 1);
+ 			system(gestsarr[i].command);
+ 			return 1; //execute first match only
+ 		}
+@@ -385,6 +395,8 @@ touchup(struct libinput_event *e)
+ 		pendingdistance = distance;
+ 	}
+ 	if (pendingswipe == swipe) nfpendingswipe++;
++	lastxstart = xstart[slot];
++	lastystart = ystart[slot];
+ 	resetslot(slot);
+ 
+ 	// All fingers up - check if within millisecond limit, exec, & reset
