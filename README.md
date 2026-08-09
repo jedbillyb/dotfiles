@@ -314,13 +314,19 @@ git apply /mnt/shared/projects/dotfiles/patches/lisgd-export-gesture-coords.patc
 make WITHOUT_X11=1 && install -m755 lisgd ~/.local/bin/lisgd
 ```
 
-Step size is the thing that decides whether it feels attached to your finger.
-lisgd fires once per `-T` pixels of travel and each fire moves the boundary by
-`TOUCH_RESIZE_STEP`, so **the two must match** — mismatched, the boundary
-overshoots or trails by exactly their ratio. They are 20px here; at the
-original 60 the boundary sat up to a full 60px behind the finger, which reads
-as lag even though each call only takes ~5ms. Smaller tracks tighter and fires
-proportionally more often, and lisgd blocks on each one, so it is a real trade.
+**The boundary is moved *to* the finger, not *by* a step**, and that is the
+whole reason it keeps up. Stepping (`resize grow width N px` per fire) makes
+the work proportional to how far you drag: lisgd blocks on each call, so a fast
+drag queues fires faster than they can run and the boundary arrives late,
+still catching up after your fingers have stopped. Shrinking the step makes it
+*worse*, because it multiplies the number of calls. Positioning absolutely
+(`resize set width <finger - origin> px`) is idempotent, so a backlog collapses
+to the newest fire and drag speed stops mattering.
+
+That needs the live touch position, so the lisgd patch exports `LISGD_CUR_X` /
+`LISGD_CUR_Y` alongside the anchor, and the cache carries the grabbed window's
+origin — its left/top edge, which stays put while the far edge is dragged — so
+the shell can size it absolutely without re-reading the tree.
 
 The cache's TTL measures the gap *between* fires, not the age of the drag —
 the fast path rewrites the timestamp every time. Getting that wrong is

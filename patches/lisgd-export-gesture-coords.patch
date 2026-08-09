@@ -1,8 +1,8 @@
 diff --git a/lisgd.c b/lisgd.c
-index 921f5bc..3f59785 100644
+index 921f5bc..9c66e43 100644
 --- a/lisgd.c
 +++ b/lisgd.c
-@@ -82,6 +82,13 @@ Swipe pendingswipe;
+@@ -82,6 +82,17 @@ Swipe pendingswipe;
  Edge pendingedge;
  Distance pendingdistance;
  double xstart[MAXSLOTS], xend[MAXSLOTS], ystart[MAXSLOTS], yend[MAXSLOTS];
@@ -13,10 +13,14 @@ index 921f5bc..3f59785 100644
 + * the point the drag was anchored at, which neither of those still holds. */
 +double xdown[MAXSLOTS], ydown[MAXSLOTS];
 +double lastxstart = -1, lastystart = -1;
++/* Where the finger is *now*. A command that positions something absolutely
++ * needs this rather than a step count: it can then be idempotent, so a backlog
++ * of fires collapses to the latest one instead of trailing behind. */
++double lastxcur = -1, lastycur = -1;
  unsigned nfdown = 0, nfpendingswipe = 0;
  struct timespec timedown;
  static int screen;
-@@ -233,6 +240,13 @@ gestureexecute(Swipe swipe, int nfingers, Edge edge, Distance distance, ActMode
+@@ -233,6 +244,17 @@ gestureexecute(Swipe swipe, int nfingers, Edge edge, Distance distance, ActMode
  			&& (actmode == ActModeReleased || gestsarr[i].actmode == actmode)
  			) {
  			if (verbose) fprintf(stderr, "Execute %s\n", gestsarr[i].command);
@@ -27,10 +31,14 @@ index 921f5bc..3f59785 100644
 +			setenv("LISGD_X", coordbuf, 1);
 +			snprintf(coordbuf, sizeof(coordbuf), "%d", (int)lastystart);
 +			setenv("LISGD_Y", coordbuf, 1);
++			snprintf(coordbuf, sizeof(coordbuf), "%d", (int)lastxcur);
++			setenv("LISGD_CUR_X", coordbuf, 1);
++			snprintf(coordbuf, sizeof(coordbuf), "%d", (int)lastycur);
++			setenv("LISGD_CUR_Y", coordbuf, 1);
  			system(gestsarr[i].command);
  			return 1; //execute first match only
  		}
-@@ -301,6 +315,8 @@ touchdown(struct libinput_event *e)
+@@ -301,6 +323,8 @@ touchdown(struct libinput_event *e)
  	slot = libinput_event_touch_get_slot(tevent);
  	xstart[slot] = libinput_event_touch_get_x_transformed(tevent, screenwidth);
  	ystart[slot] = libinput_event_touch_get_y_transformed(tevent, screenheight);
@@ -39,21 +47,25 @@ index 921f5bc..3f59785 100644
  	if (nfdown == 0) clock_gettime(CLOCK_MONOTONIC_RAW, &timedown);
  	nfdown++;
  }
-@@ -340,6 +356,8 @@ touchmotion(struct libinput_event *e)
+@@ -340,6 +364,10 @@ touchmotion(struct libinput_event *e)
  				((now.tv_sec - timedown.tv_sec) * 1000000 + (now.tv_nsec - timedown.tv_nsec) / 1000) / 1000
  			) {
  				if (verbose) fprintf(stderr, "(Attempting to find matching pressed gesture)\n");
 +				lastxstart = xdown[slot];
 +				lastystart = ydown[slot];
++				lastxcur = xend[slot];
++				lastycur = yend[slot];
  				if (gestureexecute(swipe, nfdown, edge, DistanceAny, ActModePressed)) {
  					//we found and executed a matching gesture, reset the slot
  					if (verbose) fprintf(stderr, "(Pressed gestured Executed)\n");
-@@ -385,6 +403,8 @@ touchup(struct libinput_event *e)
+@@ -385,6 +413,10 @@ touchup(struct libinput_event *e)
  		pendingdistance = distance;
  	}
  	if (pendingswipe == swipe) nfpendingswipe++;
 +	lastxstart = xdown[slot];
 +	lastystart = ydown[slot];
++	lastxcur = xend[slot];
++	lastycur = yend[slot];
  	resetslot(slot);
  
  	// All fingers up - check if within millisecond limit, exec, & reset

@@ -30,10 +30,13 @@ import sys
 # ~50px on this screen (~5.6 px/mm), so 60 covers a finger placed on the gap
 # with a little to spare, without reaching halfway across a narrow window.
 SLOP = 60
-STEP = os.environ.get("TOUCH_RESIZE_STEP", "20") + " px"
+MIN = 100  # keep in step with touch-resize.sh
 
 # Shared with touch-resize.sh, which reads it on subsequent fires:
-#   <epoch ms> <anchor x> <anchor y> <axis> <container id>
+#   <epoch ms> <anchor x> <anchor y> <axis> <container id> <container origin>
+# The origin is the grabbed window's left/top edge. It stays put while its far
+# edge is dragged, so the shell can size the window absolutely from the finger
+# position without ever re-reading the tree.
 CACHE = f"/tmp/touch-resize-{os.getuid()}.cache"
 
 
@@ -68,16 +71,16 @@ def focused_workspace(node, current=None):
     return None
 
 
-def apply_resize(con, direction, axis):
-    """Grow the low-side window when the drag pushes the boundary away from it."""
-    grow = direction in ("right", "down")
-    sway(f"[con_id={con}] resize {'grow' if grow else 'shrink'} {axis} {STEP}")
+def apply_resize(con, origin, axis):
+    """Size the grabbed window so its far edge lands under the finger."""
+    cur = int(os.environ["LISGD_CUR_X" if axis == "width" else "LISGD_CUR_Y"])
+    sway(f"[con_id={con}] resize set {axis} {max(cur - origin, MIN)} px")
 
 
-def write_cache(x, y, axis, con):
+def write_cache(x, y, axis, con, origin):
     try:
         with open(CACHE, "w") as f:
-            f.write(f"{int(time.time() * 1000)} {x} {y} {axis} {con}")
+            f.write(f"{int(time.time() * 1000)} {x} {y} {axis} {con} {origin}")
     except OSError:
         pass
 
@@ -141,8 +144,9 @@ def main():
 
     _, low_side = best
     con = low_side["id"]
-    write_cache(x, y, axis, con)
-    apply_resize(con, direction, axis)
+    origin = low_side["rect"]["x"] if horizontal else low_side["rect"]["y"]
+    write_cache(x, y, axis, con, origin)
+    apply_resize(con, origin, axis)
 
 
 if __name__ == "__main__":
