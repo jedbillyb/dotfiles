@@ -51,6 +51,11 @@ flock -n 9 || exit 0
 # this one outlives the shell that spawned it and would otherwise be duplicated
 # by the next launch.
 (
+    # Drop the inherited lock fd first. Without this the supervisor keeps
+    # $LOCK held for as long as it lives, so once lisgd is restarted by hand
+    # the next launch sees the lock taken and quietly exits -- gestures gone
+    # until the whole session restarts.
+    exec 9>&-
     exec 8>"$RESIZED_LOCK"
     flock -n 8 || exit 0
     while :; do
@@ -74,22 +79,34 @@ flock -n 9 || exit 0
 # dragging is also how you scroll everything.
 #
 # The single-finger resize is edge N (nowhere near an edge) rather than * on
-# purpose. Pressed gestures fire during the drag and resetslot() the moment they
-# match, which would eat the pending release gesture -- with * the edge swipes
-# below would simply never fire. The cost is that a resize stops once the drag
-# reaches the 50px edge strip, which is also roughly where the outermost windows
-# have no boundary left to drag.
+# purpose. When a pressed gesture matches, lisgd advances that slot's leg start
+# to the current point, so the release gesture afterwards sees only the leftover
+# stub of the swipe and no longer registers -- with * the edge swipes below
+# would simply never fire. N is what keeps them apart, and it holds for the
+# whole drag: the leg start only advances on a match, so a swipe begun at the
+# edge keeps measuring from the edge and never looks like edge N.
+#
+# The cost is that a resize stops once the drag reaches the 50px edge strip,
+# which is also roughly where the outermost windows have no boundary left to
+# drag.
 #
 # The finger count is passed through because it sets how far from the cached
 # anchor a fire may stray: two fingers report two anchors a hand's width apart,
 # one finger reports one and wants a tight match.
+#
+# -T is how far a finger travels between fires, and so how coarsely a resize
+# follows it: 10px is ~1.8mm on this screen. It is the floor on smoothness now
+# that a fire costs ~1.2ms rather than 5-60ms, and it was 20 only because fires
+# used to be expensive. Going much below this buys nothing -- at ordinary drag
+# speeds 10px already fires faster than the display refreshes, so the extra
+# updates would be thrown away, while each one still makes clients relayout.
 #
 # Four fingers resizes the focused window from anywhere, no aiming. It stays
 # because two fingers cannot be made exclusive: a browser reads a 2-finger
 # horizontal swipe as back/forward, and lisgd cannot swallow the touch.
 exec "$LISGD" -d "$DEV" \
     -t 100 \
-    -T 20 \
+    -T 10 \
     -m 1000 \
     -g "1,RL,R,*,R,swaymsg workspace next_on_output" \
     -g "1,LR,L,*,R,swaymsg workspace prev_on_output" \

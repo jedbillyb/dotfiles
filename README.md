@@ -313,10 +313,14 @@ the 3s a live drag gets), so the fires that follow it cost ~5ms instead of
 re-running the 60ms tree search over and over while you scroll.
 
 The single-finger resize is bound to edge `N` — *not* near any edge — rather
-than `*`. A pressed gesture `resetslot()`s the moment it matches, which eats the
-pending release gesture, so with `*` the edge swipes above would simply never
-fire. The cost is that a one-finger resize stops when the drag reaches the 50px
-edge strip; two fingers have no such restriction.
+than `*`. When a pressed gesture matches, lisgd advances that slot's leg start
+to the current point, so the release gesture afterwards sees only the leftover
+stub and no longer registers as a swipe; with `*` the edge swipes above would
+simply never fire. `N` keeps them apart for the whole drag, because that leg
+start only advances on a match — a swipe begun at the edge keeps measuring from
+the edge and never looks like edge `N`. The cost is that a one-finger resize
+stops when the drag reaches the 50px edge strip; two fingers have no such
+restriction.
 
 That needs to know *where* the gesture started, which upstream lisgd does not
 tell the command — it calls `system()` and nothing else. `patches/`
@@ -382,6 +386,14 @@ Nearly all of the Python was the interpreter starting up (21ms for
 `python3 -c pass`), so caching *inside* it saved nothing. Even the sh version
 paid ~3ms just to start bash and another ~2ms to fork `swaymsg`. Once the answer
 is "stop starting programs", the FIFO write is all that is left.
+
+With that gone, the limit is **`-T`, how far the finger travels between fires**,
+which is why it dropped 20 → 10px (~1.8mm here) once fires got cheap. Below that
+there is nothing to win: at ordinary drag speeds 10px already fires faster than
+the display refreshes, so the extra updates are thrown away while still making
+clients relayout. Note this is not a reversal of "smaller steps made it worse" —
+that was true while each fire *stepped* the boundary, so the work grew with the
+drag. Fires are idempotent now, so more of them is just a finer sample.
 
 Two details make that FIFO safe. The writer opens it **read-write**, not
 write-only: a write-only open blocks until a reader appears, so a dead daemon
