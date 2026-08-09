@@ -295,9 +295,18 @@ reason it exists.
 | 3 fingers, up (anywhere) | Toggle fullscreen |
 | 3 fingers, down (anywhere) | Close window |
 
-`-t 35` is how far a swipe must travel to count at all (~6mm here), and `-e`
-leaves the edge strips at their 50px default. Still clearly deliberate, but an
-edge swipe is not a whole-hand haul.
+`-t 35` is how far a swipe must travel to count at all (~6mm here). Distance was
+never what made a swipe fail to register, though — three other defaults were,
+and all three are loosened:
+
+| flag | default | here | why |
+| --- | --- | --- | --- |
+| `-r` | 15 | 30 | Degrees of slack on direction. A swipe had to be within 15° of dead horizontal, and a thumb coming in from the edge arcs. |
+| `-m` | 800 | 2500 | How long the gesture may take. A slow, deliberate swipe never fired. Also gates the pressed path, so at 1000 a pause of more than a second mid-drag killed resizing until you lifted. |
+| `-s` | 1.0 | 1.6 | Scales the 50px edge strips to 80px. Workspace swipes only count if they start or end in one. |
+
+45 is the ceiling on `-r`, where every angle matches something; 30 is forgiving
+without going there, and nothing diagonal is bound anyway.
 
 The single-finger *workspace* gestures are anchored to a screen edge on purpose.
 lisgd cannot swallow the touches it watches, so the app underneath sees them

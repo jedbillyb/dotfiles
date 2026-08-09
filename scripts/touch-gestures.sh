@@ -98,6 +98,25 @@ flock -n 9 || exit 0
 # tuned down from 100 by feel; it is short enough to flick but still past what a
 # tap or a shaky finger produces. It applies to the release-mode gestures only.
 #
+# Distance was never the reason a swipe failed to register, though. Three
+# defaults were, and all three are loosened here:
+#
+#   -r 30   Direction leniency, in degrees, default 15. A swipe had to be within
+#           15 degrees of dead horizontal or it was thrown away -- and a thumb
+#           coming in from the edge arcs, so plenty of real swipes missed. 30 is
+#           forgiving without reaching the 45 where every angle matches
+#           something; nothing diagonal is bound here anyway.
+#
+#   -m 2500 The whole gesture must finish this long after touch-down, default
+#           800. A slow, deliberate swipe simply never fired. It also gates the
+#           pressed path, where the clock restarts on each fire -- so at 1000 a
+#           pause of more than a second mid-drag killed resizing until you
+#           lifted your fingers.
+#
+#   -s 1.6  Scales the 50px edge strips to 80px. The workspace swipes only count
+#           when they start (or end) in one, and starting a little inboard of a
+#           50px strip is easy to do without noticing.
+#
 # -T is how far a finger travels between fires, and so how coarsely a resize
 # follows it: 10px is ~1.8mm on this screen. It is the floor on smoothness now
 # that a fire costs ~1.2ms rather than 5-60ms, and it was 20 only because fires
@@ -111,7 +130,9 @@ flock -n 9 || exit 0
 exec "$LISGD" -d "$DEV" \
     -t 35 \
     -T 10 \
-    -m 1000 \
+    -r 30 \
+    -m 2500 \
+    -s 1.6 \
     -g "1,RL,R,*,R,swaymsg workspace next_on_output" \
     -g "1,LR,L,*,R,swaymsg workspace prev_on_output" \
     -g "1,DU,B,*,R,$HOME/.local/bin/spotlight" \
