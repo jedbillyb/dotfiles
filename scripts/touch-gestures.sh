@@ -72,9 +72,9 @@ flock -n 9 || exit 0
 # whatever is underneath it. The edge strip is 100px of mostly-dead space (50px
 # scaled by -s below).
 #
-# One or two fingers resizes the boundary the gesture started near --
-# touch-resize.sh does its own hit test with 60px of slop, which is how the gap
-# gets a fingertip-sized grab region while staying 10px on screen. Away from a
+# One finger near a window boundary drags it -- touch-resize.sh does its own hit
+# test with 60px of slop, which is how the gap gets a fingertip-sized grab region
+# while staying 10px on screen. Away from a
 # boundary it is a no-op, so a drag anywhere else on screen is left alone; that
 # no-op is what makes binding a *single* finger safe at all, since one finger
 # dragging is also how you scroll everything.
@@ -125,16 +125,16 @@ flock -n 9 || exit 0
 # speeds 10px already fires faster than the display refreshes, so the extra
 # updates would be thrown away, while each one still makes clients relayout.
 #
-# Nothing is bound to three or four fingers any more. Those gestures fire on
-# release, and a release gesture only counts the fingers whose *own* swipe
-# matched: with three or four down, one of them almost always drifts off
-# direction, so the count falls short and nothing happens. Close-window was the
-# clearest case -- it fired rarely enough to be useless and, when it did fire,
-# closed a window with no confirmation.
+# Two fingers up closes the window, and is the one destructive gesture here, so
+# it carries a distance guard the others do not: the M in that binding means at
+# least a *medium* swipe, a third of the screen height (400px), which is not
+# something a stray touch produces.
 #
-# Dropping them is also what makes the loose recognition above safe. The only
-# things left are switching workspace, the launcher, and resizing, and none of
-# them destroys anything, so a stray match costs a swipe back.
+# Three and four fingers are bound to nothing. Those gestures fire on release,
+# and a release gesture only counts the fingers whose *own* swipe matched: with
+# three or four down one always drifts off direction, the count falls short, and
+# nothing happens -- which is exactly why close-window never worked on three.
+# Two is the most that stays reliable.
 exec "$LISGD" -d "$DEV" \
     -t 25 \
     -T 10 \
@@ -148,7 +148,4 @@ exec "$LISGD" -d "$DEV" \
     -g "1,RL,N,*,P,$RESIZE left 1" \
     -g "1,UD,N,*,P,$RESIZE down 1" \
     -g "1,DU,N,*,P,$RESIZE up 1" \
-    -g "2,LR,*,*,P,$RESIZE right 2" \
-    -g "2,RL,*,*,P,$RESIZE left 2" \
-    -g "2,UD,*,*,P,$RESIZE down 2" \
-    -g "2,DU,*,*,P,$RESIZE up 2"
+    -g "2,DU,*,M,R,swaymsg kill"

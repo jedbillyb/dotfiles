@@ -59,7 +59,10 @@ lock_visible_namespace waybar
 exec nm-applet --indicator
 exec blueman-applet
 exec dunst
-exec foot --server
+# exec_always, not exec: a plain exec only runs at sway startup, so if the
+# server ever dies every footclient window dies with it and $mod+Return stops
+# working until a full restart. A second copy just exits, the socket is taken.
+exec_always foot --server
 exec pipewire
 exec pipewire-pulse
 exec wireplumber
@@ -253,3 +256,11 @@ input "1160:4177:CRQ1080:00_0488:1051_Mouse" events disabled
 # events, which touchscreens never emit, so the swipes come from lisgd instead.
 # Needs the udev rule at /etc/udev/rules.d/99-touchscreen-lisgd.rules.
 exec_always $HOME/.local/bin/touch-gestures.sh
+
+# Touch shield: strips along the gesture edges that take the swipe so the app
+# underneath does not also get it. DISABLED -- unfinished, see "Stopping the
+# swipe from also hitting the app" in the dotfiles README. The catching works;
+# handing a tap back to the app works exactly once and then the strips go
+# permanently input-transparent, so it is inert rather than harmful, but there
+# is no point running it until that is fixed.
+# exec_always $HOME/.local/bin/touch-shield.py

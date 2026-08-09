@@ -39,6 +39,9 @@ My personal configuration files.
   as a root-owned copy at `/usr/local/bin/wifi-recover-root`
 - `scripts/touch-gestures.sh` - Touchscreen swipe gestures via `lisgd` (see
   "Touchscreen gestures" below)
+- `scripts/touch-shield.py` - Transparent strips along the gesture edges so a
+  swipe does not also land on the app underneath. **Unfinished and disabled in
+  the sway config** — see "Stopping the swipe from also hitting the app"
 - `scripts/touch-resize.sh` - What a resize gesture runs: writes one line to a
   FIFO and exits, so the gesture pays ~1ms
 - `scripts/touch-resized.py` - The daemon behind it, holding the sway IPC socket
@@ -288,7 +291,13 @@ reason it exists.
 | 1 finger, in from the **left** edge | Previous workspace |
 | 1 finger, up from the **bottom** edge | Spotlight launcher |
 | 1 finger, near a window boundary (not on an edge) | Drag that boundary (see below) |
-| 2 fingers, near a window boundary | Drag that boundary (see below) |
+| 2 fingers, up, a third of the screen or more | Close the focused window |
+
+Close-window carries a distance guard (`M` in its binding — at least a *medium*
+swipe, 400px here) that nothing else does, because it is the only destructive
+gesture. Two fingers is also the most that stays reliable: a release gesture
+counts only the fingers whose own swipe matched, and on three or four one always
+drifts off direction, which is why it never worked on three.
 
 Nothing is bound to three or four fingers. A release gesture only counts the
 fingers whose *own* swipe matched, and with three or four down one of them
@@ -479,6 +488,49 @@ typelib (4.0) and GtkLayerShell then fails against it.
 Clicking an entry still launches it — verified against a control run with no
 backdrop, which also showed that a *single* click never launches in wofi 1.5.3.
 It selects; activation is a double-click or Enter.
+
+### Stopping the swipe from also hitting the app (unfinished)
+
+**Status: written, disabled in `sway/config`.** Catching a swipe works; handing a
+tap back works exactly once. Uncomment the `exec_always` line once the bug below
+is fixed.
+
+lisgd reads the touchscreen passively off its evdev node — that is what lets it
+see gestures at all, but the compositor still delivers those same touches to
+whatever is underneath, so an edge swipe also scrolls or drags the app it started
+on. Reading evdev cannot prevent that, and an exclusive grab would take touch
+from every app.
+
+The only thing that stops the app seeing a touch is another surface taking it
+first. `scripts/touch-shield.py` puts a layer-shell strip along each gesture edge
+to do exactly that. Touch focus stays with the surface that got the touch-down,
+so shielding the *start* of a swipe shields all of it.
+
+That alone makes the strips dead zones, which is why a first version kept them
+only as wide as the window gap (10px) — a Wayland surface that accepts touch
+accepts the pointer too, measured, not assumed: with a 100px strip a click at
+x=30 landed on the strip rather than the window, and at the right-hand edge that
+is where scrollbars live.
+
+The current version is the wide one that hands back what it should not have
+taken: a touch that turns out to be a tap rather than a swipe is replayed to the
+app as a click — clear the input regions, drive sway's cursor to the spot, click,
+restore the regions. Verified working for the first tap.
+
+**The open bug:** the strips go permanently input-transparent after that first
+give-back, so the shield is inert from then on. Restoring the input region by
+handing back a full-size rectangle is what fails; `None` (meaning "no input shape
+at all") is the documented way and is what the code now does, but that change is
+untested — the last run still showed 1 give-back out of 3 clicks. Failure
+direction is safe: an unrestored region means the strips stop taking input, not
+that they swallow it.
+
+What the approach cannot give back either way is a *drag* that starts in a strip
+and is not a swipe — scrolling a page from within the last 100px. Replaying a
+press is one command; replaying a live drag would mean tracking it the whole way.
+
+`TOUCH_SHIELD_WIDTH` sets the thickness, `TOUCH_SHIELD_DEBUG=1` tints the strips
+and logs each give-back — placing an invisible surface is otherwise guesswork.
 
 **Two fingers cannot be made exclusive.** lisgd can't swallow the touch, so a
 browser sitting under that 60px strip still reads a horizontal 2-finger swipe
@@ -726,7 +778,7 @@ key rather than the keymap symbol.
 | 1 finger, in from left edge | Previous workspace |
 | 1 finger, up from bottom edge | Spotlight launcher |
 | 1 finger near a window boundary (not on an edge) | Drag that boundary |
-| 2 fingers near a window boundary | Drag that boundary |
+| 2 fingers up, a third of the screen | Close the focused window |
 
 Windows also resize by dragging their (invisible) edges. See "Touchscreen
 gestures" and "Touch-resizing windows and invisible borders" above.
