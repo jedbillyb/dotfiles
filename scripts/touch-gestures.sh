@@ -17,10 +17,19 @@ LOCK=/tmp/touch-gestures.lock
 # /usr/bin:/usr/sbin, so anything in ~/.local/bin is invisible to exec_always.
 LISGD=$HOME/.local/bin/lisgd
 RESIZE=$HOME/.local/bin/touch-resize.sh
+RESIZED=$HOME/.local/bin/touch-resized.py
+RESIZED_LOCK=/tmp/touch-resized.lock
+
+# Passed down to touch-resize.sh through lisgd, so that script does not have to
+# fork `id -u` to name it. It is now small enough that a fork would be most of
+# the work it does.
+TOUCH_RESIZE_FIFO=/tmp/touch-resize-$(id -u).fifo
+export TOUCH_RESIZE_FIFO
 
 [ -e "$DEV" ] || { echo "touch-gestures: no $DEV, is the udev rule installed?" >&2; exit 1; }
 [ -x "$LISGD" ] || { echo "touch-gestures: no lisgd at $LISGD" >&2; exit 1; }
 [ -x "$RESIZE" ] || { echo "touch-gestures: no touch-resize.sh at $RESIZE" >&2; exit 1; }
+[ -x "$RESIZED" ] || { echo "touch-gestures: no touch-resized.py at $RESIZED" >&2; exit 1; }
 
 # usermod only takes effect at the next login, so on the session where the
 # group was first granted this process still lacks it. sg picks the membership
@@ -34,6 +43,21 @@ fi
 
 exec 9>"$LOCK"
 flock -n 9 || exit 0
+
+# The resize daemon does all the work behind touch-resize.sh, which is only a
+# FIFO write. Supervised rather than just started: if it dies, resizing goes
+# silently dead (the writes land in a pipe nobody reads) and nothing else would
+# bring it back. Its own flock keeps a second supervisor from starting, since
+# this one outlives the shell that spawned it and would otherwise be duplicated
+# by the next launch.
+(
+    exec 8>"$RESIZED_LOCK"
+    flock -n 8 || exit 0
+    while :; do
+        "$RESIZED"
+        sleep 1
+    done
+) &
 
 # Edge swipes switch workspaces, iPad style: drag in from the right edge and
 # the workspace to the right comes with your finger.

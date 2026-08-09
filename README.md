@@ -34,12 +34,14 @@ My personal configuration files.
   as a root-owned copy at `/usr/local/bin/wifi-recover-root`
 - `scripts/touch-gestures.sh` - Touchscreen swipe gestures via `lisgd` (see
   "Touchscreen gestures" below)
-- `scripts/touch-resize.sh` - Resizes the tiled window boundary nearest a
-  gesture, giving the 10px gap a fingertip-sized grab region
-- `scripts/touch-resize-pick.py` - Picks which boundary that is, on the first
-  fire of a drag only (kept out of the hot path; see below)
+- `scripts/touch-resize.sh` - What a resize gesture runs: writes one line to a
+  FIFO and exits, so the gesture pays ~1ms
+- `scripts/touch-resized.py` - The daemon behind it, holding the sway IPC socket
+  open; resizes the tiled window boundary nearest the gesture, giving the 10px
+  gap a fingertip-sized grab region
 - `patches/lisgd-export-gesture-coords.patch` - Local lisgd patch exporting
-  `LISGD_X`/`LISGD_Y`, which `touch-resize.sh` depends on
+  `LISGD_X`/`LISGD_Y` (anchor) and `LISGD_CUR_X`/`LISGD_CUR_Y` (live position),
+  which touch resize depends on
 - `udev/99-touchscreen-lisgd.rules` - Stable `/dev/input/touchscreen` symlink
   and group access for that daemon
 - `scripts/openclaw-send` - openclaw helper script
@@ -338,8 +340,8 @@ still catching up after your fingers have stopped. Shrinking the step makes it
 to the newest fire and drag speed stops mattering.
 
 That needs the live touch position, so the lisgd patch exports `LISGD_CUR_X` /
-`LISGD_CUR_Y` alongside the anchor, and the cache carries the window's size at
-the moment it was grabbed. Each fire sets it to that size plus how far the
+`LISGD_CUR_Y` alongside the anchor, and the daemon remembers the window's size
+at the moment it was grabbed. Each fire sets it to that size plus how far the
 *firing finger* has travelled from *its own* anchor.
 
 Both halves of that matter, because **lisgd tracks each finger in a separate
@@ -349,26 +351,48 @@ anchors and two live positions, a hand's width apart:
 - Driving the size off an absolute finger position makes the boundary flip
   between the two fingers, oscillating by the width of your grip. Using each
   finger's delta from its own anchor gives the same answer for both.
-- Matching the cache as tightly as the boundary pick (60px) makes every other
-  fire miss, fall through to the picker at 60px against 5px, and rewrite the
-  cache with the other finger's anchor — the fingers thrash it between them,
-  which reads as lag punctuated by snaps. Hence `CACHE_SLOP` of 250px, far
-  wider than the 60px `SLOP` used to pick the boundary in the first place.
+- Remembering the grabbed boundary as tightly as it is picked (60px) makes every
+  other fire miss, re-run the tree search, and record the *other* finger's
+  anchor — the fingers thrash it between them, which reads as lag punctuated by
+  snaps. So the anchor match is 250px for two fingers, far wider than the 60px
+  `SLOP` used to pick the boundary in the first place, and 60px for one.
 
-The cache's TTL measures the gap *between* fires, not the age of the drag —
-the fast path rewrites the timestamp every time. Getting that wrong is
-invisible until you drag: the cache went stale a fixed time after the *first*
-fire, so a drag died after 3-5 steps, and died permanently, because the
-fallback re-searches near the original anchor and by then the boundary has been
-dragged well clear of it.
+That memory's TTL measures the gap *between* fires, not the age of the drag —
+every fire refreshes it. Getting that wrong is invisible until you drag: it went
+stale a fixed time after the *first* fire, so a drag died after 3-5 steps, and
+died permanently, because a re-pick searches near the original anchor and by
+then the boundary has been dragged well clear of it.
 
-Pressed mode makes per-call cost matter, because lisgd blocks in `system()`
-until the command returns. Doing the whole job in Python cost 49ms *per fire*,
-which stutters visibly at 60px increments — and nearly all of it was the
-interpreter starting up (21ms for `python3 -c pass`; `swaymsg` is only 2ms),
-so caching inside Python saved nothing. Hence the split: `touch-resize.sh` is
-POSIX sh and handles repeat fires from a cache file in ~7ms, calling
-`touch-resize-pick.py` only for the first fire of a drag (~60ms, once).
+**Per-fire cost is the lag**, because lisgd blocks in `system()` until the
+command returns, and in pressed mode that is every 20px of finger travel. So the
+work is not done there at all. `scripts/touch-resized.py` is a daemon holding
+the sway IPC socket open with the drag state in memory, and `touch-resize.sh` —
+the thing lisgd actually runs — is one `sh` that writes a line to a FIFO and
+exits, about 1.2ms. Everything else happens off the gesture's critical path.
+
+Getting there took three goes, and the numbers are why:
+
+| | per fire | first fire of a drag |
+| --- | --- | --- |
+| all in Python | 49ms | 49ms |
+| sh + cache file, Python picker | ~5ms | ~60ms |
+| FIFO to a resident daemon | ~1.2ms | ~1.2ms |
+
+Nearly all of the Python was the interpreter starting up (21ms for
+`python3 -c pass`), so caching *inside* it saved nothing. Even the sh version
+paid ~3ms just to start bash and another ~2ms to fork `swaymsg`. Once the answer
+is "stop starting programs", the FIFO write is all that is left.
+
+Two details make that FIFO safe. The writer opens it **read-write**, not
+write-only: a write-only open blocks until a reader appears, so a dead daemon
+would hang lisgd on every gesture, permanently. Read-write never blocks, so with
+no daemon the line just goes nowhere. And `touch-gestures.sh` supervises the
+daemon in a background loop rather than merely starting it, since its death is
+otherwise silent — the writes keep succeeding into a pipe nobody reads.
+
+The daemon also drains the FIFO and acts only on the newest line. Each fire
+positions the boundary absolutely, so replaying a backlog would just walk stale
+finger positions to the same destination.
 
 **Two fingers cannot be made exclusive.** lisgd can't swallow the touch, so a
 browser sitting under that 60px strip still reads a horizontal 2-finger swipe
