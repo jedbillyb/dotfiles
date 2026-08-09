@@ -19,7 +19,7 @@ LISGD=$HOME/.local/bin/lisgd
 RESIZE=$HOME/.local/bin/touch-resize.sh
 RESIZED=$HOME/.local/bin/touch-resized.py
 RESIZED_LOCK=/tmp/touch-resized.lock
-WSNEW=$HOME/.local/bin/workspace-new.py
+WSSTEP=$HOME/.local/bin/workspace-step.py
 
 # Passed down to touch-resize.sh through lisgd, so that script does not have to
 # fork `id -u` to name it. It is now small enough that a fork would be most of
@@ -37,7 +37,7 @@ export TOUCH_RESIZE_GRABBED
 [ -x "$LISGD" ] || { echo "touch-gestures: no lisgd at $LISGD" >&2; exit 1; }
 [ -x "$RESIZE" ] || { echo "touch-gestures: no touch-resize.sh at $RESIZE" >&2; exit 1; }
 [ -x "$RESIZED" ] || { echo "touch-gestures: no touch-resized.py at $RESIZED" >&2; exit 1; }
-[ -x "$WSNEW" ] || { echo "touch-gestures: no workspace-new.py at $WSNEW" >&2; exit 1; }
+[ -x "$WSSTEP" ] || { echo "touch-gestures: no workspace-step.py at $WSSTEP" >&2; exit 1; }
 
 # usermod only takes effect at the next login, so on the session where the
 # group was first granted this process still lacks it. sg picks the membership
@@ -75,16 +75,25 @@ flock -n 9 || exit 0
 # Edge swipes switch workspaces, iPad style: drag in from the right edge and
 # the workspace to the right comes with your finger.
 #
-# The same swipe carried two thirds of the way across the screen (L, ~1270px
-# here) instead goes to a new *empty* workspace in that direction, via
-# workspace-new.py. `workspace next_on_output` only cycles what already exists,
-# so without this there is no way to reach somewhere blank to start something in
-# -- which matters far more without a keyboard than with one.
+# The same edge swipe with *two* fingers steps one workspace along by *number*,
+# via workspace-step.py, creating it if it does not exist. One finger walks the
+# workspaces that exist, so from 3 it may jump to 9; two fingers walks the
+# numbers, so 3 goes to 4 and back to 3 regardless of what is on them. That is
+# what makes it predictable, and it is also the only way to reach somewhere blank
+# to start something in -- which matters far more without a keyboard than with
+# one.
 #
-# Those two bindings must come before the plain ones: lisgd takes the first
-# match and a binding written `*` matches every distance, so an L binding listed
-# after one would never be reached. Distance is a floor, not a band -- the check
-# is `configured <= measured`.
+# It does not skip an occupied number looking for a free one. An earlier version
+# did, and also refused to move while already on an empty workspace, which made
+# stepping back and forth behave differently depending on what was open. Asked
+# for 5, you get 5, empty or not.
+#
+# This was first tried as a *long* one-finger swipe, and measuring killed the
+# idea: lisgd's distance buckets are thirds of the screen, so L wanted 1270px
+# horizontally, while real "long" swipes here came out at 401-579px -- the same
+# range as ordinary edge swipes. There is no threshold that separates the two,
+# because the gestures are not actually different lengths. A finger count is,
+# and needs no guard at all.
 #
 # Edge-anchored (R/L) rather than anywhere-on-screen on purpose -- lisgd cannot
 # swallow the touches it watches, so a mid-screen swipe would also scroll
@@ -113,9 +122,11 @@ flock -n 9 || exit 0
 # anchor a fire may stray: two fingers report two anchors a hand's width apart,
 # one finger reports one and wants a tight match.
 #
-# -t is how far a swipe has to travel before it counts at all. 25px is ~4.5mm,
+# -t is how far a swipe has to travel before it counts at all. 15px is ~2.7mm,
 # tuned down from 100 by feel over several rounds. It applies to the
-# release-mode gestures only.
+# release-mode gestures only, and everything bound to one is reversible -- a
+# workspace step costs a swipe back -- so it can afford to sit low. The one
+# destructive gesture does not rely on it, carrying its own 180px guard instead.
 #
 # Distance was never the reason a swipe failed to register, though. Three
 # defaults were, and all three are loosened here:
@@ -165,11 +176,24 @@ flock -n 9 || exit 0
 # updates would be thrown away, while each one still makes clients relayout.
 #
 # A swipe down from the top edge closes the window. It is the one destructive
-# gesture here, so it carries a distance guard the others do not: the M means at
-# least a *medium* swipe, a third of the screen height (400px), which is not
-# something a stray touch produces. The top edge is otherwise unused -- left and
-# right switch workspace, bottom opens the launcher -- and waybar is only 16px of
-# the 100px strip, so there is room to start the drag on the window itself.
+# gesture here, so it carries a distance guard the others do not: 180px, which a
+# stray touch does not produce but a deliberate drag clears easily. The top edge
+# is otherwise unused -- left and right switch workspace, bottom opens the
+# launcher -- and waybar is only 16px of the 100px strip, so there is room to
+# start the drag on the window itself.
+#
+# 180 is a pixel count, not one of lisgd's S/M/L buckets, and that needed
+# patches/lisgd-distance-px.patch. The buckets are thirds of the screen, so the
+# only guards available for a downward swipe were "any" and "at least 396px" --
+# and measuring found that real close swipes here land at 262-309px. M was
+# therefore unreachable in practice: the gesture registered perfectly, correct
+# direction and correct edge, and was thrown away on distance every single time.
+# Nothing between "no guard at all" and "further than anyone swipes" is
+# expressible without the patch.
+#
+# It sits below that measured range on purpose. A guard set at the bottom of what
+# you currently do is a guard you will miss as soon as you are in a hurry, and
+# the failure is silent.
 #
 # It is deliberately anchored to an edge rather than bound to two fingers
 # anywhere, because edge-anchored is the only kind of release gesture that
@@ -188,13 +212,13 @@ flock -n 9 || exit 0
 # three or four down one always drifts off direction, the count falls short, and
 # nothing happens -- which is exactly why close-window never worked on three.
 exec "$LISGD" -d "$DEV" \
-    -t 25 \
+    -t 15 \
     -T 10 \
     -r 45 \
     -m 5000 \
     -s 2.0 \
-    -g "1,RL,R,L,R,$WSNEW right" \
-    -g "1,LR,L,L,R,$WSNEW left" \
+    -g "2,RL,R,*,R,$WSSTEP right" \
+    -g "2,LR,L,*,R,$WSSTEP left" \
     -g "1,RL,R,*,R,swaymsg workspace next_on_output" \
     -g "1,LR,L,*,R,swaymsg workspace prev_on_output" \
     -g "1,DU,B,*,R,$HOME/.local/bin/spotlight" \
@@ -202,4 +226,4 @@ exec "$LISGD" -d "$DEV" \
     -g "1,RL,N,*,P,$RESIZE left 1" \
     -g "1,UD,N,*,P,$RESIZE down 1" \
     -g "1,DU,N,*,P,$RESIZE up 1" \
-    -g "1,UD,T,M,R,swaymsg kill"
+    -g "1,UD,T,180,R,swaymsg kill"

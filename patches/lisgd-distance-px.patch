@@ -1,0 +1,125 @@
+Allow an exact pixel distance in a gesture's distance field.
+
+lisgd's distance guard has three settings and they are thirds of the screen:
+Short, Medium at 33%, Long at 66%. On a 1920x1200 output that means a downward
+swipe can be guarded at "any distance at all" or "at least 396px", and at
+nothing in between.
+
+That gap is not academic. Close-window wants a guard, being the only destructive
+gesture here, and measuring real attempts put them at 262-309px -- comfortably
+deliberate, and comfortably under Medium. The gesture was recognised perfectly
+every time, correct direction and correct edge, and thrown away on distance;
+the only alternative was to drop the guard entirely and let any flick near the
+top edge close a window.
+
+So the distance field now also takes a number, meaning that many pixels of
+travel: `1,UD,T,180,R,swaymsg kill`. S/M/L keep working and are unchanged.
+
+The measured distance has to be captured in touchup() before resetslot() wipes
+the coordinates, since the release gesture is not dispatched until every finger
+is up. The new struct field goes last because the defaults in config.h are
+positional initialisers -- anywhere earlier shifts all of them, while at the end
+they simply leave it zero-filled, which is the "unused" value.
+
+Applies on top of lisgd-export-gesture-coords.patch,
+lisgd-cardinals-before-diagonals.patch and lisgd-pressed-decline.patch.
+
+--- a/lisgd.c
++++ b/lisgd.c
+@@ -78,6 +78,16 @@
+ 	Distance distance;
+ 	ActMode actmode;
+ 	char *command;
++	/* An exact minimum travel in pixels, written in the distance field instead
++	 * of S/M/L. Zero means unused. The buckets are thirds of the screen, which
++	 * is far too coarse to place a guard: on a 1200px-tall screen the only
++	 * choices for a downward swipe are "any" and "at least 396px", with nothing
++	 * in between, and a comfortable deliberate swipe here measures about 280.
++	 *
++	 * Last on purpose. The defaults in config.h are positional initialisers, so
++	 * a field added anywhere earlier shifts every one of them; here they simply
++	 * leave it zero-filled, which is the "unused" value. */
++	double distancepx;
+ } Gesture;
+ 
+ /* Config */
+@@ -246,18 +256,20 @@
+ }
+ 
+ int
+-gestureexecute(Swipe swipe, int nfingers, Edge edge, Distance distance, ActMode actmode) {
++gestureexecute(Swipe swipe, int nfingers, Edge edge, Distance distance, double distpx, ActMode actmode) {
+ 	int i, status;
+ 
+ 	for (i = 0; i < gestsarrlen; i++) {
+ 		if (verbose) {
+ 			fprintf(stderr,
+-				"[swipe]: Cfg(f=%d/s=%d/e=%d/d=%d) <=> Evt(f=%d/s=%d/e=%d/d=%d)\n",
+-				gestsarr[i].nfswipe, gestsarr[i].swipe, gestsarr[i].edge, gestsarr[i].distance, nfingers, swipe, edge, distance
++				"[swipe]: Cfg(f=%d/s=%d/e=%d/d=%d/px=%.0f) <=> Evt(f=%d/s=%d/e=%d/d=%d/px=%.0f)\n",
++				gestsarr[i].nfswipe, gestsarr[i].swipe, gestsarr[i].edge, gestsarr[i].distance, gestsarr[i].distancepx,
++				nfingers, swipe, edge, distance, distpx
+ 			);
+ 		}
+ 		if (gestsarr[i].nfswipe == nfingers && gestsarr[i].swipe == swipe
+ 			&& gestsarr[i].distance <= distance
++			&& (gestsarr[i].distancepx == 0 || distpx >= gestsarr[i].distancepx)
+ 			&& (gestsarr[i].edge == EdgeAny || gestsarr[i].edge == edge ||
+ 				((edge == CornerTopLeft || edge == CornerTopRight) && gestsarr[i].edge == EdgeTop) ||
+ 				((edge == CornerBottomLeft || edge == CornerBottomRight) && gestsarr[i].edge == EdgeBottom) ||
+@@ -406,7 +418,11 @@
+ 				lastystart = ydown[slot];
+ 				lastxcur = xend[slot];
+ 				lastycur = yend[slot];
+-				int result = gestureexecute(swipe, nfdown, edge, DistanceAny, ActModePressed);
++				int result = gestureexecute(
++					swipe, nfdown, edge, DistanceAny,
++					hypot(xend[slot] - xfire[slot], yend[slot] - yfire[slot]),
++					ActModePressed
++				);
+ 				if (result != GestureNoMatch) {
+ 					/* Either way the throttle moves up, so the next attempt
+ 					 * waits for another distancethreshold_pressed of travel. */
+@@ -448,6 +464,10 @@
+ 		xend[slot] == NOMOTION || yend[slot] == NOMOTION
+ 	) return;
+ 
++	/* Taken now, because resetslot() below wipes the coordinates well before
++	 * the release gesture is dispatched. */
++	double distpx = hypot(xend[slot] - xstart[slot], yend[slot] - ystart[slot]);
++
+ 	Swipe swipe = gesturecalculateswipe(
+ 		xstart[slot], ystart[slot], xend[slot], yend[slot], distancethreshold
+ 	);
+@@ -474,7 +494,7 @@
+ 		if (
+ 			timeoutms >
+ 			((now.tv_sec - timedown.tv_sec) * 1000000 + (now.tv_nsec - timedown.tv_nsec) / 1000) / 1000
+-		) gestureexecute(swipe, nfpendingswipe, edge, distance, ActModeReleased);
++		) gestureexecute(swipe, nfpendingswipe, edge, distance, distpx, ActModeReleased);
+ 
+ 		nfpendingswipe = 0;
+ 	}
+@@ -648,6 +668,9 @@
+ 				perror("Could not allocate memory");
+ 				exit(EXIT_FAILURE);
+ 			}
++			/* realloc does not zero the new entry, and an exact pixel
++			 * threshold is only set when the distance field asks for one. */
++			gestsarr[gestsarrlen - 1].distancepx = 0;
+ 			gestpt = strtok(argv[++i], ",");
+ 			for (j = 0; gestpt != NULL && j < 6; gestpt = strtok(NULL, ","), j++) {
+ 				switch(j) {
+@@ -679,6 +702,12 @@
+ 						if (!strcmp(gestpt, "M")) gestsarr[gestsarrlen-1].distance = DistanceMedium;
+ 						if (!strcmp(gestpt, "S")) gestsarr[gestsarrlen-1].distance = DistanceShort;
+ 						if (!strcmp(gestpt, "*")) gestsarr[gestsarrlen-1].distance = DistanceAny;
++						/* Anything starting with a digit is an exact minimum in
++						 * pixels, e.g. 250 -- the bucket then goes unused. */
++						if (*gestpt >= '0' && *gestpt <= '9') {
++							gestsarr[gestsarrlen-1].distance = DistanceAny;
++							gestsarr[gestsarrlen-1].distancepx = atof(gestpt);
++						}
+ 						break;
+ 					case 4:
+ 						if (!strcmp(gestpt, "P")) {

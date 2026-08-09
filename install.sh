@@ -67,7 +67,10 @@ link git/gitconfig      "$HOME/.gitconfig"
 
 echo "Scripts (-> $BIN):"
 mkdir -p "$BIN"
-for s in vpn-toggle.sh vpn-proxy.sh caffeine-toggle.sh sway-idle.sh sway-lock.sh waybar-run.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py wofi-dismiss.py wofi-backdrop.py touch-shield.py; do
+# Everything in scripts/ that belongs in $BIN. touchpad-resume-fix.sh and
+# wifi-recover-root.sh are deliberately absent: they are installed elsewhere
+# below, into the elogind hook directory and /usr/local/bin respectively.
+for s in vpn-toggle.sh vpn-proxy.sh caffeine-toggle.sh show-desktop.sh sway-idle.sh sway-lock.sh waybar-run.sh waybar-toggle.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py workspace-step.py wofi-dismiss.py wofi-backdrop.py touch-shield.py zed-wrapper; do
 	chmod +x "$REPO/scripts/$s"
 	link "scripts/$s" "$BIN/$s"
 done
@@ -103,6 +106,22 @@ sudo udevadm control --reload-rules
 # (see "Touchpad wedges after resume").
 sudo udevadm trigger --subsystem-match=input --action=change \
 	--property-match=ID_INPUT_TOUCHSCREEN=1
+# lisgd itself is built by hand from a checkout, not by this script, and it needs
+# four local patches (see "Keeping the patches applied" in the README). Losing
+# them is silent -- gestures keep half-working and start eating one another --
+# so at least say so here. Each patch adds a string the stock binary lacks;
+# cardinals-before-diagonals only reorders code and cannot be detected this way.
+LISGD_BIN="$BIN/lisgd"
+if [ ! -x "$LISGD_BIN" ]; then
+	info "warn  no lisgd at $LISGD_BIN; touch gestures will not start"
+else
+	for probe in LISGD_CUR_X "Pressed gesture declined" "/px=%.0f"; do
+		if ! grep -qa "$probe" "$LISGD_BIN"; then
+			info "warn  $LISGD_BIN looks unpatched (no '$probe') -- see README"
+		fi
+	done
+fi
+
 if id -nG "$USER" | tr ' ' '\n' | grep -qx input; then
 	info "ok    $USER already in the input group"
 else

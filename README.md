@@ -48,9 +48,9 @@ My personal configuration files.
 - `scripts/touch-resized.py` - The daemon behind it, holding the sway IPC socket
   open; resizes the tiled window boundary nearest the gesture, giving the 10px
   gap a fingertip-sized grab region
-- `scripts/workspace-new.py` - Switches to the nearest *unused* workspace number
-  in one direction, which a long edge swipe runs; `workspace next_on_output`
-  only cycles ones that already exist
+- `scripts/workspace-step.py` - Steps one workspace along by *number*, creating
+  it if needed, which the two-finger edge swipe runs; `workspace next_on_output`
+  only walks the ones that already exist
 - `patches/lisgd-export-gesture-coords.patch` - Local lisgd patch exporting
   `LISGD_X`/`LISGD_Y` (anchor) and `LISGD_CUR_X`/`LISGD_CUR_Y` (live position),
   which touch resize depends on
@@ -60,6 +60,9 @@ My personal configuration files.
 - `patches/lisgd-pressed-decline.patch` - Lets a pressed gesture's command exit
   non-zero to say it did nothing, so a no-op resize stops destroying the swipe
   it was part of
+- `patches/lisgd-distance-px.patch` - Lets a gesture's distance field take an
+  exact pixel count, since the built-in S/M/L buckets are thirds of the screen
+  and leave nothing usable between "no guard" and "396px"
 - `udev/99-touchscreen-lisgd.rules` - Stable `/dev/input/touchscreen` symlink
   and group access for that daemon
 - `scripts/openclaw-send` - openclaw helper script
@@ -84,7 +87,8 @@ cd ~/projects/dotfiles
   the `xdg-desktop-portal/*-portals.conf` files into `~/.config`
 - symlinks the shell dotfiles and `gitconfig` into `~`
 - symlinks the `scripts/` and `bin/` helpers into `~/.local/bin` and marks them
-  executable
+  executable (an explicit list, not a glob — a new script has to be added to it,
+  and `touch-gestures.sh` refuses to start if any helper it calls is missing)
 - symlinks `scripts/touchpad-resume-fix.sh` into
   `/usr/libexec/elogind/system-sleep/` (via `sudo`) so elogind runs it on resume
 - copies the WireGuard template to `/etc/wireguard/wg0.conf` (via `sudo`) only
@@ -299,33 +303,46 @@ reason it exists.
 | --- | --- |
 | 1 finger, in from the **right** edge | Next workspace |
 | 1 finger, in from the **left** edge | Previous workspace |
-| 1 finger, in from the **right/left** edge, **two thirds across** | New *empty* workspace that way |
+| **2 fingers**, in from the **right/left** edge | Step one workspace by number, creating it |
 | 1 finger, up from the **bottom** edge | Spotlight launcher |
-| 1 finger, down from the **top** edge, a third of the screen or more | Close the focused window |
+| 1 finger, down from the **top** edge, 180px or more | Close the focused window |
 | 1 finger, near a window boundary (not on an edge) | Drag that boundary (see below) |
 
-`workspace next_on_output` only cycles the workspaces that already exist, so
+`workspace next_on_output` only walks the workspaces that already **exist**, so
 there is otherwise no way to swipe to somewhere blank and start something in it —
-which matters much more without a keyboard than with one. Carrying the same edge
-swipe two thirds of the way across the screen (`L`, ~1270px) runs
-`scripts/workspace-new.py` instead, which switches to the nearest *unused*
-number in that direction. Numbers here are sparse, so going right from 1 lands
-on 3 rather than one past the end, keeping the new workspace next to where you
-were. It does nothing if you are already on an empty workspace, so repeating the
-swipe cannot leave a trail of empties.
+which matters much more without a keyboard than with one. The same edge swipe
+with **two fingers** runs `scripts/workspace-step.py`, which walks the *numbers*
+instead: from 3 it goes to 4, and back to 3, creating whatever is missing. One
+finger might jump 3 → 9; two fingers never will. It does not skip an occupied
+number looking for a free one — asked for 5, you get 5, empty or not.
 
-Those two bindings are listed **before** the plain ones. lisgd takes the first
-match and a distance of `*` matches everything, so an `L` binding placed after
-one would never be reached. Distance is a floor, not a band — the test is
-`configured <= measured`.
+**This started as a long one-finger swipe, and measuring is what killed the
+idea.** lisgd's distance buckets are thirds of the screen, so `L` wanted 1267px
+horizontally — but real "long" swipes here measured 401–579px, *the same range as
+ordinary edge swipes*. No threshold separates two gestures that are not actually
+different lengths. A finger count is different, and needs no guard at all.
 
-Close-window carries a distance guard (`M` — at least a *medium* swipe, 400px
-here) that nothing else does, because it is the only destructive gesture, and it
-is anchored to the top edge rather than bound to two fingers anywhere. That is
-not cosmetic: it is the only shape of release gesture that survives here, for
-the reason described under "a pressed gesture can decline" below. The old
-`2,DU,*,M,R` never fired once — a verbose capture caught all four attempts
-arriving as *swipe -1*, ground down by no-op resize fires.
+An earlier version also skipped to the nearest unused number and refused to move
+while already on an empty workspace. Both were wrong in use: stepping back and
+forth behaved differently depending on what happened to be open.
+
+Close-window carries a distance guard (**180px**) that nothing else does,
+because it is the only destructive gesture, and it is anchored to the top edge
+rather than bound to two fingers anywhere. That is not cosmetic: it is the only
+shape of release gesture that survives here, for the reason described under "a
+pressed gesture can decline" below. The old `2,DU,*,M,R` never fired once — a
+verbose capture caught all four attempts arriving as *swipe -1*, ground down by
+no-op resize fires.
+
+180 is a pixel count rather than one of lisgd's buckets, which needed
+`patches/lisgd-distance-px.patch`. The buckets are thirds of the screen, so the
+only guards available for a downward swipe were "any distance" and "at least
+396px" — and real close swipes here measure **262–309px**. `M` was therefore
+unreachable in practice: the gesture registered perfectly every time, correct
+direction and correct edge, and was discarded on distance. 180 sits deliberately
+*below* that measured range, because a guard set at the bottom of what you
+currently do is one you will miss the moment you are in a hurry, and the failure
+is silent.
 
 Nothing is bound to three or four fingers. A release gesture only counts the
 fingers whose *own* swipe matched, and with three or four down one of them
@@ -336,9 +353,13 @@ Dropping them is what makes the loose recognition below safe — switching
 workspace, opening the launcher and resizing are all reversible, so a stray
 match costs a swipe back.
 
-`-t 25` is how far a swipe must travel to count at all (~4.5mm here). Distance was
-never what made a swipe fail to register, though — three other defaults were,
-and all three are loosened:
+`-t 15` is how far a swipe must travel to count at all (~2.7mm here). It can
+afford to sit low because everything bound to a release gesture is reversible — a
+workspace step costs a swipe back — and the one destructive gesture does not rely
+on it, carrying its own 180px guard instead.
+
+Distance was never what made a swipe fail to *register*, though — three other
+defaults were, and all three are loosened:
 
 | flag | default | here | why |
 | --- | --- | --- | --- |
@@ -423,14 +444,15 @@ for the whole drag, so an `N`-gated resize can never match it.
 
 #### Keeping the patches applied
 
-Three local patches are needed, in this order. Reapply after any lisgd update, or
+Four local patches are needed, in this order. Reapply after any lisgd update, or
 touch resize silently stops working and gestures start eating each other:
 
 ```sh
 cd /mnt/shared/projects/lisgd
 for p in lisgd-export-gesture-coords \
          lisgd-cardinals-before-diagonals \
-         lisgd-pressed-decline; do
+         lisgd-pressed-decline \
+         lisgd-distance-px; do
   git apply /mnt/shared/projects/dotfiles/patches/$p.patch
 done
 make WITHOUT_X11=1 && install -m755 lisgd ~/.local/bin/lisgd
@@ -440,6 +462,12 @@ The first exists because upstream lisgd does not tell the command *where* the
 gesture started — it calls `system()` and nothing else. It adds `LISGD_X` /
 `LISGD_Y` (and `LISGD_CUR_X` / `LISGD_CUR_Y`) to the environment first,
 capturing them before `resetslot()` wipes them.
+
+Losing these is silent — gestures keep half-working and start eating one another
+— so `install.sh` warns if `~/.local/bin/lisgd` is missing or looks unpatched. It
+checks for a string each patch adds; the cardinals one only reorders existing
+code, so it cannot be detected that way and is not checked. lisgd itself is
+still built by hand: `install.sh` does not clone or compile it.
 
 **The boundary is moved *to* the finger, not *by* a step**, and that is the
 whole reason it keeps up. Stepping (`resize grow width N px` per fire) makes
@@ -850,9 +878,9 @@ key rather than the keymap symbol.
 | --- | --- |
 | 1 finger, in from right edge | Next workspace |
 | 1 finger, in from left edge | Previous workspace |
-| 1 finger, in from right/left edge, two thirds across | New empty workspace that way |
+| 2 fingers, in from right/left edge | Step one workspace by number, creating it |
 | 1 finger, up from bottom edge | Spotlight launcher |
-| 1 finger, down from top edge, a third of the screen | Close the focused window |
+| 1 finger, down from top edge, 180px | Close the focused window |
 | 1 finger near a window boundary (not on an edge) | Drag that boundary |
 
 Windows also resize by dragging their (invisible) edges. See "Touchscreen
