@@ -15,6 +15,24 @@ EOF
 X=$(( (W - BW) / 2 ))
 Y=$(( (H - BH) / 2 ))
 
-exec wofi --show drun \
+wofi --show drun \
     --width "$BW" --height "$BH" \
-    --location top_left --xoffset "$X" --yoffset "$Y"
+    --location top_left --xoffset "$X" --yoffset "$Y" &
+WOFI=$!
+
+# Tap anywhere outside the box to dismiss it, like tapping off a dialog. wofi
+# has no option for this and it cannot be done through sway either: wofi takes
+# keyboard focus as a layer surface, so a tap elsewhere raises no focus event --
+# and on an empty workspace, which is exactly when you reach for a launcher,
+# there would be no other window to focus anyway. So the watcher reads the
+# touchscreen directly, and needs the rectangle computed above.
+DISMISS=$HOME/.local/bin/wofi-tap-dismiss.py
+if [ -x "$DISMISS" ] && [ -r /dev/input/touchscreen ]; then
+    "$DISMISS" "$X" "$Y" "$BW" "$BH" "$W" "$H" "$WOFI" &
+    WATCHER=$!
+fi
+
+wait "$WOFI"
+STATUS=$?
+[ -n "$WATCHER" ] && kill "$WATCHER" 2>/dev/null
+exit "$STATUS"

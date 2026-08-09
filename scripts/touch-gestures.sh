@@ -94,6 +94,10 @@ flock -n 9 || exit 0
 # anchor a fire may stray: two fingers report two anchors a hand's width apart,
 # one finger reports one and wants a tight match.
 #
+# -t is how far a swipe has to travel before it counts at all. 50px is ~9mm,
+# still clearly deliberate, but an edge swipe no longer has to be a whole 100px
+# haul to switch workspace. It applies to the release-mode gestures only.
+#
 # -T is how far a finger travels between fires, and so how coarsely a resize
 # follows it: 10px is ~1.8mm on this screen. It is the floor on smoothness now
 # that a fire costs ~1.2ms rather than 5-60ms, and it was 20 only because fires
@@ -105,7 +109,7 @@ flock -n 9 || exit 0
 # because two fingers cannot be made exclusive: a browser reads a 2-finger
 # horizontal swipe as back/forward, and lisgd cannot swallow the touch.
 exec "$LISGD" -d "$DEV" \
-    -t 100 \
+    -t 50 \
     -T 10 \
     -m 1000 \
     -g "1,RL,R,*,R,swaymsg workspace next_on_output" \

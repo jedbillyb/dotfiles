@@ -16,7 +16,10 @@ My personal configuration files.
 - `xdg-desktop-portal/` - Portal backend selection so Flatpak apps get a working file picker on sway (`*-portals.conf`)
 - `shell/` - Shell dotfiles (`.bashrc`, `.zshrc`, `.bash_profile`, `.profile`, `.inputrc`)
 - `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`)
-- `bin/spotlight` - Spotlight-style centered wofi launcher (bound to mod+r and mod+space)
+- `bin/spotlight` - Spotlight-style centered wofi launcher (bound to mod+r and
+  mod+space); tap outside the box to dismiss it
+- `scripts/wofi-tap-dismiss.py` - What implements that tap-to-dismiss, by
+  watching the touchscreen (see "Touchscreen gestures" below)
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
 - `scripts/vpn-proxy.sh` - TCP-over-SSH fallback for networks that block UDP, so
   there is still a tunnel when WireGuard can't handshake (`up|down|status`)
@@ -290,6 +293,10 @@ reason it exists.
 | 3 fingers, up (anywhere) | Toggle fullscreen |
 | 3 fingers, down (anywhere) | Close window |
 
+`-t 50` is how far a swipe must travel to count at all (~9mm here), and `-e`
+leaves the edge strips at their 50px default. Still clearly deliberate, but an
+edge swipe is not a whole-hand haul.
+
 The single-finger *workspace* gestures are anchored to a screen edge on purpose.
 lisgd cannot swallow the touches it watches, so the app underneath sees them
 too — a mid-screen swipe would scroll the page as well as switch workspace. The
@@ -405,6 +412,28 @@ otherwise silent — the writes keep succeeding into a pipe nobody reads.
 The daemon also drains the FIFO and acts only on the newest line. Each fire
 positions the boundary absolutely, so replaying a backlog would just walk stale
 finger positions to the same destination.
+
+### Tapping outside the launcher
+
+`bin/spotlight` starts `scripts/wofi-tap-dismiss.py` alongside wofi so a tap
+outside the box closes it, instead of having to reach for Escape.
+
+wofi has no option for this, and it cannot be built on sway's focus events
+either. wofi takes keyboard focus as a *layer surface*, so a tap elsewhere
+raises no focus change to react to — and the case that matters most, opening
+the launcher on an empty workspace, has no other window to focus in the first
+place. So the watcher reads touch-downs off `/dev/input/touchscreen` directly
+(same `input` group as the gesture daemon) and compares them against the
+rectangle spotlight already computes to place the box.
+
+Coordinates come off the digitiser in its own units (13788 x 8616 here, not
+1920 x 1200), so they are scaled by the axis ranges read with `EVIOCGABS`. The
+decision is made at the end of each event packet rather than on the `BTN_TOUCH`
+event, because a new contact's X and Y can be reported either side of it.
+
+The tap still reaches whatever is underneath — nothing here can swallow it, the
+same limitation lisgd has. That matches how tapping off a dialog behaves
+elsewhere anyway.
 
 **Two fingers cannot be made exclusive.** lisgd can't swallow the touch, so a
 browser sitting under that 60px strip still reads a horizontal 2-finger swipe
