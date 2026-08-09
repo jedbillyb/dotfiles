@@ -1,6 +1,9 @@
-#!/bin/sh
-# Spotlight-style launcher: wofi centered on the focused output.
-# wofi 1.5.3's location=center is broken here, so compute offsets ourselves.
+#!/bin/bash
+# Spotlight-style launcher: wofi centered on the focused output, dismissed by
+# clicking or tapping away from it.
+#
+# bash rather than sh only for `wait -n`: the launcher ends when *either* wofi
+# or the backdrop does, and POSIX sh can only wait for a named process.
 
 BW=520
 BH=340
@@ -15,24 +18,38 @@ EOF
 X=$(( (W - BW) / 2 ))
 Y=$(( (H - BH) / 2 ))
 
+BACKDROP=$HOME/.local/bin/wofi-backdrop.py
+DISMISS=$HOME/.local/bin/wofi-dismiss.py
+
+# Clicking away is caught by a transparent full-screen surface underneath the
+# launcher, because there is no way to ask where a click went: pointers report
+# relative motion, sway's IPC has no cursor position, and its focus events do
+# not fire for the window you were already on. See wofi-backdrop.py.
+#
+# It has to start *before* wofi. Both are layer-shell surfaces on the same
+# layer, and within a layer the newer one stacks on top, so starting it first is
+# what puts it above every window but below the launcher.
+if [ -x "$BACKDROP" ]; then
+    "$BACKDROP" &
+    BD=$!
+fi
+
 wofi --show drun \
     --width "$BW" --height "$BH" \
     --location top_left --xoffset "$X" --yoffset "$Y" &
 WOFI=$!
 
-# Tap anywhere outside the box to dismiss it, like tapping off a dialog. wofi
-# has no option for this and it cannot be done through sway either: wofi takes
-# keyboard focus as a layer surface, so a tap elsewhere raises no focus event --
-# and on an empty workspace, which is exactly when you reach for a launcher,
-# there would be no other window to focus anyway. So the watcher reads the
-# touchscreen directly, and needs the rectangle computed above.
-DISMISS=$HOME/.local/bin/wofi-tap-dismiss.py
-if [ -x "$DISMISS" ] && [ -r /dev/input/touchscreen ]; then
+# Tapping away is caught separately, by reading the touchscreen and comparing
+# against the box. Kept as well as the backdrop because it needs nothing of the
+# compositor beyond the evdev node, so it still works if the layer ordering ever
+# shifts under us -- and it is the path that was proven first.
+if [ -x "$DISMISS" ]; then
     "$DISMISS" "$X" "$Y" "$BW" "$BH" "$W" "$H" "$WOFI" &
     WATCHER=$!
 fi
 
-wait "$WOFI"
-STATUS=$?
-[ -n "$WATCHER" ] && kill "$WATCHER" 2>/dev/null
-exit "$STATUS"
+# Whichever ends first ends the lot: wofi exiting means a pick or Escape, the
+# backdrop exiting means you clicked away.
+wait -n "$WOFI" ${BD:+"$BD"}
+kill "$WOFI" ${BD:+"$BD"} ${WATCHER:+"$WATCHER"} 2>/dev/null
+wait "$WOFI" 2>/dev/null

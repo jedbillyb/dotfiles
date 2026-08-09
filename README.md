@@ -17,9 +17,11 @@ My personal configuration files.
 - `shell/` - Shell dotfiles (`.bashrc`, `.zshrc`, `.bash_profile`, `.profile`, `.inputrc`)
 - `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`)
 - `bin/spotlight` - Spotlight-style centered wofi launcher (bound to mod+r and
-  mod+space); tap outside the box to dismiss it
-- `scripts/wofi-tap-dismiss.py` - What implements that tap-to-dismiss, by
-  watching the touchscreen (see "Touchscreen gestures" below)
+  mod+space); tap or click outside the box to dismiss it
+- `scripts/wofi-dismiss.py` - Closes it on a tap outside the box, by watching
+  the touchscreen (see "Touchscreen gestures" below)
+- `scripts/wofi-backdrop.py` - Closes it on a *click* outside the box, via a
+  transparent full-screen layer-shell surface underneath it
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
 - `scripts/vpn-proxy.sh` - TCP-over-SSH fallback for networks that block UDP, so
   there is still a tunnel when WireGuard can't handshake (`up|down|status`)
@@ -293,7 +295,7 @@ reason it exists.
 | 3 fingers, up (anywhere) | Toggle fullscreen |
 | 3 fingers, down (anywhere) | Close window |
 
-`-t 50` is how far a swipe must travel to count at all (~9mm here), and `-e`
+`-t 35` is how far a swipe must travel to count at all (~6mm here), and `-e`
 leaves the edge strips at their 50px default. Still clearly deliberate, but an
 edge swipe is not a whole-hand haul.
 
@@ -413,27 +415,55 @@ The daemon also drains the FIFO and acts only on the newest line. Each fire
 positions the boundary absolutely, so replaying a backlog would just walk stale
 finger positions to the same destination.
 
-### Tapping outside the launcher
+### Dismissing the launcher by tapping or clicking away
 
-`bin/spotlight` starts `scripts/wofi-tap-dismiss.py` alongside wofi so a tap
-outside the box closes it, instead of having to reach for Escape.
+`bin/spotlight` runs two helpers alongside wofi so the launcher closes when you
+tap or click off it, instead of having to reach for Escape. wofi has no option
+for this, and the two input paths need different answers.
 
-wofi has no option for this, and it cannot be built on sway's focus events
-either. wofi takes keyboard focus as a *layer surface*, so a tap elsewhere
-raises no focus change to react to — and the case that matters most, opening
-the launcher on an empty workspace, has no other window to focus in the first
-place. So the watcher reads touch-downs off `/dev/input/touchscreen` directly
-(same `input` group as the gesture daemon) and compares them against the
-rectangle spotlight already computes to place the box.
+**Touch** is handled by `scripts/wofi-dismiss.py`, which reads touch-downs off
+`/dev/input/touchscreen` (same `input` group as the gesture daemon) and compares
+them against the rectangle spotlight computes to place the box. Coordinates come
+off the digitiser in its own units (13788 x 8616 here, not 1920 x 1200), so they
+are scaled by the axis ranges read with `EVIOCGABS`. The decision is made at the
+end of each event packet rather than on the `BTN_TOUCH` event, because a new
+contact's X and Y can be reported either side of it.
 
-Coordinates come off the digitiser in its own units (13788 x 8616 here, not
-1920 x 1200), so they are scaled by the axis ranges read with `EVIOCGABS`. The
-decision is made at the end of each event packet rather than on the `BTN_TOUCH`
-event, because a new contact's X and Y can be reported either side of it.
+**Clicks** cannot work that way, and neither of the obvious alternatives holds
+up:
 
-The tap still reaches whatever is underneath — nothing here can swallow it, the
-same limitation lisgd has. That matches how tapping off a dialog behaves
-elsewhere anyway.
+- *sway focus events.* A click focuses the window under it, but sway only emits
+  an event when the focused container actually changes. wofi holds keyboard
+  focus as a layer surface without changing that container, so clicking the
+  window you were already using — the likeliest target — emits nothing. Apps
+  also churn focus on their own; Firefox does it about once a second while
+  playing video, which dismissed the launcher on its own in testing.
+- *reading evdev.* A mouse or touchpad reports relative motion, so the kernel
+  events never say where the pointer is, and sway's IPC has no cursor position
+  to ask for (`get_seats` carries devices and focus, no coordinates).
+
+So `scripts/wofi-backdrop.py` stops trying to work out where the click went and
+puts something there to catch it: a full-screen, fully transparent layer-shell
+surface (gtk-layer-shell) that exits when clicked. spotlight waits on whichever
+of the two ends first — hence `#!/bin/bash`, for `wait -n`.
+
+Three things that surface has to get right, each of which broke something:
+
+- **Layer.** The backdrop is on `top`, and `wofi/config` sets `layer=overlay` to
+  put the launcher above it. Stacking within a layer follows the order surfaces
+  are created, which is a race between two processes starting — and the backdrop
+  lost it, swallowing wofi's own clicks. A layer apart is unambiguous.
+- **Exclusive zone** must be `-1`. The default reserves screen space, shoving
+  every tiled window aside for as long as the launcher is open.
+- **Keyboard mode** must be `NONE`, or the backdrop takes focus and you cannot
+  type in the launcher.
+
+`Gdk` also needs pinning to 3.0 alongside `Gtk`: left alone, gi loads the newest
+typelib (4.0) and GtkLayerShell then fails against it.
+
+Clicking an entry still launches it — verified against a control run with no
+backdrop, which also showed that a *single* click never launches in wofi 1.5.3.
+It selects; activation is a double-click or Enter.
 
 **Two fingers cannot be made exclusive.** lisgd can't swallow the touch, so a
 browser sitting under that 60px strip still reads a horizontal 2-finger swipe

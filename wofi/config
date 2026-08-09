@@ -8,3 +8,8 @@ insensitive=true
 no_actions=true
 gtk_dark=true
 style=/home/jed/.config/wofi/style.css
+# Overlay, not the default top: the dismiss backdrop is a layer-shell surface
+# too, and stacking within a layer follows the order surfaces are created, which
+# is a race between two processes starting. Putting the launcher one layer up
+# makes it unambiguous -- backdrop below, launcher above.
+layer=overlay
