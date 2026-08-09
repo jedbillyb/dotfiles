@@ -36,6 +36,8 @@ My personal configuration files.
   "Touchscreen gestures" below)
 - `scripts/touch-resize.sh` - Resizes the tiled window boundary nearest a
   gesture, giving the 10px gap a fingertip-sized grab region
+- `scripts/touch-resize-pick.py` - Picks which boundary that is, on the first
+  fire of a drag only (kept out of the hot path; see below)
 - `patches/lisgd-export-gesture-coords.patch` - Local lisgd patch exporting
   `LISGD_X`/`LISGD_Y`, which `touch-resize.sh` depends on
 - `udev/99-touchscreen-lisgd.rules` - Stable `/dev/input/touchscreen` symlink
@@ -291,7 +293,9 @@ mid-screen swipe would scroll the page as well as switch workspace. The edge
 strips are 50px of mostly dead space, which keeps the two apart.
 
 Two-finger swipes resize the *boundary the gesture started near*, via
-`scripts/touch-resize.sh`. That script does its own hit test with 60px of slop,
+`scripts/touch-resize.sh`. They are bound in lisgd's **pressed** mode (`P`
+rather than `R`), so they fire every 60px *during* the drag instead of once on
+release — the window tracks your fingers rather than hopping when you let go. That script does its own hit test with 60px of slop,
 which is the whole point: it gives the gap between two windows a
 fingertip-sized grab region while the gap itself stays 10px on screen. Sway
 cannot do this — `find_edge()` tests against `border_thickness`, so its own
@@ -309,6 +313,14 @@ cd /mnt/shared/projects/lisgd
 git apply /mnt/shared/projects/dotfiles/patches/lisgd-export-gesture-coords.patch
 make WITHOUT_X11=1 && install -m755 lisgd ~/.local/bin/lisgd
 ```
+
+Pressed mode makes per-call cost matter, because lisgd blocks in `system()`
+until the command returns. Doing the whole job in Python cost 49ms *per fire*,
+which stutters visibly at 60px increments — and nearly all of it was the
+interpreter starting up (21ms for `python3 -c pass`; `swaymsg` is only 2ms),
+so caching inside Python saved nothing. Hence the split: `touch-resize.sh` is
+POSIX sh and handles repeat fires from a cache file in ~7ms, calling
+`touch-resize-pick.py` only for the first fire of a drag (~60ms, once).
 
 **Two fingers cannot be made exclusive.** lisgd can't swallow the touch, so a
 browser sitting under that 60px strip still reads a horizontal 2-finger swipe

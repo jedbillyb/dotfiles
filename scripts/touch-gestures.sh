@@ -56,10 +56,10 @@ exec "$LISGD" -d "$DEV" \
     -g "1,RL,R,*,R,swaymsg workspace next_on_output" \
     -g "1,LR,L,*,R,swaymsg workspace prev_on_output" \
     -g "1,DU,B,*,R,$HOME/.local/bin/spotlight" \
-    -g "2,LR,*,*,R,$RESIZE right" \
-    -g "2,RL,*,*,R,$RESIZE left" \
-    -g "2,UD,*,*,R,$RESIZE down" \
-    -g "2,DU,*,*,R,$RESIZE up" \
+    -g "2,LR,*,*,P,$RESIZE right" \
+    -g "2,RL,*,*,P,$RESIZE left" \
+    -g "2,UD,*,*,P,$RESIZE down" \
+    -g "2,DU,*,*,P,$RESIZE up" \
     -g "4,LR,*,*,R,swaymsg resize grow width 60 px" \
     -g "4,RL,*,*,R,swaymsg resize shrink width 60 px" \
     -g "4,UD,*,*,R,swaymsg resize grow height 60 px" \

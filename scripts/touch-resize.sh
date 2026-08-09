@@ -1,132 +1,53 @@
-#!/usr/bin/env python3
-"""Resize the tiled window boundary nearest to where a touch gesture started.
+#!/bin/sh
+# Resize the tiled window boundary a touch gesture grabbed.
+#
+# Bound to lisgd's pressed mode, so this runs once per 60px of finger travel
+# *while the drag is happening*, and lisgd blocks in system() until it returns.
+# Per-call cost is therefore felt directly as lag, which is what makes the
+# split here worth it:
+#
+#   first call of a drag  -> touch-resize-pick.py works out which boundary was
+#                            grabbed (needs the sway tree; ~50ms, mostly the
+#                            Python interpreter starting up)
+#   every call after that -> this script alone, reusing the cached container:
+#                            one swaymsg, ~4ms
+#
+# So a drag pays the analysis once and then tracks the finger. Doing it all in
+# Python cost 49ms per fire, which stutters visibly at 60px increments.
 
-Called from lisgd with a direction (left|right|up|down). lisgd is patched to
-export LISGD_X / LISGD_Y, the screen position the gesture began at; without
-those this can't know which boundary was meant and does nothing.
+DIR=$1
+case "$DIR" in
+	left|right) AXIS=width ;;
+	up|down)    AXIS=height ;;
+	*) echo "usage: touch-resize.sh left|right|up|down" >&2; exit 2 ;;
+esac
 
-The point is to make the gap between two windows draggable by finger without
-making it any wider on screen. Sway can't do that itself -- find_edge() tests
-the hit against border_thickness, so its grab region is exactly the visible
-10px. Here the hit test is ours, so SLOP can be as generous as a fingertip
-while the gap stays 10px.
+# Set by the patched lisgd: where the finger first landed. Without it there is
+# no way to know which boundary was meant, so do nothing rather than guess.
+[ -n "${LISGD_X:-}" ] && [ -n "${LISGD_Y:-}" ] || exit 0
 
-Away from any boundary this exits silently, which is what keeps a stray
-two-finger swipe in the middle of a window from resizing something at random.
-"""
+CACHE="/tmp/touch-resize-$(id -u).cache"
+SLOP=60
+TTL_MS=600
 
-import json
-import os
-import subprocess
-import sys
+case "$DIR" in
+	right|down) OP=grow ;;
+	*)          OP=shrink ;;
+esac
 
-# How far from a boundary a gesture still counts as grabbing it. A fingertip is
-# ~50px on this screen (~5.6 px/mm), so 60 covers a finger placed on the gap
-# with a little to spare, without reaching halfway across a narrow window.
-SLOP = 60
-STEP = "60 px"
+now=$(($(date +%s%N) / 1000000))
 
+# Mid-drag: same axis, anchored within a fingertip of where this drag started,
+# and recent enough to still be the same drag.
+if [ -r "$CACHE" ]; then
+	read -r ts cx cy caxis con < "$CACHE" || true
+	if [ "${caxis:-}" = "$AXIS" ] &&
+		[ $((now - ${ts:-0})) -lt "$TTL_MS" ] &&
+		[ $((LISGD_X - cx)) -le "$SLOP" ] && [ $((cx - LISGD_X)) -le "$SLOP" ] &&
+		[ $((LISGD_Y - cy)) -le "$SLOP" ] && [ $((cy - LISGD_Y)) -le "$SLOP" ]; then
+		exec swaymsg -q "[con_id=$con] resize $OP $AXIS 60 px"
+	fi
+fi
 
-def sway(*args):
-    return subprocess.run(["swaymsg", "-r", *args], capture_output=True, text=True).stdout
-
-
-def tiled_windows(node, out):
-    """Leaf windows in this subtree. Floating nodes are deliberately not
-    followed -- only tiled neighbours share a resizable boundary."""
-    for child in node.get("nodes", []):
-        tiled_windows(child, out)
-    if node.get("pid") and node.get("type") == "con" and not node.get("nodes"):
-        out.append(node)
-
-
-def focused_workspace(node, current=None):
-    """The workspace containing the focused node.
-
-    Tracking the ancestor beats looking for a workspace marked focused: on a
-    multi-output layout more than one workspace is 'visible', and a workspace
-    only carries focus itself when it is empty.
-    """
-    if node.get("type") == "workspace":
-        current = node
-    if node.get("focused"):
-        return current
-    for child in node.get("nodes", []) + node.get("floating_nodes", []):
-        found = focused_workspace(child, current)
-        if found is not None:
-            return found
-    return None
-
-
-def main():
-    if len(sys.argv) != 2 or sys.argv[1] not in ("left", "right", "up", "down"):
-        sys.exit("usage: touch-resize.sh left|right|up|down")
-    direction = sys.argv[1]
-
-    try:
-        x = int(os.environ["LISGD_X"])
-        y = int(os.environ["LISGD_Y"])
-    except (KeyError, ValueError):
-        # Not launched from a patched lisgd; refuse rather than guess.
-        sys.exit(0)
-
-    tree = json.loads(sway("-t", "get_tree"))
-    ws = focused_workspace(tree)
-    if ws is None:
-        sys.exit(0)
-
-    wins = []
-    tiled_windows(ws, wins)
-    if len(wins) < 2:
-        sys.exit(0)
-
-    horizontal = direction in ("left", "right")
-
-    # A boundary is where one window ends and another begins. Pair them up by
-    # the shared coordinate so the window on the low side can be identified --
-    # that is the one whose width/height gets grown or shrunk.
-    best = None
-    for a in wins:
-        ra = a["rect"]
-        a_end = ra["x"] + ra["width"] if horizontal else ra["y"] + ra["height"]
-        for b in wins:
-            if a is b:
-                continue
-            rb = b["rect"]
-            b_start = rb["x"] if horizontal else rb["y"]
-            if abs(b_start - a_end) > 2:  # not adjacent
-                continue
-            # Must actually overlap on the other axis to be a shared edge.
-            if horizontal:
-                if ra["y"] >= rb["y"] + rb["height"] or rb["y"] >= ra["y"] + ra["height"]:
-                    continue
-                if not (ra["y"] - SLOP <= y <= ra["y"] + ra["height"] + SLOP):
-                    continue
-            else:
-                if ra["x"] >= rb["x"] + rb["width"] or rb["x"] >= ra["x"] + ra["width"]:
-                    continue
-                if not (ra["x"] - SLOP <= x <= ra["x"] + ra["width"] + SLOP):
-                    continue
-            dist = abs((x if horizontal else y) - a_end)
-            if dist <= SLOP and (best is None or dist < best[0]):
-                best = (dist, a)
-
-    if best is None:
-        sys.exit(0)
-
-    _, low_side = best
-
-    # Grow the low-side window when the swipe pushes the boundary away from it.
-    if horizontal:
-        grow = direction == "right"
-        axis = "width"
-    else:
-        grow = direction == "down"
-        axis = "height"
-
-    con = low_side["id"]
-    sway(f"[con_id={con}] resize {'grow' if grow else 'shrink'} {axis} {STEP}")
-
-
-if __name__ == "__main__":
-    main()
+# First call of this drag: find the boundary and record it for the rest.
+exec "$(dirname "$(readlink -f "$0")")/touch-resize-pick.py" "$DIR"
