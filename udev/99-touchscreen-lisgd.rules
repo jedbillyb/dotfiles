@@ -1,0 +1,13 @@
+# Stable name + read access for the built-in touchscreen, so lisgd can watch
+# raw touch events without running as root.
+#
+# The SYMLINK is what scripts/touch-gestures.sh opens: the kernel's event
+# number for the Wacom digitiser moves around between boots, so /dev/input/event16
+# is not something a config file can rely on.
+#
+# uaccess is the preferred grant (an ACL for whoever holds the seat) but Void's
+# elogind does not apply it for input devices here, so the input group is the
+# one that actually does the work. GROUP/MODE are harmless if uaccess ever
+# starts working.
+SUBSYSTEM=="input", KERNEL=="event*", ENV{ID_INPUT_TOUCHSCREEN}=="1", \
+  SYMLINK+="input/touchscreen", TAG+="uaccess", GROUP="input", MODE="0660"

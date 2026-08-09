@@ -32,6 +32,10 @@ My personal configuration files.
   mod+Shift+r)
 - `scripts/wifi-recover-root.sh` - Privileged half of that recovery, installed
   as a root-owned copy at `/usr/local/bin/wifi-recover-root`
+- `scripts/touch-gestures.sh` - Touchscreen swipe gestures via `lisgd` (see
+  "Touchscreen gestures" below)
+- `udev/99-touchscreen-lisgd.rules` - Stable `/dev/input/touchscreen` symlink
+  and group access for that daemon
 - `scripts/openclaw-send` - openclaw helper script
 - `scripts/zed-wrapper` - Launches Zed with `CLAUDE_LOCAL_API_KEY` set, so Zed
   accepts the local `claude-local` provider (see "Zed and the local Claude
@@ -254,6 +258,113 @@ Note that `dwt` (disable-while-typing) is on, so libinput legitimately drops
 motion while you type. Test by swiping with the keyboard idle, or you'll
 misread normal behaviour as the bug.
 
+### Touchscreen gestures
+
+The Wacom digitiser (`Wacom HID 5323 Finger`, `056a:5323`) drives iPad-style
+swipes through [`lisgd`](https://git.sr.ht/~mil/lisgd), launched by
+`scripts/touch-gestures.sh` from `exec_always` in the sway config.
+
+sway's own `bindgesture` is not an option here: it fires on libinput *gesture*
+events, which touchpads emit and touchscreens do not. lisgd reads the raw touch
+events off the evdev node and synthesises swipes itself, which is the whole
+reason it exists.
+
+| Gesture | Action |
+| --- | --- |
+| 1 finger, in from the **right** edge | Next workspace |
+| 1 finger, in from the **left** edge | Previous workspace |
+| 1 finger, up from the **bottom** edge | Spotlight launcher |
+| 4 fingers, left / right (anywhere) | Grow / shrink focused window width |
+| 4 fingers, down / up (anywhere) | Grow / shrink focused window height |
+| 3 fingers, left / right (anywhere) | Focus window left / right |
+| 3 fingers, up (anywhere) | Toggle fullscreen |
+| 3 fingers, down (anywhere) | Close window |
+
+The single-finger gestures are anchored to a screen edge on purpose. lisgd
+cannot swallow the touches it watches, so the app underneath sees them too — a
+mid-screen swipe would scroll the page as well as switch workspace. The edge
+strips are 50px of mostly dead space, which keeps the two apart.
+
+The same problem is why resize sits on **four** fingers rather than two. Two is
+already spoken for by applications: horizontal is back/forward in browsers,
+vertical is scroll, so a 2-finger resize fires the app's gesture as well as
+sway's. Nothing binds four, and the digitiser tracks 10 simultaneous contacts
+(`ABS_MT_SLOT` max 9), so there is room to spare.
+
+Build and install it with:
+
+```sh
+git clone https://git.sr.ht/~mil/lisgd /mnt/shared/projects/lisgd
+cd /mnt/shared/projects/lisgd && make WITHOUT_X11=1
+install -m755 lisgd ~/.local/bin/lisgd
+```
+
+`WITHOUT_X11=1` matters. lisgd checks `WAYLAND_DISPLAY` first and falls back to
+`DISPLAY` for screen geometry, and an X11-enabled build that can't open the
+display just dies.
+
+Two traps worth knowing about, both already handled by the script:
+
+- **sway hands its children `PATH=/usr/bin:/usr/sbin`**, so nothing in
+  `~/.local/bin` is on the path for an `exec_always` line. The script calls
+  lisgd by absolute path.
+- **`usermod -aG input` only takes effect at the next login.** The script
+  re-execs itself under `sg input` when it finds it lacks the group, so
+  gestures work immediately on the session where it was first set up.
+
+To debug, kill the daemon and run it by hand with `-v` to see what each swipe
+is being recognised as:
+
+```sh
+pkill lisgd
+~/.local/bin/lisgd -v -d /dev/input/touchscreen -g '1,RL,R,*,R,notify-send swiped'
+```
+
+### Touch-resizing windows and invisible borders
+
+Dragging a window edge to resize it needs a border to grab — with `border none`
+there is no hit region at all, and tiled windows can only be resized from the
+keyboard. But a visible 5px frame around everything is ugly, and taking 5px out
+of each window's content is worse.
+
+Both are avoidable. sway alpha-blends border colours over the wallpaper layer,
+so `#00000000` gives a border that is fully invisible and still grabbable. The
+space it costs is handed straight back by moving the 10px separation out of the
+gaps and into the borders:
+
+```
+default_border pixel 5      # was: none
+gaps inner 0                # was: 10
+gaps outer 5                # was: 0
+client.* ... #00000000 ...  # transparent border, background, indicator
+```
+
+Two adjacent windows now sit flush, with 5px of transparent border each making
+up the same 10px gutter as before, and the outer gap of 5 plus a 5px border
+reproduces the old 10px screen-edge inset. Window *content* rects come out
+byte-identical to the old borderless layout — the borders are free.
+
+The border width is pinned by wanting every gap the same. A window's rect
+cannot extend past the output and outer gaps clamp there, so the screen-edge
+inset always equals the border width, while the gutter between two windows is
+*two* borders. Equal gaps therefore forces `outer == border` and
+`gutter == 2 * border`, and a 10px look caps the border at 5. Widening the grab
+strip means widening every gap with it (`border 10` + `outer 10` gives 20px
+throughout). Negative outer gaps don't buy a way out — sway clamps them at the
+output edge.
+
+Which leaves a real limitation: 10px is about a fifth of a fingertip on this
+screen (~5.6 px/mm), so dragging a border by touch is fiddly. The 4-finger
+resize gestures above are the way round it — they need no aiming.
+
+`resize` wants a space before the unit: `resize grow width 60 px`. The
+unspaced `60px` is not a parse error, it just quietly resizes by the wrong
+amount.
+
+`default_border` only applies to windows created after it, so after a reload
+existing windows keep their old setting until you re-run
+`swaymsg '[app_id=".*"] border pixel 5'` or restart them.
+
 ### Zed and the local Claude shim
 
 Zed's commit-message button is pointed at `zed-claude-shim`
@@ -409,3 +520,19 @@ key rather than the keymap symbol.
 | Keybind | Action |
 | --- | --- |
 | `$mod+b` | Toggle waybar visibility |
+
+## Touchscreen gestures
+
+| Gesture | Action |
+| --- | --- |
+| 1 finger, in from right edge | Next workspace |
+| 1 finger, in from left edge | Previous workspace |
+| 1 finger, up from bottom edge | Spotlight launcher |
+| 4 fingers left / right | Grow / shrink focused window width |
+| 4 fingers down / up | Grow / shrink focused window height |
+| 3 fingers left / right | Focus window left / right |
+| 3 fingers up | Toggle fullscreen |
+| 3 fingers down | Close window |
+
+Windows also resize by dragging their (invisible) edges. See "Touchscreen
+gestures" and "Touch-resizing windows and invisible borders" above.

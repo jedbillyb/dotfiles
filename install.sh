@@ -67,7 +67,7 @@ link git/gitconfig      "$HOME/.gitconfig"
 
 echo "Scripts (-> $BIN):"
 mkdir -p "$BIN"
-for s in vpn-toggle.sh vpn-proxy.sh caffeine-toggle.sh sway-idle.sh sway-lock.sh waybar-run.sh openclaw-send wifi-compare.sh wifi-recover.sh; do
+for s in vpn-toggle.sh vpn-proxy.sh caffeine-toggle.sh sway-idle.sh sway-lock.sh waybar-run.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh; do
 	chmod +x "$REPO/scripts/$s"
 	link "scripts/$s" "$BIN/$s"
 done
@@ -89,6 +89,27 @@ echo "Privileged Wi-Fi recovery helper:"
 WIFI_ROOT="/usr/local/bin/wifi-recover-root"
 sudo install -o root -g root -m 755 "$REPO/scripts/wifi-recover-root.sh" "$WIFI_ROOT"
 info "copy  $WIFI_ROOT"
+
+echo "Touchscreen gestures (udev + input group):"
+# Copy, not symlink: udev reads its rules very early and before /mnt is
+# necessarily mounted, so a rule that lives in this repo would be missing on
+# some boots.
+TOUCH_RULE="/etc/udev/rules.d/99-touchscreen-lisgd.rules"
+sudo install -o root -g root -m 644 "$REPO/udev/99-touchscreen-lisgd.rules" "$TOUCH_RULE"
+info "copy  $TOUCH_RULE"
+sudo udevadm control --reload-rules
+# Scoped to the touchscreen deliberately. Re-triggering every input device also
+# hits the I2C-HID touchpad, which has a history of wedging on re-enumeration
+# (see "Touchpad wedges after resume").
+sudo udevadm trigger --subsystem-match=input --action=change \
+	--property-match=ID_INPUT_TOUCHSCREEN=1
+if id -nG "$USER" | tr ' ' '\n' | grep -qx input; then
+	info "ok    $USER already in the input group"
+else
+	sudo usermod -aG input "$USER"
+	info "group $USER added to input (takes effect at next login; the script
+       bridges the gap with sg until then)"
+fi
 
 echo "Resume hooks (elogind system-sleep):"
 SLEEP_HOOK="/usr/libexec/elogind/system-sleep/touchpad-resume-fix.sh"
