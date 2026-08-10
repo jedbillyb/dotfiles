@@ -4,7 +4,13 @@ My personal configuration files.
 
 ## Contents
 
-- `sway/config` - Sway window manager config
+- `sway/config` - Sway window manager config. Forces backlight to 100% on every
+  start/reload (`amdgpu_bl0` doesn't reset to max on boot) via `brightnessctl`,
+  which needs its own udev rule (`90-brightnessctl.rules`, ships with the
+  package) granting the `video` group write access to
+  `/sys/class/backlight/*/brightness` — udev only applies that on an `add`
+  event, so a device already attached at rule-install time needs
+  `udevadm trigger --subsystem-match=backlight --action=add` once to pick it up
 - `i3/config` - i3 window manager config (legacy)
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
   USB WiFi, AirDrop, AirPods, calendar, and Claude indicators). The calendar

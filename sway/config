@@ -59,6 +59,9 @@ lock_visible_namespace waybar
 exec nm-applet --indicator
 exec blueman-applet
 exec dunst
+
+# amdgpu_bl0 doesn't reset to max on boot; force it so the screen isn't dim on login
+exec_always brightnessctl set 100%
 # exec_always, not exec: a plain exec only runs at sway startup, so if the
 # server ever dies every footclient window dies with it and $mod+Return stops
 # working until a full restart. A second copy just exits, the socket is taken.
