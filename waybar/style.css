@@ -156,6 +156,14 @@ window#waybar {
     color: #aaaaaa;
 }
 
+#custom-vpn.connecting {
+    color: #e0af68;
+}
+
+#custom-vpn.failed {
+    color: #f7768e;
+}
+
 #custom-airdrop.off {
     color: #aaaaaa;
 }

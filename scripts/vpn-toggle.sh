@@ -8,6 +8,7 @@
 
 HANDSHAKE_TIMEOUT=12
 PROXY="$(dirname "$(readlink -f "$0")")/vpn-proxy.sh"
+STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/vpn-toggle-state"
 
 notify() {
     notify-send -t 3000 "VPN" "$1" 2>/dev/null
@@ -15,6 +16,11 @@ notify() {
 
 refresh_waybar() {
     pkill -RTMIN+8 waybar 2>/dev/null
+}
+
+set_state() {
+    echo -n "$1" > "$STATE_FILE"
+    refresh_waybar
 }
 
 wg_is_up() {
@@ -29,17 +35,22 @@ wg_handshaked() {
 
 # Tear down whichever transport is active.
 if wg_is_up || "$PROXY" status >/dev/null 2>&1; then
+    set_state "disconnecting"
     wg_is_up && sudo /usr/bin/wg-quick down wg0 >/dev/null 2>&1
     "$PROXY" down >/dev/null 2>&1
     notify "Disconnected"
+    rm -f "$STATE_FILE"
     refresh_waybar
     exit 0
 fi
+
+set_state "connecting"
 
 if sudo /usr/bin/wg-quick up wg0 >/dev/null 2>&1; then
     for _ in $(seq 1 $((HANDSHAKE_TIMEOUT * 2))); do
         if wg_handshaked; then
             notify "Connected - WireGuard (10.0.0.4)"
+            rm -f "$STATE_FILE"
             refresh_waybar
             exit 0
         fi
@@ -53,7 +64,10 @@ fi
 notify "WireGuard blocked, trying TCP fallback..."
 if "$PROXY" up >/dev/null 2>&1; then
     notify "Connected - SSH tunnel (UDP blocked here)"
+    rm -f "$STATE_FILE"
 else
     notify "Connection failed"
+    set_state "failed"
+    exit 0
 fi
 refresh_waybar
