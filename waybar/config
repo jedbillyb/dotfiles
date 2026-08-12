@@ -115,6 +115,10 @@
         "format-charging": "bat+ {capacity}%",
         "format-full": "bat full",
         "interval": 30,
+        "states": {
+            "warning": 30,
+            "critical": 15
+        },
         "tooltip": false
     }
 }

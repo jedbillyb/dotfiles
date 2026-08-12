@@ -141,6 +141,15 @@ sudo visudo -c
 same convention as the AirDrop module: the script lives with the project that
 owns it, this repo only carries the link and the waybar wiring.
 
+### Laptop battery colour
+
+The `battery` module (not to be confused with the AirPods module above) uses
+waybar's built-in `states` thresholds — `warning` at 30%, `critical` at 15% —
+to add `.warning`/`.critical` CSS classes, plus the automatic `.charging`
+class. `waybar/style.css` colours these: grey by default, amber under 30%,
+red under 15%, green while charging (charging colour wins over the level
+colour).
+
 ### LibreOffice Discord presence
 
 The sway config autostarts

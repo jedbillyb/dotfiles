@@ -186,6 +186,20 @@ window#waybar {
     color: #f7768e;
 }
 
+/* Battery colour shifts with state: default grey, amber under 30%, red
+   under 15%, green whenever charging (overrides the level colour). */
+#battery.warning {
+    color: #e5c07b;
+}
+
+#battery.critical {
+    color: #e06c75;
+}
+
+#battery.charging {
+    color: #98c379;
+}
+
 /* AirPods battery. Unlike the other modules this stays on the bar when
    disconnected, dimmed, because it doubles as the connect switch - AirPods
    hand themselves back to a phone constantly. */
