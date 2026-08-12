@@ -144,11 +144,17 @@ owns it, this repo only carries the link and the waybar wiring.
 ### Laptop battery colour
 
 The `battery` module (not to be confused with the AirPods module above) uses
-waybar's built-in `states` thresholds — `warning` at 30%, `critical` at 15% —
-to add `.warning`/`.critical` CSS classes, plus the automatic `.charging`
-class. `waybar/style.css` colours these: grey by default, amber under 30%,
-red under 15%, green while charging (charging colour wins over the level
-colour).
+waybar's built-in `states` thresholds — `warning` at 30%, `critical` at 15%,
+`urgent` at 5% — to add `.warning`/`.critical`/`.urgent` CSS classes, plus
+the automatic `.charging` class. `waybar/style.css` colours these: grey by
+default, amber under 30%, red under 15%, green while charging (charging
+colour wins over the level colour). Under 5% and unplugged, the pill flashes
+red/transparent via `@keyframes` instead of just recolouring — GTK3's CSS
+engine (what waybar renders with) has no `:has()`/parent selector, so this
+can't reach up and flash the whole bar, only the battery module itself. GTK
+CSS is also pickier than real CSS: no comma-grouped keyframe selectors
+(`0%, 100%` fails to parse) and `steps()` only accepts `start`/`end`, not
+`jump-none`.
 
 ### LibreOffice Discord presence
 

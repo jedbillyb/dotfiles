@@ -200,6 +200,36 @@ window#waybar {
     color: #98c379;
 }
 
+/* Under 5%, unplugged: flash hard instead of just recolouring. GTK3's CSS
+   engine (what waybar actually renders with) has no :has()/parent selector,
+   so we can't reach up and paint window#waybar from here - this is the
+   loudest we can make just the battery pill itself. */
+@keyframes battery-urgent-flash {
+    0% {
+        background-color: #e06c75;
+        color: #1e1e1e;
+    }
+    50% {
+        background-color: transparent;
+        color: #e06c75;
+    }
+    100% {
+        background-color: #e06c75;
+        color: #1e1e1e;
+    }
+}
+
+#battery.urgent {
+    font-weight: bold;
+    animation: battery-urgent-flash 0.6s steps(2, end) infinite;
+}
+
+/* Charging overrides the flash - no point panicking once it's plugged in. */
+#battery.urgent.charging {
+    animation: none;
+    color: #98c379;
+}
+
 /* AirPods battery. Unlike the other modules this stays on the bar when
    disconnected, dimmed, because it doubles as the connect switch - AirPods
    hand themselves back to a phone constantly. */
