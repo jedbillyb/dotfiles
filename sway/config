@@ -243,6 +243,7 @@ bindsym $mod+b exec ~/.local/bin/waybar-toggle.sh
 
 input type:touchpad {
     natural_scroll enabled
+    tap enabled
 }
 
 # The touchpad exposes two input nodes from the one piece of hardware -- a

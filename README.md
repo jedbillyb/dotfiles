@@ -309,6 +309,12 @@ Note that `dwt` (disable-while-typing) is on, so libinput legitimately drops
 motion while you type. Test by swiping with the keyboard idle, or you'll
 misread normal behaviour as the bug.
 
+### Tap-to-click
+
+The `input type:touchpad` block only set `natural_scroll`, so tap-to-click
+fell back to libinput's default of disabled. `tap enabled` is now explicit
+in the config.
+
 ### Touchscreen gestures
 
 The Wacom digitiser (`Wacom HID 5323 Finger`, `056a:5323`) drives iPad-style
