@@ -174,6 +174,30 @@ Check it with `tr '\\0' '\\n' < /proc/$(pgrep -x sway)/environ | grep ^PATH=`.
 If a session ever fails to start, switch TTY and `rm ~/.config/emptty` to fall
 back to the stock `sway.desktop`.
 
+### Compressed swap (zram)
+
+This machine has no swap partition or swap file, so before this any memory
+spike went straight to the OOM killer with nothing to fall back on. Rust
+release builds are the usual trigger: `lto = true` with `codegen-units = 1`
+holds the whole program in memory at link time.
+
+`zramen` provides compressed swap in RAM, which is a better fit than a disk
+swap file on a laptop: no SSD writes, and far faster than paging to disk.
+
+```sh
+sudo xbps-install zramen
+sudo ln -s /etc/sv/zramen /var/service/
+```
+
+`/etc/sv/zramen/conf` is set to zstd, 50% of RAM capped at 8 GiB, priority 100.
+That yields about 6.8 GiB of swap on this 13 GiB machine; the pages inside are
+compressed, so the real RAM cost when full is roughly a third of that. zstd is
+chosen over the default lz4 because this is a safety net rather than routine
+paging, so compression ratio matters more than raw speed.
+
+Check it with `swapon --show`, which should list `/dev/zram0` at priority 100,
+and `cat /sys/block/zram0/comp_algorithm`, where the active one is bracketed.
+
 ### VPN passwordless sudo
 
 The VPN toggle needs `wg-quick up/down wg0` without a password. Drop a sudoers
