@@ -4,3 +4,9 @@
 [ -f $HOME/.bashrc ] && . $HOME/.bashrc
 
 . "$HOME/.local/bin/env"
+
+# rustup toolchain. This has to live here rather than in .bashrc, because
+# .bashrc returns early for non-interactive shells and the sway session is
+# started by a non-interactive login shell. Anything launched from the session
+# that shells out to cargo/rustc needs it, e.g. Zed compiling a dev extension.
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env"

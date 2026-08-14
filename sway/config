@@ -56,6 +56,14 @@ lock_visible_namespace waybar
 
 # ── Autostart ─────────────────────────────────────────────────────────────────
 
+# Hand the session environment to D-Bus, so activated services inherit it.
+# Without this they start with no WAYLAND_DISPLAY, and xdg-desktop-portal-gtk
+# exits 1 on startup because GTK cannot open a display. The portal frontend
+# then silently drops the FileChooser interface altogether, and every file
+# dialog fails with "missing xdg-desktop-portal implementation". Must run
+# before anything that might trigger portal activation.
+exec dbus-update-activation-environment --all
+
 exec nm-applet --indicator
 exec blueman-applet
 exec dunst

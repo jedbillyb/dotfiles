@@ -58,6 +58,8 @@ link xdg-desktop-portal/sway-portals.conf "$CONFIG/xdg-desktop-portal/sway-porta
 link xdg-desktop-portal/portals.conf      "$CONFIG/xdg-desktop-portal/portals.conf"
 
 echo "Shell + git (-> \$HOME):"
+link emptty/emptty      "$CONFIG/emptty"
+
 link shell/bashrc       "$HOME/.bashrc"
 link shell/zshrc        "$HOME/.zshrc"
 link shell/bash_profile "$HOME/.bash_profile"

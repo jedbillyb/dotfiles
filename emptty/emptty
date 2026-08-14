@@ -1,0 +1,20 @@
+# emptty user session, symlinked to ~/.config/emptty by install.sh.
+#
+# Replaces the stock /usr/share/wayland-sessions/sway.desktop entry purely to
+# get LoginShell. emptty starts the session directly from its own process, so
+# without this the session inherits emptty's bare PATH (/usr/bin:/usr/sbin) and
+# never reads ~/.bash_profile. Everything launched from sway then loses
+# ~/.local/bin, ~/.cargo/bin and the rest, which shows up as GUI apps failing
+# to find tools that work fine in a terminal.
+#
+# Environment defaults to "xorg", so the explicit wayland line is required.
+# DesktopNames mirrors the stock sway.desktop and lands in XDG_CURRENT_DESKTOP,
+# which xdg-desktop-portal uses to pick sway-portals.conf.
+#
+# Recovery: if the session ever fails to start, switch to another TTY and
+# `rm ~/.config/emptty` to fall back to the stock sway.desktop entry.
+Name=Sway
+Exec=sway
+Environment=wayland
+DesktopNames=sway;wlroots
+LoginShell=/bin/bash --login

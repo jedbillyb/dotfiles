@@ -121,6 +121,51 @@ FileChooser to gtk and keep screenshots/screencast on wlr. `gtk.portal` ships
 install: `kill $(pgrep -f libexec/xdg-desktop-portal$)` (it re-activates on the
 next request).
 
+Correct portals.conf is not sufficient on its own. D-Bus activated services
+inherit the D-Bus daemon's environment, not sway's, so without
+`dbus-update-activation-environment` they start with no `WAYLAND_DISPLAY`.
+`xdg-desktop-portal-gtk` then exits 1 immediately, because GTK cannot open a
+display, and the frontend responds by dropping the FileChooser interface
+entirely rather than reporting a backend failure. The symptom is every file
+dialog failing with "missing xdg-desktop-portal implementation" while
+`portals.conf` looks perfectly correct and the backend runs fine by hand.
+
+`sway/config` now runs `dbus-update-activation-environment --all` at the top of
+the autostart block to prevent this. To confirm it is working:
+
+```sh
+dbus-send --session --print-reply --dest=org.freedesktop.portal.Desktop \
+  /org/freedesktop/portal/desktop org.freedesktop.DBus.Properties.Get \
+  string:org.freedesktop.portal.FileChooser string:version
+```
+
+A `uint32` version means it is fine; `No such interface` means the gtk backend
+failed to start.
+
+### Session PATH and the emptty login shell
+
+sway is started by `emptty`, which runs the session directly rather than
+through a login shell, so it never reads `~/.bash_profile`. The session used to
+run with `PATH=/usr/bin:/usr/sbin`, missing even `~/.local/bin`. Anything
+launched from sway inherited that, so GUI apps could not find tools that worked
+fine in a terminal. Zed failing to build a Rust dev extension with
+`failed to run rustc: No such file or directory` was how this surfaced.
+
+`emptty/emptty` (symlinked to `~/.config/emptty`) fixes it with emptty's
+`LoginShell=/bin/bash --login` key, which starts the session under a login
+shell. It replaces the stock `sway.desktop` entry and repeats its `Exec` and
+`DesktopNames`. `Environment=wayland` is mandatory: emptty defaults to `xorg`.
+
+Because `.bashrc` returns early for non-interactive shells, PATH entries the
+graphical session needs must go in `shell/bash_profile`, not `shell/bashrc`.
+The rustup line lives there for this reason; interactive-only additions such as
+spicetify and npm-global can stay in `.bashrc`.
+
+Check it with `tr '\\0' '\\n' < /proc/$(pgrep -x sway)/environ | grep ^PATH=`.
+
+If a session ever fails to start, switch TTY and `rm ~/.config/emptty` to fall
+back to the stock `sway.desktop`.
+
 ### VPN passwordless sudo
 
 The VPN toggle needs `wg-quick up/down wg0` without a password. Drop a sudoers
