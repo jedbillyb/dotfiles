@@ -20,6 +20,13 @@ My personal configuration files.
 - `wofi/config`, `wofi/style.css` - Wofi app launcher config and theme
 - `foot/foot.ini` - foot terminal config (sway runs `footclient` against a foot server)
 - `xdg-desktop-portal/` - Portal backend selection so Flatpak apps get a working file picker on sway (`*-portals.conf`)
+- `airdrop/config` - Per-machine settings for
+  [airdrop-mt7921](https://github.com/jedbillyb/airdrop-mt7921), sourced by both
+  `airdrop.sh` and `airdropd`. Sets `RECV_DIR=/mnt/shared/airdrop` so received
+  files land on the shared mount. It lives here rather than in that repo because
+  the things that would otherwise carry the path - the waybar module, a sway
+  keybind - are tracked files in a public checkout. Assignments use `${VAR:-…}`
+  so the environment still overrides them.
 - `shell/` - Shell dotfiles (`.bashrc`, `.zshrc`, `.bash_profile`, `.profile`, `.inputrc`)
 - `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`)
 - `bin/spotlight` - Spotlight-style centered wofi launcher (bound to mod+r and
@@ -90,7 +97,8 @@ cd ~/projects/dotfiles
 `install.sh` is idempotent - safe to re-run after pulling updates. It:
 
 - symlinks `sway/config`, `i3/config`, `waybar/`, `wofi/`, `foot/foot.ini`, and
-  the `xdg-desktop-portal/*-portals.conf` files into `~/.config`
+  the `xdg-desktop-portal/*-portals.conf` and `airdrop/config` files into
+  `~/.config`
 - symlinks the shell dotfiles and `gitconfig` into `~`
 - symlinks the `scripts/` and `bin/` helpers into `~/.local/bin` and marks them
   executable (an explicit list, not a glob — a new script has to be added to it,

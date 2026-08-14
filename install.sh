@@ -56,6 +56,7 @@ link wofi/style.css "$CONFIG/wofi/style.css"
 link foot/foot.ini "$CONFIG/foot/foot.ini"
 link xdg-desktop-portal/sway-portals.conf "$CONFIG/xdg-desktop-portal/sway-portals.conf"
 link xdg-desktop-portal/portals.conf      "$CONFIG/xdg-desktop-portal/portals.conf"
+link airdrop/config "$CONFIG/airdrop/config"
 
 echo "Shell + git (-> \$HOME):"
 link emptty/emptty      "$CONFIG/emptty"

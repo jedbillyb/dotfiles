@@ -1,0 +1,9 @@
+# Per-machine AirDrop settings for void-btw. Sourced by both
+# airdrop-mt7921/airdrop.sh and airdrop-mt7921/daemon/airdropd.
+#
+# Use ${VAR:-value} assignments, never plain VAR=value: that way a variable
+# genuinely set in the environment still overrides what is written here.
+
+# Received files land here rather than ~/Downloads, so AirDrop drops straight
+# into the shared mount instead of the home partition.
+RECV_DIR="${RECV_DIR:-/mnt/shared/airdrop}"
