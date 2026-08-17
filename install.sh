@@ -146,7 +146,11 @@ fi
 
 echo "WireGuard:"
 WG_CONF="/etc/wireguard/wg0.conf"
-if [ -e "$WG_CONF" ]; then
+# Test as root, not as $USER: /etc/wireguard is 0700 root:root, so an
+# unprivileged [ -e ] cannot traverse it and reports "missing" even when the
+# file is there. That silently sent every run down the copy path below and
+# overwrote a working config with the placeholder template.
+if sudo test -e "$WG_CONF"; then
 	info "skip  $WG_CONF already exists (left untouched)"
 else
 	info "copying template -> $WG_CONF (fill in PrivateKey + IP)"

@@ -259,9 +259,23 @@ here, so the bar reads `vpn on` and the fallback never triggers.
 
 `wireguard/wg0.conf.template` already carries `DNS = 1.1.1.1, 1.0.0.1`; the fault
 is the live config having drifted from it. Confirm with
-`grep -c '^DNS' /etc/wireguard/wg0.conf` (0 means missing), add the line under
-`[Interface]`, then re-toggle. After that `cat /etc/resolv.conf` should show only
-the tunnel resolver.
+`sudo grep -c '^DNS' /etc/wireguard/wg0.conf` (0 means missing), add the line
+under `[Interface]`, then re-toggle. After that `cat /etc/resolv.conf` should
+show only the tunnel resolver.
+
+The drift itself had a cause worth knowing: `install.sh` used to guard the
+template copy with an unprivileged `[ -e /etc/wireguard/wg0.conf ]`. That
+directory is `0700 root:root`, so `$USER` cannot traverse it and the test
+reported "missing" even with the file present - meaning every single run
+`sudo cp`'d the placeholder template over a working config. It now tests with
+`sudo test -e`. If you hit this on an older checkout, restore from one of the
+`/etc/wireguard/wg0.conf.bak*` copies, but check it has a `DNS =` line: the
+backups predating this fix do not.
+
+The general lesson for this script: any `[ -e ]` / `[ -L ]` guard on a path only
+root can read must run under `sudo`, or it fails open and clobbers. Every other
+privileged path it touches (`/usr/libexec/elogind/system-sleep`,
+`/etc/udev/rules.d`, `/usr/local/bin`) is `0755`, so this was the only instance.
 
 ### AirPods battery module
 
