@@ -106,11 +106,8 @@
         "return-type": "json",
         "interval": 30,
         "signal": 12,
-        "on-click": "~/.config/waybar/heatpump-status.py toggle",
-        "on-scroll-up": "~/.config/waybar/heatpump-status.py warmer",
-        "on-scroll-down": "~/.config/waybar/heatpump-status.py cooler",
-        "on-click-right": "~/.config/waybar/heatpump-status.py fancycle",
-        "on-click-middle": "~/.config/waybar/heatpump-status.py fan auto",
+        "on-click": "~/.config/eww/heatpump-panel.sh",
+        "on-click-right": "~/.config/waybar/heatpump-status.py toggle",
         "tooltip": true
     },
 

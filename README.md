@@ -227,16 +227,15 @@ convention as the AirDrop and AirPods modules. It talks ECHONET Lite (UDP
 mode (amber heating, blue cooling, grey idle, red on a fault), the tooltip
 carries setpoint, outdoor temperature, fan speed and lifetime kWh.
 
-Left click toggles power, scroll changes the setpoint, right click cycles fan
-speed, middle click puts the fan back on auto. The device address and the
-unit's real maximum fan speed live in `~/.config/waybar/heatpump.conf`, which
-is deliberately *not* tracked here - it is per-house, and this is a public
+Left click opens an eww control panel (setpoint steppers, mode buttons, fan
+bar); right click toggles power. The device address and the unit's real
+maximum fan speed live in `~/.config/waybar/heatpump.conf`, which is
+deliberately *not* tracked here - it is per-house, and this is a public
 checkout.
 
-Be aware that the scroll bindings are easy to hit by accident: a scroll
-gesture that lands on the module walks the setpoint to the end of its 16-31°C
-range, which in heat mode reads as the unit having switched off. Remove the
-two `on-scroll-*` lines if that becomes annoying.
+Scroll bindings were tried and removed: a scroll gesture that lands on the
+module walks the setpoint to the end of its 16-31°C range, which in heat mode
+reads as the unit having switched itself off.
 
 ### Laptop battery colour
 
