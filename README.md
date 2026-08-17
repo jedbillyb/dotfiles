@@ -237,6 +237,12 @@ Scroll bindings were tried and removed: a scroll gesture that lands on the
 module walks the setpoint to the end of its 16-31°C range, which in heat mode
 reads as the unit having switched itself off.
 
+It shares the `padding: 0 10px` rule with every other module rather than
+carrying its own. Left off that list it had no padding at all, which made the
+gap between it and the AirPods module roughly half the gap everywhere else -
+and narrow enough that the panel's position detector could no longer tell the
+two modules apart.
+
 ### Laptop battery colour
 
 The `battery` module (not to be confused with the AirPods module above) uses
