@@ -28,6 +28,14 @@
 #     after anything unmounted it) fails both knob writes with "No such file or
 #     directory" and silently leaves runtime-pm/deep-sleep disabled - which
 #     costs battery and adds latency with no visible symptom.
+#   - an rfkill soft block, when layer 1 is not installed. airdrop-helper does
+#     unblock, but it lives in the airdrop-mt7921 repo, so on a machine without
+#     it nothing clears a block. The usual cause here has nothing to do with
+#     AirDrop anyway: ideapad_laptop registers its own `ideapad_wlan` switch
+#     alongside the mt7921's `phy0`, and blocks are OR'd across rfkill devices,
+#     so an Fn/airplane key event or a stale EC state after resume soft-blocks
+#     the platform switch and takes a perfectly healthy radio down with it.
+#     `unblock wifi` covers both devices; bluetooth is deliberately left alone.
 #   - NetworkManager or avahi-daemon still stopped. airdrop.sh takes both down
 #     for the duration of a run and restores them from an exit trap that a hard
 #     kill skips. With NetworkManager down every nmcli call in the caller fails
@@ -44,6 +52,11 @@ VIFS="mon0 mon1 go0"
 pkill -x owl 2>/dev/null
 
 ip link show awdl0 >/dev/null 2>&1 && ip link del awdl0 2>/dev/null
+
+# Clear a wifi soft block before anything below tries to bring the interface
+# up - a blocked phy0 refuses the link-up and the whole recovery no-ops. Only
+# when something is actually blocked, so a healthy radio is never touched.
+rfkill list wifi 2>/dev/null | grep -q 'blocked: yes' && rfkill unblock wifi 2>/dev/null
 
 # Restore mt76 power management, mounting debugfs first if it isn't - the knobs
 # only exist under it. Writing 1 is what "on" means for both.

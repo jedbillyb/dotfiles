@@ -324,18 +324,42 @@ and NetworkManager cannot associate through any of it. The three layers are:
 1. `airdrop-helper wifi-reset` (from the airdrop-mt7921 repo) - monitor and
    P2P-GO vifs, mt76 `runtime-pm`/`deep-sleep`, rfkill, interface up.
 2. `wifi-recover-root` (this repo) - everything that does not cover: an owl
-   still running under its repo name, a stranded `awdl0`, the regulatory
-   domain left where a run set it, the managed interface left in monitor type,
-   mt76 power management when debugfs is unmounted (layer 1 mounts it in `up`
-   but not in `wifi-reset`, so both knob writes fail silently), and
-   NetworkManager or avahi-daemon still stopped because an `airdrop.sh` run
-   was killed before its exit trap.
+   still running under its repo name, a stranded `awdl0`, an rfkill soft block
+   when layer 1 is absent (see below), the regulatory domain left where a run
+   set it, the managed interface left in monitor type, mt76 power management
+   when debugfs is unmounted (layer 1 mounts it in `up` but not in
+   `wifi-reset`, so both knob writes fail silently), and NetworkManager or
+   avahi-daemon still stopped because an `airdrop.sh` run was killed before its
+   exit trap.
 3. `nmcli` as the desktop user - radio on, networking on, interface managed,
    autoconnect back on, and a reconnect **only** if it is not already
    connected.
 
 Every step is conditional, because this binding also fires on plain config
 reloads with nothing wrong - it must never bounce a healthy association.
+
+#### The rfkill block is usually not AirDrop's fault
+
+`rfkill unblock wifi` sits in both layer 1 and layer 2 on purpose. Layer 1 has
+it, but layer 1 lives in the airdrop-mt7921 repo, so on a machine without that
+repo nothing would clear a block at all - and the common cause has nothing to
+do with AWDL testing. `ideapad_laptop` registers its own `ideapad_wlan` switch
+next to the mt7921's `phy0`:
+
+```
+0: ideapad_wlan: Wireless LAN     <- platform switch
+3: phy0: Wireless LAN             <- the actual radio
+```
+
+rfkill ORs blocks across devices, so an Fn/airplane key event or a stale EC
+state after resume soft-blocks the platform switch and drags a perfectly
+healthy radio down with it. `unblock wifi` covers both devices at once.
+Bluetooth is deliberately left alone - this recovery is about the network.
+
+The module's `hw_rfkill_switch` parameter is `N` here, so it never asserts a
+*hard* block; everything seen so far has been a soft block, which is why
+unblocking is enough and blacklisting `ideapad_laptop` (which would also cost
+the extra buttons, battery hook and platform profile) is not needed.
 
 The root half runs as a root-owned copy at `/usr/local/bin/wifi-recover-root`
 (a symlink into this repo would let anything able to write the repo run code as
