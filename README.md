@@ -242,6 +242,27 @@ makes `wg-quick up` fail instantly on the `ip addr add`. Check with
 `sudo wg show` (empty means no interface) and confirm the key matches the peer
 the server expects via `grep '^PrivateKey' /etc/wireguard/wg0.conf | cut -d= -f2- | tr -d ' ' | wg pubkey`.
 
+### VPN connects but only raw IPs work (missing `DNS =`)
+
+If the tunnel handshakes fine (`sudo wg show wg0` shows a recent handshake and
+rising transfer) but nothing loads while `ping 1.1.1.1` still works, the live
+`/etc/wireguard/wg0.conf` is missing its `DNS =` line. `wg-quick` then leaves
+`/etc/resolv.conf` pointing at whatever the local network handed out, and
+`AllowedIPs = 0.0.0.0/0` routes those queries into the tunnel - so a private
+resolver like a school's `10.1.1.5` becomes unreachable and every lookup
+black-holes while IP-literal traffic keeps working.
+
+This bites on networks with internal resolvers (school/corporate wifi) and hides
+at home, where the resolver is often reachable or public either way. Note it is
+*not* the UDP-blocked case `vpn-toggle.sh` falls back for - UDP/51820 is fine
+here, so the bar reads `vpn on` and the fallback never triggers.
+
+`wireguard/wg0.conf.template` already carries `DNS = 1.1.1.1, 1.0.0.1`; the fault
+is the live config having drifted from it. Confirm with
+`grep -c '^DNS' /etc/wireguard/wg0.conf` (0 means missing), add the line under
+`[Interface]`, then re-toggle. After that `cat /etc/resolv.conf` should show only
+the tunnel resolver.
+
 ### AirPods battery module
 
 `waybar/airpods-status.sh` is a symlink into the
