@@ -5,3 +5,4 @@
 wireguard/wg0.conf
 *.conf.local
 __pycache__/
+waybar/heatpump.conf

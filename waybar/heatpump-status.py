@@ -1,0 +1,1 @@
+/mnt/shared/projects/waybar-heatpump/heatpump-status.py

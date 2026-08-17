@@ -261,3 +261,29 @@ window#waybar {
 #temperature.critical {
     color: #f7768e;
 }
+
+/* Heat pump. Coloured by what it's actually doing, so a glance at the bar
+   tells you whether it's burning power heating or just sitting there. */
+#custom-heatpump.off,
+#custom-heatpump.unreachable {
+    color: #666666;
+}
+
+#custom-heatpump.heat {
+    color: #e0af68;
+}
+
+#custom-heatpump.cool {
+    color: #7dcfff;
+}
+
+#custom-heatpump.dry,
+#custom-heatpump.fan,
+#custom-heatpump.auto,
+#custom-heatpump.on {
+    color: #aaaaaa;
+}
+
+#custom-heatpump.fault {
+    color: #f7768e;
+}

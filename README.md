@@ -13,7 +13,7 @@ My personal configuration files.
   `udevadm trigger --subsystem-match=backlight --action=add` once to pick it up
 - `i3/config` - i3 window manager config (legacy)
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
-  USB WiFi, AirDrop, AirPods, calendar, and Claude indicators). The calendar
+  USB WiFi, AirDrop, AirPods, calendar, heat pump, and Claude indicators). The calendar
   module styles two failure states, `auth` (Google OAuth token expired or
   revoked) and `stale` (fetching is failing and the cache has aged out), so a
   broken backend is visible instead of collapsing to an empty module
@@ -217,6 +217,26 @@ sudo visudo -c
 [waybar-airpods](https://github.com/jedbillyb/waybar-airpods) repo, following the
 same convention as the AirDrop module: the script lives with the project that
 owns it, this repo only carries the link and the waybar wiring.
+
+### Heat pump module
+
+`waybar/heatpump-status.py` is a symlink into the
+[waybar-heatpump](https://github.com/jedbillyb/waybar-heatpump) repo, same
+convention as the AirDrop and AirPods modules. It talks ECHONET Lite (UDP
+3610) to the lounge heat pump: the bar shows room temperature coloured by
+mode (amber heating, blue cooling, grey idle, red on a fault), the tooltip
+carries setpoint, outdoor temperature, fan speed and lifetime kWh.
+
+Left click toggles power, scroll changes the setpoint, right click cycles fan
+speed, middle click puts the fan back on auto. The device address and the
+unit's real maximum fan speed live in `~/.config/waybar/heatpump.conf`, which
+is deliberately *not* tracked here - it is per-house, and this is a public
+checkout.
+
+Be aware that the scroll bindings are easy to hit by accident: a scroll
+gesture that lands on the module walks the setpoint to the end of its 16-31°C
+range, which in heat mode reads as the unit having switched off. Remove the
+two `on-scroll-*` lines if that becomes annoying.
 
 ### Laptop battery colour
 
