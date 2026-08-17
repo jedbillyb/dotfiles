@@ -211,6 +211,37 @@ sudo chmod 0440 /etc/sudoers.d/zz-wg-toggle
 sudo visudo -c
 ```
 
+### VPN and IPv6 (fail closed)
+
+The server has **no IPv6 egress**, so global IPv6 can never go through either
+transport: WireGuard has an IPv4-only `AllowedIPs = 0.0.0.0/0`, and the TCP
+fallback's redsocks redirect is `iptables` only, with nothing in `ip6tables`.
+
+On a connection with native IPv6 (Starlink) that meant v6 traffic sailed
+straight out while the VPN looked connected. `curl -4` reported the Oracle exit
+address, `curl -6` reported the real Starlink one, and since IP-check sites
+prefer IPv6 they still showed the true location. The tunnel was up; it just
+wasn't carrying the half of the traffic being tested.
+
+Both transports now fail closed instead, rejecting global v6 while connected:
+
+```sh
+ip6tables -I OUTPUT 1 -d 2000::/3 -j REJECT --reject-with adm-prohibited
+```
+
+`2000::/3` is global unicast only, so link-local (`fe80::/10`) and ULA are left
+alone and NDP/DHCPv6 keep working. It is installed by `PostUp`/`PostDown` in
+`wg0.conf` (and in `wireguard/wg0.conf.template`) for WireGuard, and by
+`v6_block_up`/`v6_block_down` in `scripts/vpn-proxy.sh` for the fallback.
+
+If the bar says `vpn tcp` rather than `vpn on`, WireGuard failed to come up and
+the TCP fallback took over: that is the module being accurate, not stale. The
+usual cause is `/etc/wireguard/wg0.conf` still holding the template's
+placeholder `Address = 10.0.0.X/24` / `PrivateKey = YOUR_PRIVATE_KEY`, which
+makes `wg-quick up` fail instantly on the `ip addr add`. Check with
+`sudo wg show` (empty means no interface) and confirm the key matches the peer
+the server expects via `grep '^PrivateKey' /etc/wireguard/wg0.conf | cut -d= -f2- | tr -d ' ' | wg pubkey`.
+
 ### AirPods battery module
 
 `waybar/airpods-status.sh` is a symlink into the

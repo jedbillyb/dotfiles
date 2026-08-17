@@ -3,6 +3,12 @@ Address = 10.0.0.X/24
 PrivateKey = YOUR_PRIVATE_KEY
 DNS = 1.1.1.1, 1.0.0.1
 
+# Fail closed on IPv6. The server has no IPv6 egress, so global v6 cannot be
+# tunnelled; without this it leaks straight out and v6-capable sites still see
+# the real address. Link-local and ULA are left alone so NDP keeps working.
+PostUp = ip6tables -I OUTPUT 1 -d 2000::/3 -j REJECT --reject-with adm-prohibited
+PostDown = ip6tables -D OUTPUT -d 2000::/3 -j REJECT --reject-with adm-prohibited
+
 [Peer]
 PublicKey = Epr9gxvINqlOsQHE+Y4+4eICxeOsWri/K5D153Jn/Tw=
 Endpoint = 152.69.172.139:51820

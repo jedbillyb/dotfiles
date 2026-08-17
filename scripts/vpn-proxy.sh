@@ -24,11 +24,26 @@ is_up() {
     [[ -f "$SSH_PID" ]] && kill -0 "$(cat "$SSH_PID")" 2>/dev/null
 }
 
+# redsocks only redirects IPv4 TCP, and the server has no IPv6 egress at all, so
+# global IPv6 can never go through this tunnel. On a connection with native IPv6
+# (Starlink) it would otherwise sail straight out and every v6-capable site would
+# still see the real address. Fail closed instead. Link-local and ULA are left
+# alone so NDP and DHCPv6 keep working.
+v6_block_up() {
+    sudo ip6tables -C OUTPUT -d 2000::/3 -j REJECT --reject-with adm-prohibited 2>/dev/null ||
+        sudo ip6tables -I OUTPUT 1 -d 2000::/3 -j REJECT --reject-with adm-prohibited
+}
+
+v6_block_down() {
+    while sudo ip6tables -D OUTPUT -d 2000::/3 -j REJECT --reject-with adm-prohibited 2>/dev/null; do :; done
+}
+
 teardown_rules() {
     # Detach the chain first so no new traffic hits it, then flush and drop it.
     while sudo iptables -t nat -D OUTPUT -p tcp -j "$CHAIN" 2>/dev/null; do :; done
     sudo iptables -t nat -F "$CHAIN" 2>/dev/null
     sudo iptables -t nat -X "$CHAIN" 2>/dev/null
+    v6_block_down
 }
 
 down() {
@@ -134,6 +149,8 @@ EOF
 
     sudo iptables -t nat -A "$CHAIN" -p tcp -j REDIRECT --to-ports "$REDSOCKS_PORT"
     sudo iptables -t nat -A OUTPUT -p tcp -j "$CHAIN"
+
+    v6_block_up
 
     echo "up"
     return 0
