@@ -490,14 +490,16 @@ wins, sway starts blueman-applet and the agent with no ordering between them,
 and blueman re-registers whenever it restarts - losing that race silently
 downgrades pairing back to a one-click dialog.
 
-To pair:
+The adapter stays **discoverable and pairable indefinitely**, so anything can be
+paired at any time without preparing the machine first, and so the phone can be
+forgotten and re-paired freely when testing. That is only reasonable because
+the passkey prompt is a real barrier - a pairing attempt from across the room
+cannot get past it, so leaving the door visible costs nothing. Both
+`DiscoverableTimeout` and `PairableTimeout` default to non-zero and are pinned
+to 0 in `/etc/bluetooth/main.conf` and again by the advertising service.
 
-```sh
-ancs-pair.sh
-```
-
-which checks the agent is up, makes sure ancs4linux's is not, and turns on
-pairable and discoverable.
+`ancs-pair.sh` is then only a check that the agent is up and ancs4linux's is
+not.
 
 Dropping ancs4linux's agent gives up the reason it exists upstream - it was
 there to stop the phone redirecting its audio here. That is a fine trade for a

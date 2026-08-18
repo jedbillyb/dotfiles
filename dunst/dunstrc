@@ -15,26 +15,31 @@
     # height -- waybar/config sets "height": 16, hence 16 + 10.
     origin = top-right
     offset = 10x26
-    width = (240, 420)
-    height = (0, 300)
-    notification_limit = 5
+    width = (200, 340)
+    height = (0, 220)
+    notification_limit = 4
 
     # The default config has none of this, which is why stock dunst looks like
     # text jammed into a coloured box.
-    padding = 12
-    horizontal_padding = 14
+    padding = 9
+    horizontal_padding = 11
     frame_width = 1
-    gap_size = 6
-    corner_radius = 6
-    text_icon_padding = 12
+    gap_size = 5
+    corner_radius = 5
+    text_icon_padding = 10
 
     progress_bar = true
     progress_bar_height = 8
     progress_bar_frame_width = 1
 
-    font = DejaVu Sans Mono 10
-    line_height = 4
+    # 9pt to sit in proportion with waybar, which is 9px. The bar is
+    # monospace because it is columns of numbers; notification text is prose,
+    # and mono makes it look like terminal output rather than a message.
+    font = DejaVu Sans 9
+    line_height = 2
     markup = full
+    # Summary bold, body under it. The app name is added only for phone
+    # notifications, by the rule at the bottom -- for local apps it is noise.
     format = "<b>%s</b>\n%b"
     alignment = left
     vertical_alignment = center
@@ -47,8 +52,8 @@
     enable_recursive_icon_lookup = true
     icon_theme = Adwaita
     icon_position = left
-    min_icon_size = 24
-    max_icon_size = 40
+    min_icon_size = 16
+    max_icon_size = 28
 
     show_indicators = false
     sticky_history = yes
@@ -95,3 +100,7 @@
     appname = "*iPhone*"
     skip_display = false
     enabled = true
+    # ancs4linux puts "<iOS app> (<device>)" in appname. Worth showing for a
+    # phone notification -- otherwise a message and a bank alert look alike --
+    # but small and dim so it stays subordinate to the actual content.
+    format = "<span size='x-small' alpha='55%'>%a</span>\n<b>%s</b>\n%b"

@@ -36,8 +36,18 @@ while ! pgrep -x bluetoothd >/dev/null; do sleep 2; done
 	# finds nothing to tap. The LE advertisement itself keeps running, but
 	# that is not enough for the phone to offer it as a new device. 0 = never
 	# expire, for as long as we are advertising.
+	# Stay discoverable AND pairable indefinitely, so any device can be paired
+	# at any time without first running something here. What keeps that safe is
+	# bt-pair-agent.py: a pairing attempt cannot get past the passkey prompt,
+	# so leaving the door visible costs nothing. It also makes the setup
+	# testable -- you can forget the phone and re-pair whenever you want.
+	#
+	# Both timeouts default to non-zero, which silently drops the laptop off
+	# other devices' lists a few minutes after boot.
 	bluetoothctl discoverable-timeout 0 >/dev/null 2>&1 || true
+	bluetoothctl pairable-timeout 0 >/dev/null 2>&1 || true
 	bluetoothctl discoverable on >/dev/null 2>&1 || true
+	bluetoothctl pairable on >/dev/null 2>&1 || true
 ) &
 
 exec "$DIR/ancs4linux-advertising"

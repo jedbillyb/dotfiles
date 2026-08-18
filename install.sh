@@ -193,6 +193,19 @@ info "copy  /etc/dbus-1/system.d/ancs4linux-*.conf"
 # advertising name is set separately, in the advertising run script.
 sudo bluetoothctl system-alias "Jeds Linux Laptop" >/dev/null 2>&1 || true
 info "alias Jeds Linux Laptop"
+# Stay discoverable and pairable indefinitely so any device can be paired at
+# any time, and so the phone can be forgotten and re-paired to test. Both
+# timeouts are non-zero by default, which drops the machine off other devices'
+# lists minutes after boot. Safe because bt-pair-agent.py gates every pairing
+# behind a passkey typed here. The advertising service sets these at runtime
+# too; this makes them stick even if that service is not running.
+sudo sed -i \
+	-e 's/^#\?DiscoverableTimeout = .*/DiscoverableTimeout = 0/' \
+	-e 's/^#\?PairableTimeout = .*/PairableTimeout = 0/' \
+	-e 's/^#\?AlwaysPairable = .*/AlwaysPairable = true/' \
+	/etc/bluetooth/main.conf
+info "edit  /etc/bluetooth/main.conf (always discoverable + pairable)"
+link dunst/dunstrc "$CONFIG/dunst/dunstrc"
 link scripts/ancs-pair.sh "$BIN/ancs-pair.sh"
 
 cat <<EOF
