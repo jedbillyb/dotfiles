@@ -1,29 +1,41 @@
 #!/bin/sh
-# Open a short, deliberate pairing window for the iPhone (ANCS).
+# Prepare this machine for a deliberate iPhone (ANCS) pairing.
 #
-# The advertising service unregisters ancs4linux's pairing agent at boot on
-# purpose: that agent auto-accepts any bond and only *tells* you the passkey
-# afterwards, so leaving it registered while advertising runs permanently would
-# let anything in range pair itself. This turns it on for as long as you need
-# to tap the laptop on the phone, then turns it back off.
+# Deliberately does NOT call `ancs4linux-ctl enable-pairing`. That registers
+# ancs4linux's own agent as the system default, and its RequestConfirmation is:
 #
-# Usage: ancs-pair.sh [seconds]   (default 120)
+#     def RequestConfirmation(self, device, passkey) -> None:
+#         self.server.emit_pairing_code(str(int(passkey)))
+#
+# Returning from RequestConfirmation is how BlueZ is told the user consented;
+# rejecting means raising. So it shows you a code and accepts no matter what.
+# The code always "matches" because nothing ever compares it, and the prompt is
+# decorative -- anyone in range who taps pair gets bonded. This script instead
+# makes sure that agent is *off* and leaves pairing to blueman-applet's agent,
+# which shows a real confirmation dialog and honours the answer.
 set -eu
 
 CTL=/mnt/shared/projects/ancs4linux/.venv/bin/ancs4linux-ctl
-WINDOW="${1:-120}"
 
-[ -x "$CTL" ] || { echo "no ancs4linux-ctl at $CTL" >&2; exit 1; }
+# Belt and braces: enabling advertising auto-registers the bad agent, so make
+# sure a restart in the last few seconds has not left it registered.
+[ -x "$CTL" ] && "$CTL" disable-pairing >/dev/null 2>&1 || true
 
-cleanup() {
-    "$CTL" disable-pairing 2>/dev/null || true
-    notify-send "ANCS pairing" "Pairing window closed." 2>/dev/null || true
-}
-trap cleanup EXIT INT TERM
+if ! pgrep -x blueman-applet >/dev/null 2>&1; then
+	echo "WARNING: blueman-applet is not running, so no pairing agent is" >&2
+	echo "registered and the pair will fail. Start it first." >&2
+	exit 1
+fi
 
-"$CTL" enable-pairing
-notify-send "ANCS pairing" \
-    "Open Settings > Bluetooth on the iPhone and tap this laptop. Window closes in ${WINDOW}s." \
-    2>/dev/null || true
-echo "Pairing open for ${WINDOW}s. Accept on the phone."
-sleep "$WINDOW"
+bluetoothctl pairable on >/dev/null 2>&1 || true
+bluetoothctl discoverable on >/dev/null 2>&1 || true
+
+cat <<'MSG'
+Ready to pair.
+
+  On the iPhone: Settings > Bluetooth
+    1. Forget any old entry for this machine (JedLinux / void-btw).
+    2. Tap "Jeds Linux Laptop" under Other Devices.
+    3. blueman will pop a dialog here showing a 6-digit code. Compare it with
+       the one on the phone and only accept if they match -- this one is real.
+MSG

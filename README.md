@@ -449,19 +449,24 @@ it. With advertising running permanently under runit, that agent would sit
 registered as the default forever, accepting any pairing request in range.
 
 So the advertising run script calls `disable-pairing` right after
-`enable-advertising`, handing pairing back to blueman's agent, which actually
-asks. When you genuinely want to pair, open a short window:
+`enable-advertising`, and **nothing here ever turns it back on** - including
+during pairing, which is the one moment it would matter. `ancs-pair.sh` only
+asserts that the agent is off, checks blueman-applet is alive, and makes sure
+the adapter is pairable and discoverable. blueman's agent then handles the
+pairing with a real numeric-comparison dialog whose answer is actually honoured.
 
 ```sh
-ancs-pair.sh          # 120s, or ancs-pair.sh 60
+ancs-pair.sh
 ```
 
-It re-enables the agent, tells you to tap the laptop on the phone, and disables
-it again on exit (including on Ctrl-C).
+There is deliberately no time-limited "pairing window". A window was the wrong
+shape of fix: it bounds *how long* the auto-accepting agent is exposed rather
+than removing it, and the exposure still covers exactly the period when someone
+would be trying to pair.
 
-Disabling that agent also gives up the reason it exists upstream - it was there
-to stop the phone redirecting its audio here. In practice blueman's agent lets
-you decline that, and the tradeoff is worth it.
+Disabling that agent gives up the reason it exists upstream - it was there to
+stop the phone redirecting its audio here. blueman lets you decline that
+instead, which is a fine trade for a pairing prompt that means something.
 
 ### Notification modes
 
