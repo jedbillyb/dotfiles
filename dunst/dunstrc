@@ -25,7 +25,11 @@
     horizontal_padding = 11
     frame_width = 1
     gap_size = 5
-    corner_radius = 5
+    # Square, to match sway's windows. sway draws 5px borders but paints them
+    # fully transparent (client.* are all #00000000), so a window is a plain
+    # rectangle with hard corners -- a rounded popup sitting over one looked
+    # like it came from a different desktop.
+    corner_radius = 0
     text_icon_padding = 10
 
     progress_bar = true
