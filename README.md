@@ -40,6 +40,8 @@ My personal configuration files.
 - `scripts/wofi-backdrop.py` - Closes it on a *click* outside the box, via a
   transparent full-screen layer-shell surface underneath it
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
+- `scripts/vpn-wstunnel.sh` - Full-tunnel WireGuard carried over TCP/443 via
+  wstunnel, for networks that filter UDP (`up|down|status|diag`)
 - `scripts/vpn-proxy.sh` - TCP-over-SSH fallback for networks that block UDP, so
   there is still a tunnel when WireGuard can't handshake (`up|down|status`)
 - `scripts/show-desktop.sh` - Show-desktop toggle (bound to mod+d)
@@ -209,11 +211,22 @@ rule **named so it sorts after `wheel`** (otherwise a broad `%wheel ALL` rule
 overrides the NOPASSWD), pointing at the absolute `/usr/bin/wg-quick`:
 
 ```sh
-echo 'jed ALL=(ALL) NOPASSWD: /usr/bin/wg-quick up wg0, /usr/bin/wg-quick down wg0' \
-  | sudo tee /etc/sudoers.d/zz-wg-toggle
+sudo tee /etc/sudoers.d/zz-wg-toggle >/dev/null <<'EOF'
+jed ALL=(ALL) NOPASSWD: /usr/bin/wg-quick up wg0, /usr/bin/wg-quick down wg0
+jed ALL=(ALL) NOPASSWD: /usr/bin/wg-quick up wg-tcp, /usr/bin/wg-quick down wg-tcp
+jed ALL=(ALL) NOPASSWD: /usr/bin/wg show wg0 latest-handshakes, /usr/bin/wg show wg-tcp latest-handshakes
+jed ALL=(ALL) NOPASSWD: /usr/bin/ip route replace 152.69.172.139/32 *, /usr/bin/ip route del 152.69.172.139/32
+EOF
 sudo chmod 0440 /etc/sudoers.d/zz-wg-toggle
 sudo visudo -c
 ```
+
+The `wg-tcp` and `ip route` entries are for `vpn-wstunnel.sh` (see below). The
+secret path it needs lives in `/etc/wstunnel/client.env`, deliberately
+`root:wheel 0640` in its **own** directory rather than in `/etc/wireguard`:
+that keeps the wireguard directory at `0700` while still being readable without
+sudo, so the NOPASSWD rule stays narrow instead of needing blanket `grep`/`test`
+as root.
 
 ### VPN and IPv6 (fail closed)
 
@@ -280,6 +293,78 @@ The general lesson for this script: any `[ -e ]` / `[ -L ]` guard on a path only
 root can read must run under `sudo`, or it fails open and clobbers. Every other
 privileged path it touches (`/usr/libexec/elogind/system-sleep`,
 `/etc/udev/rules.d`, `/usr/local/bin`) is `0755`, so this was the only instance.
+
+### WireGuard over TCP/443 (N4L / school wifi)
+
+On the school network (`Karamu Devices`, N4L) plain WireGuard fails: the
+handshake leaves the laptop and **reaches the server**, which answers, but the
+reply never comes back. Captures on both ends confirmed it - server-side
+tcpdump shows the 148-byte init arriving and a 92-byte response going out;
+laptop-side tcpdump shows zero inbound packets. It is a deliberate return-path
+filter, not a port block, and moving to another UDP port does not help.
+
+Two other things that network does, both proven with `dig`:
+
+- **All UDP/53 is transparently hijacked** to its own resolver.
+  `dig @192.0.2.1 google.com` - an address that cannot possibly answer -
+  returns a valid response, and `dig @1.1.1.1 id.server TXT CH` comes back as
+  `AkamaiRecursive_...`, not Cloudflare. So UDP/53 is useless as a transport.
+- **SafeSearch is forced via DNS**: `www.google.com` resolves to
+  `forcesafesearch.google.com`.
+
+`vpn-proxy.sh` works there but is only a proxy - IPv4 TCP via redsocks, with DNS
+left on the local resolver. `vpn-wstunnel.sh` is the real fix: actual WireGuard
+inside a WebSocket over TCP/443, so UDP and DNS tunnel too. `vpn-toggle.sh`
+tries UDP first, then this, then the SSH proxy.
+
+**Server side** (`server.jedbillyb.com`): wstunnel listens on `127.0.0.1:8099`
+(not 8443 - Pelican `wings` already holds that) under `wstunnel.service`, and
+nginx reverse-proxies a secret path on the existing 443 vhost to it. The path
+*is* the credential; wstunnel is additionally `--restrict-to 127.0.0.1:51820`
+so a leaked path cannot forward anywhere else. Sharing 443 with the real sites
+means valid certs and ordinary-looking HTTPS.
+
+**Client side**: `/etc/wireguard/wg-tcp.conf` points its peer `Endpoint` at the
+*local* wstunnel listener, `127.0.0.1:51821`.
+
+Two settings in that config are load-bearing:
+
+- `MTU = 1280`. WireGuard inside WebSocket/TLS/TCP carries far more overhead
+  than a plain UDP tunnel, so wg-quick's default 1420 blackholes full-size
+  packets while small ones still pass.
+- The `PostUp` host route for the server IP. Without it wstunnel's own TCP
+  connection gets routed into the tunnel it is carrying and deadlocks instantly.
+  It works because wg-quick's `suppress_prefixlength 0` rule lets specific
+  routes in the main table still win over the tunnel default.
+
+#### A handshake is not proof the tunnel works
+
+`vpn-wstunnel.sh up` verifies three layers independently before keeping the
+tunnel - HTTPS by IP, DNS, then HTTPS by name - and reports which failed. It
+also arms a **detached watchdog** before anything captures the default route:
+if confirmation never arrives within 45s the tunnel is torn down automatically.
+
+This exists because the first working build handshaked fine, passed ICMP, and
+resolved nothing - which needed a reboot to recover. Tearing down only on a
+failed *handshake* is not enough; a tunnel can be up and useless. `diag` dumps
+the state captured at failure (routes, rules, resolver, an MTU probe, wstunnel
+log) so a failure is debuggable after the tunnel is already gone.
+
+#### Gotcha: port-hopping REDIRECTs must be scoped to the public interface
+
+The server also accepts WireGuard on UDP 443/53/123/500/4500, redirected to
+51820, for networks that block 51820 but allow those. The rules **must** carry
+`-i enp0s6`:
+
+```sh
+sudo iptables -t nat -I PREROUTING 1 -i enp0s6 -p udp --dport 53 -j REDIRECT --to-ports 51820
+```
+
+Without `-i`, `nat PREROUTING` also matches traffic being forwarded *out of*
+`wg0`, so every VPN client's DNS query to `1.1.1.1:53` gets hijacked back into
+the wireguard port. Symptom: the tunnel works for everything except name
+resolution, for every client at once. (These need matching OCI security-list
+ingress rules to be reachable at all; only 443 was already open.)
 
 ### AirPods battery module
 
