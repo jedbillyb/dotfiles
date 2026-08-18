@@ -66,6 +66,13 @@ exec dbus-update-activation-environment --all
 
 exec nm-applet --indicator
 exec blueman-applet
+
+# Fingerprint-gated Bluetooth pairing agent. Must come after blueman-applet:
+# whichever agent calls RequestDefaultAgent last wins, and this one re-asserts
+# the claim on a timer so a restart of blueman cannot silently take pairing
+# back. See "iPhone notifications over Bluetooth" in the README for why neither
+# ancs4linux's agent nor blueman's is good enough here.
+exec /mnt/shared/projects/dotfiles/scripts/bt-pair-agent.py
 exec dunst
 
 # amdgpu_bl0 doesn't reset to max on boot; force it so the screen isn't dim on login

@@ -450,23 +450,47 @@ registered as the default forever, accepting any pairing request in range.
 
 So the advertising run script calls `disable-pairing` right after
 `enable-advertising`, and **nothing here ever turns it back on** - including
-during pairing, which is the one moment it would matter. `ancs-pair.sh` only
-asserts that the agent is off, checks blueman-applet is alive, and makes sure
-the adapter is pairable and discoverable. blueman's agent then handles the
-pairing with a real numeric-comparison dialog whose answer is actually honoured.
+during pairing, which is the one moment it would matter. There is deliberately
+no time-limited "pairing window" either: a window bounds *how long* an
+auto-accepting agent is exposed rather than removing it, and the exposure would
+still cover exactly the period when someone is trying to pair.
+
+`scripts/bt-pair-agent.py` handles pairing instead, started from sway/config.
+It advertises **KeyboardOnly**, which is the whole trick: BlueZ negotiates
+Passkey Entry rather than Numeric Comparison, so the phone *displays* a
+six-digit code and this laptop *asks for it* in a wofi prompt.
+
+Why that direction and not the other. Both are Passkey Entry and equally strong
+against a relay attack; what differs is what a human attacker has to do:
+
+| | Attacker needs | Defeated by |
+| --- | --- | --- |
+| Laptop displays, phone enters (`DisplayOnly`) | to *see* the laptop screen | shoulder-surfing - they pair from their own phone without touching this machine |
+| Laptop asks, you type (`KeyboardOnly`) | to *type on* the laptop | physical access to the keyboard |
+
+`DisplayOnly` is less code - just show the number in `DisplayPasskey` - but it
+has the laptop print the secret on screen for anyone who can see it, which is
+uncomfortably close to the original bug. So the agent refuses every other
+method (`RequestConfirmation`, `DisplayPasskey`, and the legacy PIN methods)
+rather than let a remote device negotiate its way down to a one-click bond.
+
+The agent also re-asserts `RequestDefaultAgent` every 30s. Whoever calls it last
+wins, sway starts blueman-applet and the agent with no ordering between them,
+and blueman re-registers whenever it restarts - losing that race silently
+downgrades pairing back to a one-click dialog.
+
+To pair:
 
 ```sh
 ancs-pair.sh
 ```
 
-There is deliberately no time-limited "pairing window". A window was the wrong
-shape of fix: it bounds *how long* the auto-accepting agent is exposed rather
-than removing it, and the exposure still covers exactly the period when someone
-would be trying to pair.
+which checks the agent is up, makes sure ancs4linux's is not, and turns on
+pairable and discoverable.
 
-Disabling that agent gives up the reason it exists upstream - it was there to
-stop the phone redirecting its audio here. blueman lets you decline that
-instead, which is a fine trade for a pairing prompt that means something.
+Dropping ancs4linux's agent gives up the reason it exists upstream - it was
+there to stop the phone redirecting its audio here. That is a fine trade for a
+pairing prompt that means something.
 
 ### Notification modes
 
