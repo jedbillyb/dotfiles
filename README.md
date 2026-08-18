@@ -597,6 +597,17 @@ The mode is remembered in `$XDG_RUNTIME_DIR/notification-mode`, so it resets to
 `all` on reboot. If dunst gets paused behind the script's back, the script
 believes dunst rather than its own state file.
 
+### Popup placement
+
+`origin = top-right` with `offset = 5x5`, so the popup's corner lands exactly on
+the corner of a tiled window (sway/config sets `gaps outer 5`).
+
+**dunst's vertical offset is measured from the bottom of waybar's exclusive
+zone, not from the top of the screen.** The bar's own 16px height is already
+excluded, so the earlier `10x26` (16 + 10, "bar height plus the gap") pushed the
+popup a full bar-height too low while the right edge stayed where it was - the
+asymmetry that made it look wrong. Do not re-add the bar height here.
+
 ### Device name
 
 Three separate names, all set to **Jeds Linux Laptop**, none of which is the

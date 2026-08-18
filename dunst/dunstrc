@@ -9,12 +9,16 @@
     monitor = 0
     follow = mouse
 
-    # Sit under waybar with the same gap on both sides: 10px in from the right
-    # edge, and 10px below the bar. The vertical offset is measured from the
-    # top of the screen, not from the bar, so it has to include the bar's own
-    # height -- waybar/config sets "height": 16, hence 16 + 10.
+    # Line the popup up with the top-right corner of a tiled window, so it
+    # reads as part of the layout rather than floating at its own inset:
+    # sway/config sets `gaps outer 5`, so both offsets are 5.
+    #
+    # The vertical offset is measured from the bottom of waybar's exclusive
+    # zone, NOT from the top of the screen - waybar's own 16px height is
+    # already excluded, so adding it here (the old 16 + 10 = 26) pushed the
+    # popup a full bar-height too low while the right edge stayed put.
     origin = top-right
-    offset = 10x26
+    offset = 5x5
     width = (200, 340)
     height = (0, 220)
     notification_limit = 4
