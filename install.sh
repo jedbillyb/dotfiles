@@ -169,9 +169,11 @@ else
 fi
 # Copy, not symlink: runit reads /etc/sv at boot, long before /mnt/shared is
 # mounted. The run scripts themselves wait for /mnt before exec'ing.
-for svc in ancs4linux-observer ancs4linux-advertising; do
+for svc in ancs4linux-observer ancs4linux-advertising ancs4linux-reconnect; do
 	sudo mkdir -p "/etc/sv/$svc"
 	sudo install -o root -g root -m 755 "$REPO/ancs4linux/sv/$svc/run" "/etc/sv/$svc/run"
+	sudo mkdir -p "/etc/sv/$svc/log" "/var/log/$svc"
+	sudo install -o root -g root -m 755 "$REPO/ancs4linux/sv/$svc/log/run" "/etc/sv/$svc/log/run"
 	sudo ln -sfn "/etc/sv/$svc" "/var/service/$svc"
 	info "copy  /etc/sv/$svc"
 done

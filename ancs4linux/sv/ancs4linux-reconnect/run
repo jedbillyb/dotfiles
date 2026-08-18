@@ -1,0 +1,31 @@
+#!/bin/sh
+# Nudge bonded iOS devices back into a connection.
+#
+# In theory a bonded iPhone reconnects by itself to a peripheral that is
+# advertising. In practice it does not reliably -- after a reboot, or after the
+# advertising service restarts, the phone sat disconnected indefinitely while
+# advertising was up, and a single outbound `bluetoothctl connect` brought it
+# straight back with ANCS resubscribing immediately. So poll.
+#
+# Cheap when connected: this only acts on bonded Apple devices that are
+# currently disconnected, and BlueZ no-ops a connect to an already-connected
+# device anyway.
+exec 2>&1
+while ! pgrep -x bluetoothd >/dev/null; do sleep 2; done
+
+while :; do
+	# Bonded, not currently connected, and looks like a phone/tablet. Matching
+	# on the name is crude, but the alternative is hardcoding a MAC.
+	bluetoothctl devices Bonded 2>/dev/null |
+	while read -r _ mac name; do
+		case "$name" in
+			*iPhone*|*iPad*) ;;
+			*) continue ;;
+		esac
+		if ! bluetoothctl info "$mac" 2>/dev/null | grep -q "Connected: yes"; then
+			echo "reconnecting $mac ($name)"
+			timeout 20 bluetoothctl connect "$mac" >/dev/null 2>&1 || true
+		fi
+	done
+	sleep 60
+done

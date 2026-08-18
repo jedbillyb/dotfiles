@@ -388,6 +388,7 @@ Three daemons, split by which bus they need:
 | `ancs4linux-observer` | system | runit, `/etc/sv/ancs4linux-observer` |
 | `ancs4linux-advertising` | system | runit, `/etc/sv/ancs4linux-advertising` |
 | `ancs4linux-desktop-integration` | session | `exec` in sway/config |
+| reconnect poller | - | runit, `/etc/sv/ancs4linux-reconnect` |
 
 Upstream ships systemd units, which are useless here. The runit `run` scripts
 live in `ancs4linux/sv/` in this repo and `install.sh` copies them into
@@ -407,6 +408,21 @@ restricts to root and the `ancs4linux` group. `desktop-integration` runs as you,
 so your user must be in that group - and because group membership is only picked
 up at login, it will fail with a D-Bus policy denial until you log out and back
 in.
+
+**The phone does not reliably reconnect on its own.** It is supposed to: a
+bonded iPhone reconnects to a peripheral it sees advertising. In practice, after
+a reboot or an advertising restart, it sat disconnected indefinitely with
+advertising up, and one outbound `bluetoothctl connect` brought it straight back
+with ANCS resubscribing immediately. Hence the reconnect service, which polls
+every 60s for bonded devices whose name looks like an iPhone or iPad and
+connects any that are disconnected. Make sure the phone is **trusted**
+(`bluetoothctl trust <mac>`) too, or BlueZ wants authorisation for the incoming
+connection and there is no longer an agent standing by to give it.
+
+**Renaming does not propagate.** iOS caches the GAP name it learned at pairing
+time and will keep showing the old one - changing the adapter alias or the
+advertised name does nothing to an already-paired entry. Forget the device on
+the phone and pair again.
 
 **Pairing.** Unpair on both ends first if the phone was ever paired, then let
 advertising come up, and on the phone open Settings -> Bluetooth and tap this
