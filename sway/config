@@ -67,6 +67,10 @@ exec dbus-update-activation-environment --all
 exec nm-applet --indicator
 exec blueman-applet
 
+# KDE Connect. The indicator starts kdeconnectd itself and adds a tray icon,
+# so this one line covers both the background daemon and the GUI entry point.
+exec kdeconnect-indicator
+
 # Fingerprint-gated Bluetooth pairing agent. Must come after blueman-applet:
 # whichever agent calls RequestDefaultAgent last wins, and this one re-asserts
 # the claim on a timer so a restart of blueman cannot silently take pairing

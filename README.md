@@ -368,6 +368,34 @@ BlueZ fails with `br-connection-unknown` and the link visibly flaps (a new
 `(AVRCP)` input device appears in `dmesg` each attempt). There is no fix on this
 end - disconnect them on the phone first, then click.
 
+### KDE Connect
+
+`exec kdeconnect-indicator` in the sway config. The indicator spawns
+`kdeconnectd` itself and adds a tray icon next to nm-applet and blueman-applet,
+so one line covers both the background daemon and the GUI you open when you
+actually want to send something. `kdeconnect-app` and `kdeconnect-cli` are there
+for the full UI and for scripting.
+
+Plain `exec`, not `exec_always`. A sway reload would otherwise leave a second
+indicator fighting the first for the tray slot.
+
+No firewall rules are needed on this machine: KDE Connect wants TCP+UDP
+1714-1764 and the `INPUT` policy here is `ACCEPT` with no nft or ufw ruleset.
+
+Discovery is a UDP broadcast, so both devices have to sit on the same layer-2
+segment. Two local consequences:
+
+- Bring **wg0 down before pairing**. The full-tunnel VPN routes the broadcast
+  out to the OCI endpoint instead of across the LAN.
+- It will not work on the school's N4L "Karamu Devices" SSID, which has client
+  isolation. Home WiFi is fine.
+
+Paired against an iPhone the feature set is thin: no clipboard sync, no run
+commands, no real file browsing, and notification sync is one-way and flaky.
+Phone notifications on this machine come from ANCS over Bluetooth instead (next
+section); KDE Connect is here for file transfer and remote input, not
+notifications.
+
 ### iPhone notifications over Bluetooth (ANCS)
 
 iOS notifications mirror to this machine over BLE using Apple Notification
