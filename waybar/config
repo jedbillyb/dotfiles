@@ -5,7 +5,7 @@
     "exclusive": true,
     "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/heatpump", "custom/airpods", "custom/airdrop", "custom/caffeine", "custom/vpn", "custom/notifications", "custom/usbwifi", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
+    "modules-right": ["custom/airpods", "custom/heatpump", "custom/airdrop", "custom/caffeine", "custom/vpn", "custom/notifications", "custom/usbwifi", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
 
     "sway/workspaces": {
         "disable-scroll": true,

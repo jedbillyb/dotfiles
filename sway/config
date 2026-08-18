@@ -175,8 +175,8 @@ bindsym $mod+Shift+r reload, exec sudo /usr/libexec/elogind/system-sleep/touchpa
 
 # ── Media ─────────────────────────────────────────────────────────────────────
 
-bindsym XF86AudioRaiseVolume  exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 10%+ && notify-send -t 800 "Vol: $(wpctl get-volume @DEFAULT_AUDIO_SINK@)"
-bindsym XF86AudioLowerVolume  exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 10%- && notify-send -t 800 "Vol: $(wpctl get-volume @DEFAULT_AUDIO_SINK@)"
+bindsym XF86AudioRaiseVolume  exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 10%+
+bindsym XF86AudioLowerVolume  exec wpctl set-volume @DEFAULT_AUDIO_SINK@ 10%-
 bindsym XF86AudioMute         exec wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle
 bindsym XF86AudioMicMute      exec wpctl set-mute @DEFAULT_AUDIO_SOURCE@ toggle
 bindsym XF86AudioNext         exec playerctl next

@@ -313,6 +313,9 @@ gap between it and the AirPods module roughly half the gap everywhere else -
 and narrow enough that the panel's position detector could no longer tell the
 two modules apart.
 
+The AirPods module sits immediately to its left in `modules-right`, so the heat
+pump module is no longer the leftmost item in the right-hand group.
+
 ### Laptop battery colour
 
 The `battery` module (not to be confused with the AirPods module above) uses
@@ -1408,7 +1411,7 @@ unfocused.
 
 | Keybind | Action |
 | --- | --- |
-| `XF86AudioRaiseVolume` / `LowerVolume` | Volume ±10% |
+| `XF86AudioRaiseVolume` / `LowerVolume` | Volume ±10% (silent - no desktop notification) |
 | `XF86AudioMute` | Toggle mute |
 | `XF86AudioMicMute` | Toggle mic mute |
 | `XF86AudioPlay` / `Next` / `Prev` / `Stop` | playerctl media controls |
