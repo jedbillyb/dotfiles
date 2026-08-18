@@ -1,0 +1,38 @@
+diff --git a/ancs4linux/advertising/advertisement.py b/ancs4linux/advertising/advertisement.py
+index be4c285..d91ac5e 100644
+--- a/ancs4linux/advertising/advertisement.py
++++ b/ancs4linux/advertising/advertisement.py
+@@ -19,6 +19,9 @@ def array_of_bytes(array: List[int]) -> Variant:
+     return Variant("ay", [Byte(i) for i in array])
+ 
+ 
++ANCS_UUID = "7905f431-b5ce-4e99-a40f-4b1e122d00d0"
++
++
+ @dbus_interface("org.bluez.LEAdvertisement1")
+ class AdvertisementData:
+     """Simple advertisement. IDs were taken randomly."""
+@@ -39,6 +42,23 @@ class AdvertisementData:
+     def ServiceUUIDs(self, value: List[Str]) -> None:
+         pass
+ 
++    @property
++    def SolicitUUIDs(self) -> List[Str]:
++        """Ask iOS for its notification service.
++
++        This is how a smartwatch announces that it wants ANCS, and it is what
++        makes iOS treat the peripheral as a notification accessory -- offering
++        the "would like to access your notifications" prompt at pairing, and a
++        Show Notifications toggle in the device's info screen afterwards.
++        Without it the GATT subscribe still succeeds and iOS simply never sends
++        anything, with no toggle anywhere to turn on.
++        """
++        return [ANCS_UUID]
++
++    @SolicitUUIDs.setter
++    def SolicitUUIDs(self, value: List[Str]) -> None:
++        pass
++
+     @property
+     def IncludeTxPower(self) -> Bool:
+         return True

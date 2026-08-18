@@ -63,6 +63,10 @@
     max_icon_size = 28
 
     show_indicators = false
+    # Off: dunst otherwise appends "(4m 38s old)" to anything that has been on
+    # screen a while, which is only meaningful for notifications that never
+    # expire -- and none of ours should.
+    show_age_threshold = -1
     sticky_history = yes
     history_length = 40
     idle_threshold = 120
@@ -87,7 +91,10 @@
     background = "#242424"
     foreground = "#cccccc"
     frame_color = "#f7768e"
-    timeout = 0
+    # Not 0. dunst's convention is that critical notifications never expire, so
+    # they sit on screen until clicked -- a refused pairing then follows you
+    # around for the rest of the session. Long enough to be read, then gone.
+    timeout = 20
 
 # --- notification modes, driven by scripts/notification-mode.sh ---
 #

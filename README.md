@@ -434,6 +434,25 @@ time and will keep showing the old one - changing the adapter alias or the
 advertised name does nothing to an already-paired entry. Forget the device on
 the phone and pair again.
 
+**ancs4linux does not solicit the ANCS UUID, and must be patched to.** Its
+advertisement carries no service UUIDs at all. Soliciting
+`7905f431-b5ce-4e99-a40f-4b1e122d00d0` is how a smartwatch announces that it
+wants notifications, and it is what makes iOS classify the peripheral as a
+notification accessory. Without it the failure is silent and deeply
+misleading: pairing works, the GATT subscribe reports success, and iOS simply
+never sends a thing - with no "would like to access your notifications" prompt
+at pairing and no Show Notifications toggle in the device's info screen to turn
+on afterwards. `patches/ancs4linux-solicit-ancs-uuid.patch` adds it.
+
+Note that the venv is built with `pip install .`, not `-e`, so the daemons run
+from the copy in `site-packages`. Editing the checkout changes nothing until:
+
+```sh
+cd /mnt/shared/projects/ancs4linux
+.venv/bin/pip install --force-reinstall --no-deps .
+sudo sv restart ancs4linux-advertising ancs4linux-observer
+```
+
 **Pairing.** Unpair on both ends first if the phone was ever paired, then let
 advertising come up, and on the phone open Settings -> Bluetooth and tap this
 machine under Other Devices. ANCS needs a real BLE bond, and a plain BR/EDR
