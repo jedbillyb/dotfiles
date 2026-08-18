@@ -25,8 +25,11 @@
 
     # The default config has none of this, which is why stock dunst looks like
     # text jammed into a coloured box.
-    padding = 9
-    horizontal_padding = 11
+    # Equal to horizontal_padding: unequal values make the text sit tighter to
+    # one edge than the other, which reads as the whole popup being misaligned
+    # even when its outer gaps are pixel-identical.
+    padding = 10
+    horizontal_padding = 10
     frame_width = 1
     gap_size = 5
     # Square, to match sway's windows. sway draws 5px borders but paints them
