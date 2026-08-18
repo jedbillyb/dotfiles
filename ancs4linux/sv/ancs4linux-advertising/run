@@ -16,6 +16,25 @@ while ! pgrep -x bluetoothd >/dev/null; do sleep 2; done
 	while ! "$DIR/ancs4linux-ctl" get-all-hci >/dev/null 2>&1; do sleep 2; done
 	hci=$("$DIR/ancs4linux-ctl" get-all-hci 2>/dev/null | tr -d '["]' | cut -d, -f1)
 	[ -n "$hci" ] || exit 0
+	# ORDER MATTERS. Discoverability must be set BEFORE the advertisement is
+	# registered. Toggling classic discoverability tears down any LE advertising
+	# instance already on the controller: with the old order (advertise, then
+	# `discoverable on`) bluetoothd still reported ActiveInstances: 1 while
+	# `btmgmt advinfo` showed 0 items, i.e. nothing was actually being
+	# broadcast, so the ANCS solicitation never went out. Set the flags first
+	# and both survive together.
+	#
+	# Classic discoverability is required in its own right: iOS will not list
+	# this host under Settings > Bluetooth > Other Devices from the LE
+	# advertisement alone. Both timeouts default to non-zero, which silently
+	# drops us off other devices' lists a few minutes after boot; 0 = never.
+	# Staying open is safe because bt-pair-agent.py gates every bond behind a
+	# passkey prompt, and it keeps the setup testable (forget and re-pair).
+	bluetoothctl discoverable-timeout 0 >/dev/null 2>&1 || true
+	bluetoothctl pairable-timeout 0 >/dev/null 2>&1 || true
+	bluetoothctl discoverable on >/dev/null 2>&1 || true
+	bluetoothctl pairable on >/dev/null 2>&1 || true
+
 	"$DIR/ancs4linux-ctl" enable-advertising \
 		--hci-address "$hci" --name "$BT_NAME"
 
@@ -30,24 +49,6 @@ while ! pgrep -x bluetoothd >/dev/null; do sleep 2; done
 	# turn this one on for the brief window when you genuinely want it.
 	"$DIR/ancs4linux-ctl" disable-pairing
 
-	# BlueZ expires discoverability after DiscoverableTimeout (180s by
-	# default), which silently drops the laptop off the phone's "Other
-	# Devices" list a few minutes after boot -- so a later attempt to pair
-	# finds nothing to tap. The LE advertisement itself keeps running, but
-	# that is not enough for the phone to offer it as a new device. 0 = never
-	# expire, for as long as we are advertising.
-	# Stay discoverable AND pairable indefinitely, so any device can be paired
-	# at any time without first running something here. What keeps that safe is
-	# bt-pair-agent.py: a pairing attempt cannot get past the passkey prompt,
-	# so leaving the door visible costs nothing. It also makes the setup
-	# testable -- you can forget the phone and re-pair whenever you want.
-	#
-	# Both timeouts default to non-zero, which silently drops the laptop off
-	# other devices' lists a few minutes after boot.
-	bluetoothctl discoverable-timeout 0 >/dev/null 2>&1 || true
-	bluetoothctl pairable-timeout 0 >/dev/null 2>&1 || true
-	bluetoothctl discoverable on >/dev/null 2>&1 || true
-	bluetoothctl pairable on >/dev/null 2>&1 || true
 ) &
 
 exec "$DIR/ancs4linux-advertising"

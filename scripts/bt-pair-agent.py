@@ -27,6 +27,7 @@ import logging
 import os
 import subprocess
 import sys
+import threading
 import tempfile
 
 import gi
@@ -37,10 +38,22 @@ from gi.repository import Gio, GLib  # noqa: E402
 
 AGENT_PATH = "/org/jedbillyb/BtPairAgent"
 
-# KeyboardOnly is the whole point: against a phone (DisplayYesNo) it forces
-# Passkey Entry with the phone displaying and us entering. DisplayYesNo would
-# get us Numeric Comparison and a one-click dialog instead.
-CAPABILITY = "KeyboardOnly"
+# DisplayYesNo, not KeyboardOnly, and this is load-bearing for ANCS rather than
+# a UI preference.
+#
+# KeyboardOnly makes us look like a keyboard-class accessory, and iOS then
+# bonds over classic BR/EDR and derives the LE keys from that link key. A
+# classic-led bond gets filed as an ordinary Bluetooth accessory, so iOS never
+# offers notification access -- no prompt at pairing, no Show Notifications
+# toggle afterwards, and the ANCS subscribe silently returns data forever. The
+# only visible trace is a [LinkKey] section in the stored bond.
+#
+# DisplayYesNo gets Numeric Comparison and a BLE-style bond, which is what iOS
+# wants to see before it will treat us as a notification peripheral. The
+# confirmation is weaker than typing the code, so make it a real prompt whose
+# answer is honoured -- upstream's simply returns, which is how it accepts
+# every bond.
+CAPABILITY = "DisplayYesNo"
 
 INTROSPECTION = """
 <node>
@@ -130,38 +143,37 @@ def set_trusted(bus, path):
         log.warning("could not mark %s trusted: %s", path, exc)
 
 
-def ask_passkey(name):
-    """Put a prompt on screen and return what was typed, or None if dismissed.
+def confirm_passkey(name, passkey):
+    """Show the code and ask. True only on an explicit yes.
 
-    Uses a terminal rather than wofi. wofi --dmenu selects from a list, and
-    with an empty list there is nothing to select, so pressing Enter exits
-    non-zero and throws away whatever was typed -- which looks exactly like
-    entering the correct code and being refused.
+    A terminal, not wofi: wofi --dmenu selects from a list, and with an empty
+    list Enter exits non-zero and discards the input, which looks exactly like
+    answering correctly and being refused.
     """
     with tempfile.TemporaryDirectory() as tmp:
-        answer = os.path.join(tmp, "passkey")
+        answer = os.path.join(tmp, "reply")
         script = (
-            'printf "\n  Pairing with %s\n\n" "$1"; '
-            'printf "  Type the six-digit code shown on it, then Enter.\n"; '
-            'printf "  Leave blank and press Enter to refuse.\n\n  > "; '
-            'read -r code; printf "%s" "$code" > "$2"'
+            'printf "\n  Pair with %s?\n\n" "$1"; '
+            'printf "  Code on this machine:  \033[1m%s\033[0m\n\n" "$2"; '
+            'printf "  Check the phone shows the SAME code.\n"; '
+            'printf "  Type y and Enter to accept, anything else to refuse.\n\n  > "; '
+            'read -r reply; printf "%s" "$reply" > "$3"'
         )
         try:
             subprocess.run(
                 ["foot", "--app-id", "bt-pair-agent",
                  "--title", "Bluetooth pairing",
-                 "sh", "-c", script, "sh", name, answer],
+                 "sh", "-c", script, "sh", name, f"{passkey:06d}", answer],
                 timeout=120, check=False,
             )
         except (subprocess.TimeoutExpired, FileNotFoundError):
-            log.warning("passkey prompt did not complete")
-            return None
+            log.warning("confirmation prompt did not complete")
+            return False
         try:
             with open(answer) as handle:
-                return handle.read().strip()
+                return handle.read().strip().lower() in ("y", "yes")
         except OSError:
-            # Window closed without the read completing.
-            return None
+            return False
 
 
 def notify(title, body, urgency="normal"):
@@ -181,9 +193,9 @@ class Agent:
             invocation.return_value(None)
             return
 
-        if method == "RequestPasskey":
-            (path,) = params.unpack()
-            self.request_passkey(path, invocation)
+        if method == "RequestConfirmation":
+            path, passkey = params.unpack()
+            self.request_confirmation(path, passkey, invocation)
             return
 
         if method in ("RequestAuthorization", "AuthorizeService"):
@@ -204,29 +216,21 @@ class Agent:
         invocation.return_dbus_error(
             REJECTED, f"{method} is not accepted; passkey entry is required")
 
-    def request_passkey(self, path, invocation):
+    def request_confirmation(self, path, passkey, invocation):
         name = device_name(self.bus, path)
-        notify("Pairing request", f"{name} wants to pair. Type the code it is "
-                                  "showing.")
 
-        typed = ask_passkey(name)
-        log.info("passkey prompt returned %r", typed)
-        if typed is None:
-            invocation.return_dbus_error(CANCELED, "passkey entry dismissed")
-            notify("Pairing refused", f"{name} was not paired.", "critical")
-            return
+        def worker():
+            if confirm_passkey(name, passkey):
+                log.info("accepted pairing with %s", name)
+                invocation.return_value(None)
+            else:
+                log.info("refused pairing with %s", name)
+                invocation.return_dbus_error(REJECTED, "not confirmed")
+                notify("Pairing refused", f"{name} was not paired.", "critical")
 
-        digits = "".join(c for c in typed if c.isdigit())
-        if not digits:
-            invocation.return_dbus_error(REJECTED, "no passkey entered")
-            notify("Pairing refused", "No code was entered.", "critical")
-            return
-
-        # BlueZ wants the passkey as a number. A leading zero is significant
-        # to the user but not to int(), which is fine -- 012345 and 12345 are
-        # the same value on the wire.
-        log.info("returning passkey for %s", name)
-        invocation.return_value(GLib.Variant("(u)", (int(digits),)))
+        # Off the main loop: BlueZ is waiting on this call and the GLib loop
+        # still has to service the bus while the prompt is open.
+        threading.Thread(target=worker, daemon=True).start()
 
 
 def main():

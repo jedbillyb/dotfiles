@@ -485,22 +485,35 @@ auto-accepting agent is exposed rather than removing it, and the exposure would
 still cover exactly the period when someone is trying to pair.
 
 `scripts/bt-pair-agent.py` handles pairing instead, started from sway/config.
-It advertises **KeyboardOnly**, which is the whole trick: BlueZ negotiates
-Passkey Entry rather than Numeric Comparison, so the phone *displays* a
-six-digit code and this laptop *asks for it* in a wofi prompt.
+It advertises **DisplayYesNo**, so BlueZ negotiates Numeric Comparison: both
+sides show the same six-digit code and this laptop asks you to confirm it
+matches, in a `foot` window, requiring a literal `y`.
 
-Why that direction and not the other. Both are Passkey Entry and equally strong
-against a relay attack; what differs is what a human attacker has to do:
+**`DisplayYesNo` is mandatory, and this is not a free choice.** The stronger
+scheme - `KeyboardOnly`, where the phone displays a code and you *type* it on
+the laptop - was implemented, and it silently breaks ANCS. That capability makes
+the host look like a keyboard-class accessory, so iOS bonds classic BR/EDR led
+(a `[LinkKey]` turns up in `/var/lib/bluetooth/<adapter>/<phone>/info` next to
+the LE keys) and files the laptop as an ordinary accessory. iOS then never
+offers the *"would like to access your notifications"* prompt and there is no
+Show Notifications toggle under Settings > Bluetooth > (i) at all. Nothing
+errors: the observer reports `Asking for notifications: success` and then
+receives zero events forever. If notifications stop, check the bond for
+`[LinkKey]` first - that is the tell for a classic-led bond.
 
-| | Attacker needs | Defeated by |
-| --- | --- | --- |
-| Laptop displays, phone enters (`DisplayOnly`) | to *see* the laptop screen | shoulder-surfing - they pair from their own phone without touching this machine |
-| Laptop asks, you type (`KeyboardOnly`) | to *type on* the laptop | physical access to the keyboard |
+So the tradeoff is forced rather than chosen:
 
-`DisplayOnly` is less code - just show the number in `DisplayPasskey` - but it
-has the laptop print the secret on screen for anyone who can see it, which is
-uncomfortably close to the original bug. So the agent refuses every other
-method (`RequestConfirmation`, `DisplayPasskey`, and the legacy PIN methods)
+| | Attacker needs | Defeated by | ANCS |
+| --- | --- | --- | --- |
+| Laptop asks, you type (`KeyboardOnly`) | to *type on* the laptop | physical access to the keyboard | **broken** |
+| Both show, you confirm (`DisplayYesNo`) | to be at the laptop to press `y` | someone confirming carelessly | works |
+
+What still fixes the original bug is that the confirmation is *real*. Upstream's
+flaw was never Numeric Comparison itself - it was that its `RequestConfirmation`
+returned unconditionally without asking anyone. This one shows the code, demands
+an explicit `y`, and refuses otherwise, so a stranger tapping Pair on their own
+phone gets nothing without a person at this keyboard. The agent refuses every
+other method (`DisplayPasskey`, `RequestPasskey`, and the legacy PIN methods)
 rather than let a remote device negotiate its way down to a one-click bond.
 
 The prompt is a `foot` window, not wofi. `wofi --dmenu` selects from a list,
@@ -526,6 +539,25 @@ the passkey prompt is a real barrier - a pairing attempt from across the room
 cannot get past it, so leaving the door visible costs nothing. Both
 `DiscoverableTimeout` and `PairableTimeout` default to non-zero and are pinned
 to 0 in `/etc/bluetooth/main.conf` and again by the advertising service.
+
+Classic discoverability is **required**, not incidental: iOS will not list this
+host under Settings > Bluetooth > Other Devices from the LE advertisement alone,
+so with it off there is nothing to tap and no bond can be formed. It coexists
+with LE advertising fine. The advertising run script sets the
+discoverable/pairable flags *before* calling `enable-advertising`, since
+ancs4linux applies its `HciState` and registers the advertisement last.
+
+When the phone cannot see the laptop, `bluetoothctl show` is not evidence - it
+reports bluetoothd's *requested* state. **`sudo btmgmt advinfo` is the ground
+truth**, printing `Instances list with N items` for advertising instances
+actually on the controller; `ActiveInstances: 0x01` alongside `0 items` means
+nothing is being broadcast. Sample it ~20s after a restart: the run script does
+its setup in a backgrounded subshell, and reading it too early shows a
+legitimate 0 that looks like a fault. `btmgmt info` current-settings is likewise
+unreliable for `connectable`/`discoverable` - it has read as missing
+`connectable` on a machine with three working bonded audio devices. Do not
+"correct" it with `btmgmt discov on`; that forces classic discoverability
+straight back into a classic-led bond.
 
 `ancs-pair.sh` is then only a check that the agent is up and ancs4linux's is
 not.
