@@ -1,0 +1,4 @@
+#!/bin/sh
+# Without this the daemons' output goes to runit's console and is lost, which
+# makes "did the phone actually attach?" unanswerable after the fact.
+exec svlogd -tt /var/log/ancs4linux-advertising

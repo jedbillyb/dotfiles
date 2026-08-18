@@ -1,0 +1,34 @@
+#!/bin/sh
+# ancs4linux advertising - BLE peripheral advertisement carrying the ANCS
+# solicitation UUID, plus the pairing agent. The iPhone will only reconnect
+# to a bonded peripheral that is advertising, so this must stay running.
+exec 2>&1
+# Name the phone sees. Keep in step with the AirDrop name in airdrop/config.
+BT_NAME="Jeds Linux Laptop"
+DIR=/mnt/shared/projects/ancs4linux/.venv/bin
+while [ ! -x "$DIR/ancs4linux-advertising" ]; do sleep 5; done
+while ! pgrep -x bluetoothd >/dev/null; do sleep 2; done
+
+# Advertising is off until asked for over D-Bus, so re-arm it once the
+# daemon has claimed its bus name. Backgrounded because the daemon itself
+# must stay in the foreground for runit to supervise it.
+(
+	while ! "$DIR/ancs4linux-ctl" get-all-hci >/dev/null 2>&1; do sleep 2; done
+	hci=$("$DIR/ancs4linux-ctl" get-all-hci 2>/dev/null | tr -d '["]' | cut -d, -f1)
+	[ -n "$hci" ] || exit 0
+	"$DIR/ancs4linux-ctl" enable-advertising \
+		--hci-address "$hci" --name "$BT_NAME"
+
+	# Then immediately drop the pairing agent again. Enabling advertising
+	# auto-registers ancs4linux's agent as the system DEFAULT agent, and that
+	# agent's RequestConfirmation accepts the bond unconditionally -- it emits
+	# the passkey as a notification and returns, and returning is how BlueZ is
+	# told "yes". The popup is cosmetic; by the time you read the code you are
+	# already bonded. Leaving that registered while advertising runs 24/7 means
+	# anything in range that initiates pairing gets in. Hand pairing back to
+	# blueman's agent, which actually asks, and use scripts/ancs-pair.sh to
+	# turn this one on for the brief window when you genuinely want it.
+	"$DIR/ancs4linux-ctl" disable-pairing
+) &
+
+exec "$DIR/ancs4linux-advertising"

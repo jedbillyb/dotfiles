@@ -361,6 +361,134 @@ BlueZ fails with `br-connection-unknown` and the link visibly flaps (a new
 `(AVRCP)` input device appears in `dmesg` each attempt). There is no fix on this
 end - disconnect them on the phone first, then click.
 
+### iPhone notifications over Bluetooth (ANCS)
+
+iOS notifications mirror to this machine over BLE using Apple Notification
+Center Service, the same protocol a smartwatch uses. No app on the phone and no
+jailbreak. The client is [ancs4linux](https://github.com/pzmarzly/ancs4linux),
+cloned to `/mnt/shared/projects/ancs4linux` and run from its own venv:
+
+```sh
+cd /mnt/shared/projects/ancs4linux
+python3 -m venv --system-site-packages .venv && .venv/bin/pip install .
+```
+
+`--system-site-packages` matters: PyGObject comes from `python3-gobject`, not pip.
+
+The role is inverted from what you would guess. This machine advertises as a BLE
+*peripheral* carrying the ANCS solicitation UUID; the iPhone connects to it, and
+only then does this machine become the GATT *client* that reads notifications
+off the phone. That is why the advertising daemon has to keep running after
+pairing - a bonded iPhone only reconnects to a peripheral that is advertising.
+
+Three daemons, split by which bus they need:
+
+| Daemon | Bus | Started by |
+| --- | --- | --- |
+| `ancs4linux-observer` | system | runit, `/etc/sv/ancs4linux-observer` |
+| `ancs4linux-advertising` | system | runit, `/etc/sv/ancs4linux-advertising` |
+| `ancs4linux-desktop-integration` | session | `exec` in sway/config |
+
+Upstream ships systemd units, which are useless here. The runit `run` scripts
+live in `ancs4linux/sv/` in this repo and `install.sh` copies them into
+`/etc/sv`. They cannot be symlinks - runit reads `/etc/sv` at boot, before
+`/mnt/shared` is mounted - and for the same reason each script spins waiting for
+its binary to appear rather than failing into a restart loop.
+
+Advertising is off until something asks for it over D-Bus, so the advertising
+service re-arms it on every start:
+
+```sh
+ancs4linux-ctl enable-advertising --hci-address <hci> --name <hostname>
+```
+
+The two system daemons own bus names that `/etc/dbus-1/system.d/ancs4linux-*.conf`
+restricts to root and the `ancs4linux` group. `desktop-integration` runs as you,
+so your user must be in that group - and because group membership is only picked
+up at login, it will fail with a D-Bus policy denial until you log out and back
+in.
+
+**Pairing.** Unpair on both ends first if the phone was ever paired, then let
+advertising come up, and on the phone open Settings -> Bluetooth and tap this
+machine under Other Devices. ANCS needs a real BLE bond, and a plain BR/EDR
+pairing only produces one via cross-transport key derivation, so a fresh pair is
+what makes it work. `Asking for notifications: success` in the observer log is
+the confirmation. Advertising takes up to 30 seconds to settle; connecting
+before it does will fail.
+
+**The pairing agent is unregistered on purpose.** Enabling advertising makes
+ancs4linux register its own agent as the system *default* agent, and that
+agent's `RequestConfirmation` is a no-op:
+
+```python
+def RequestConfirmation(self, device: ObjPath, passkey: UInt32) -> None:
+    self.server.emit_pairing_code(str(int(passkey)))
+```
+
+Returning from `RequestConfirmation` is how BlueZ is told "the user said yes" -
+rejecting means raising. So it emits the passkey as a notification and accepts
+unconditionally. The "Pair if PIN is 123456" popup is cosmetic; the code always
+matches because nothing ever compares it, and you are bonded before you read
+it. With advertising running permanently under runit, that agent would sit
+registered as the default forever, accepting any pairing request in range.
+
+So the advertising run script calls `disable-pairing` right after
+`enable-advertising`, handing pairing back to blueman's agent, which actually
+asks. When you genuinely want to pair, open a short window:
+
+```sh
+ancs-pair.sh          # 120s, or ancs-pair.sh 60
+```
+
+It re-enables the agent, tells you to tap the laptop on the phone, and disables
+it again on exit (including on Ctrl-C).
+
+Disabling that agent also gives up the reason it exists upstream - it was there
+to stop the phone redirecting its audio here. In practice blueman's agent lets
+you decline that, and the tradeoff is worth it.
+
+### Notification modes
+
+The `notif` module in the bar cycles three modes on click, via
+`waybar/notification-status.sh`:
+
+| Mode | Bar | Behaviour |
+| --- | --- | --- |
+| `notif all` | grey | everything shows |
+| `notif phone` | amber | iPhone only; local apps suppressed |
+| `dnd` | red | nothing shows (still recorded in dunst history) |
+
+`dnd` is just `dunstctl set-paused`. iPhone-only is not a dunst feature - dunst
+has no way to negate a rule match, so it takes the two rules at the bottom of
+`dunstrc`: `mute_local` skips everything, and `allow_iphone` un-skips anything
+whose appname matches `*iPhone*`, winning because dunst applies rules in file
+order and the last match wins. ancs4linux sets appname to
+`<iOS app> (<device name>)`, so the device-name suffix is the only thing
+distinguishing a phone notification from a local one.
+
+The mode is remembered in `$XDG_RUNTIME_DIR/notification-mode`, so it resets to
+`all` on reboot. If dunst gets paused behind the script's back, the script
+believes dunst rather than its own state file.
+
+### Device name
+
+Three separate names, all set to **Jeds Linux Laptop**, none of which is the
+hostname (`void-btw`, unchanged):
+
+| Where | Set by | Default if unset |
+| --- | --- | --- |
+| Bluetooth device list | `bluetoothctl system-alias`, in `install.sh` | hostname |
+| BLE advertisement (ANCS) | `BT_NAME` in the advertising run script | whatever `--name` was last passed |
+| AirDrop share sheet | `AIRDROP_NAME` in `airdrop/config` | `socket.gethostname()` |
+
+No apostrophe deliberately: OpenDrop substitutes the AirDrop name into an
+OpenSSL certificate subject (`/CN=<name>`) when generating its TLS identity.
+
+Notification previews follow the phone's own **Show Previews** setting - if it
+is set to "When Unlocked", locked-phone notifications arrive here with no body
+text. The onboard MediaTek adapter handles ANCS fine, which is not a given;
+some Realtek adapters fail the key negotiation.
+
 ### Silencing blueman connect/disconnect popups
 
 blueman-applet's `ConnectionNotifier` plugin fires a desktop notification every

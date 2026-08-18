@@ -158,6 +158,41 @@ else
 	sudo chmod 600 "$WG_CONF"
 fi
 
+echo "iPhone notifications (ANCS):"
+# dunst is the notification server sway/config execs; without it ANCS
+# notifications arrive on the bus and go nowhere.
+if command -v dunst >/dev/null 2>&1; then
+	info "ok    dunst"
+else
+	info "installing dunst"
+	sudo xbps-install -y dunst
+fi
+# Copy, not symlink: runit reads /etc/sv at boot, long before /mnt/shared is
+# mounted. The run scripts themselves wait for /mnt before exec'ing.
+for svc in ancs4linux-observer ancs4linux-advertising; do
+	sudo mkdir -p "/etc/sv/$svc"
+	sudo install -o root -g root -m 755 "$REPO/ancs4linux/sv/$svc/run" "/etc/sv/$svc/run"
+	sudo ln -sfn "/etc/sv/$svc" "/var/service/$svc"
+	info "copy  /etc/sv/$svc"
+done
+# The daemons own system-bus names restricted to root and this group; the
+# desktop-integration half runs as you and needs to talk to them.
+sudo groupadd -f ancs4linux
+sudo usermod -a -G ancs4linux "$USER"
+for cfg in observer advertising; do
+	sudo install -o root -g root -m 644 \
+		"/mnt/shared/projects/ancs4linux/autorun/ancs4linux-$cfg.xml" \
+		"/etc/dbus-1/system.d/ancs4linux-$cfg.conf"
+done
+info "copy  /etc/dbus-1/system.d/ancs4linux-*.conf"
+
+# What the iPhone shows in its Bluetooth list. BlueZ otherwise falls back to
+# the hostname ("void-btw"), which is meaningless on the phone. The BLE
+# advertising name is set separately, in the advertising run script.
+sudo bluetoothctl system-alias "Jeds Linux Laptop" >/dev/null 2>&1 || true
+info "alias Jeds Linux Laptop"
+link scripts/ancs-pair.sh "$BIN/ancs-pair.sh"
+
 cat <<EOF
 
 Done. Manual steps not handled here (see README):
@@ -165,5 +200,7 @@ Done. Manual steps not handled here (see README):
   - VPN passwordless sudo rule (/etc/sudoers.d/zz-wg-toggle)
   - Wi-Fi recovery passwordless sudo rule (/etc/sudoers.d/zz-wifi-recover)
   - swaylock-fprintd build + PAM setup for the lock screen
+  - ANCS: clone pzmarzly/ancs4linux to /mnt/shared/projects and build its
+    venv, then pair the iPhone fresh (see README)
 Make sure "$BIN" is on your PATH.
 EOF

@@ -1,0 +1,12 @@
+#!/bin/sh
+# ancs4linux observer - GATT client that subscribes to the iPhone's ANCS
+# service and republishes notifications on the system bus.
+#
+# The venv lives on /mnt/shared, which is mounted well after runit starts,
+# so wait for it rather than failing into a restart loop.
+exec 2>&1
+BIN=/mnt/shared/projects/ancs4linux/.venv/bin/ancs4linux-observer
+while [ ! -x "$BIN" ]; do sleep 5; done
+# ANCS needs a powered adapter; bluetoothd owns hci0.
+while ! pgrep -x bluetoothd >/dev/null; do sleep 2; done
+exec "$BIN"

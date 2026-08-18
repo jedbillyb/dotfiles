@@ -7,3 +7,12 @@
 # Received files land here rather than ~/Downloads, so AirDrop drops straight
 # into the shared mount instead of the home partition.
 RECV_DIR="${RECV_DIR:-/mnt/shared/airdrop}"
+
+# Name shown in the iOS share sheet. Without it OpenDrop falls back to
+# socket.gethostname() and the phone shows "void-btw", which means nothing to
+# anyone being AirDropped to. Kept in step with the Bluetooth advertising name
+# in ancs4linux/sv/ancs4linux-advertising/run.
+#
+# No apostrophe on purpose: OpenDrop substitutes this into an OpenSSL cert
+# subject (/CN=<name>) when it generates its TLS identity.
+AIRDROP_NAME="${AIRDROP_NAME:-Jeds Linux Laptop}"

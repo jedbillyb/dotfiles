@@ -1,0 +1,97 @@
+# dunst - notification daemon. Styled to match waybar and foot: solid #242424
+# at the same 0.85 alpha, #cccccc text, DejaVu Sans Mono.
+#
+# Notifications come from two places: local apps, and the iPhone over ANCS
+# (see "iPhone notifications over Bluetooth" in the README). The rules at the
+# bottom are what the waybar notification toggle switches between.
+
+[global]
+    monitor = 0
+    follow = mouse
+
+    # Sit under waybar with the same gap on both sides: 10px in from the right
+    # edge, and 10px below the bar. The vertical offset is measured from the
+    # top of the screen, not from the bar, so it has to include the bar's own
+    # height -- waybar/config sets "height": 16, hence 16 + 10.
+    origin = top-right
+    offset = 10x26
+    width = (240, 420)
+    height = (0, 300)
+    notification_limit = 5
+
+    # The default config has none of this, which is why stock dunst looks like
+    # text jammed into a coloured box.
+    padding = 12
+    horizontal_padding = 14
+    frame_width = 1
+    gap_size = 6
+    corner_radius = 6
+    text_icon_padding = 12
+
+    progress_bar = true
+    progress_bar_height = 8
+    progress_bar_frame_width = 1
+
+    font = DejaVu Sans Mono 10
+    line_height = 4
+    markup = full
+    format = "<b>%s</b>\n%b"
+    alignment = left
+    vertical_alignment = center
+    word_wrap = true
+    ellipsize = end
+    ignore_newline = no
+
+    # ANCS sends app avatars, which arrive at whatever size iOS felt like.
+    # Unbounded, one of those alone is taller than the whole popup.
+    enable_recursive_icon_lookup = true
+    icon_theme = Adwaita
+    icon_position = left
+    min_icon_size = 24
+    max_icon_size = 40
+
+    show_indicators = false
+    sticky_history = yes
+    history_length = 40
+    idle_threshold = 120
+
+    mouse_left_click = do_action, close_current
+    mouse_middle_click = close_all
+    mouse_right_click = close_current
+
+[urgency_low]
+    background = "#242424"
+    foreground = "#777777"
+    frame_color = "#3b3b3b"
+    timeout = 6
+
+[urgency_normal]
+    background = "#242424"
+    foreground = "#cccccc"
+    frame_color = "#4a4a4a"
+    timeout = 10
+
+[urgency_critical]
+    background = "#242424"
+    foreground = "#cccccc"
+    frame_color = "#f7768e"
+    timeout = 0
+
+# --- notification modes, driven by scripts/notification-mode.sh ---
+#
+# dunst applies every matching rule in file order and the last one wins, so
+# "mute everything" followed by "except the phone" gives iPhone-only mode.
+# There is no way to negate a rule match, which is why it takes two.
+#
+# ancs4linux sets appname to "<iOS app> (<device name>)", e.g.
+# "Messages (Jed's iPhone)" -- that device suffix is the only discriminator.
+
+[mute_local]
+    appname = "*"
+    skip_display = true
+    enabled = false
+
+[allow_iphone]
+    appname = "*iPhone*"
+    skip_display = false
+    enabled = true

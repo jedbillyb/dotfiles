@@ -5,7 +5,7 @@
     "exclusive": true,
     "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/heatpump", "custom/airpods", "custom/airdrop", "custom/caffeine", "custom/vpn", "custom/usbwifi", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
+    "modules-right": ["custom/heatpump", "custom/airpods", "custom/airdrop", "custom/caffeine", "custom/vpn", "custom/usbwifi", "custom/network", "custom/notifications", "pulseaudio", "memory", "cpu", "temperature", "battery"],
 
     "sway/workspaces": {
         "disable-scroll": true,
@@ -15,6 +15,14 @@
     "clock": {
         "format": "{:%H:%M  %a %d %b}",
         "tooltip": false
+    },
+
+    "custom/notifications": {
+        "exec": "/mnt/shared/projects/dotfiles/waybar/notification-status.sh status",
+        "return-type": "json",
+        "interval": 30,
+        "signal": 7,
+        "on-click": "/mnt/shared/projects/dotfiles/waybar/notification-status.sh toggle"
     },
 
     "pulseaudio": {

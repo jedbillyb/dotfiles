@@ -57,6 +57,7 @@ window#waybar {
 #custom-airpods,
 #custom-heatpump,
 #custom-claude,
+#custom-notifications,
 #custom-calendar {
     color: #aaaaaa;
     padding: 0 10px;
@@ -286,5 +287,20 @@ window#waybar {
 }
 
 #custom-heatpump.fault {
+    color: #f7768e;
+}
+
+/* Notification mode toggle: click cycles all -> iPhone only -> dnd. "full" is
+   the resting state so it keeps the shared #aaaaaa; amber and red match the
+   caffeine/vpn modules rather than inventing a second palette. */
+#custom-notifications.full {
+    color: #aaaaaa;
+}
+
+#custom-notifications.iphone {
+    color: #e0af68;
+}
+
+#custom-notifications.dnd {
     color: #f7768e;
 }

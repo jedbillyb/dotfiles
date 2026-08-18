@@ -98,6 +98,12 @@ bindsym $mod+n exec /mnt/shared/projects/noted/local/noted-quickadd.sh
 # daemon has no single-instance lock, so a reload would stack a second copy.
 exec /mnt/shared/projects/libreoffice-discord-rpc/.venv/bin/libreoffice-discord-rpc
 
+# iPhone notifications over BLE (ANCS). The observer and advertising daemons
+# are supervised by runit as root; this one is the session-bus half that turns
+# the notifications into dunst popups, so it belongs in the sway session.
+# Plain exec: it holds a bus name, and a reload would stack a second copy.
+exec /mnt/shared/projects/ancs4linux/.venv/bin/ancs4linux-desktop-integration
+
 # Escape dismisses the quick-add bar. A binding mode only captures the keys
 # bound in it, so typing still reaches the input.
 mode "noted" {
