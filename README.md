@@ -27,6 +27,10 @@ My personal configuration files.
   the things that would otherwise carry the path - the waybar module, a sway
   keybind - are tracked files in a public checkout. Assignments use `${VAR:-…}`
   so the environment still overrides them.
+- `wireplumber/wireplumber.conf.d/` - PipeWire session-manager drop-ins. Strips
+  the sink-side Bluetooth roles so a phone can't push its audio into the
+  laptop (see "Stopping the iPhone routing its audio here" below); headset
+  roles are untouched
 - `shell/` - Shell dotfiles (`.bashrc`, `.zshrc`, `.bash_profile`, `.profile`, `.inputrc`)
 - `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`)
 - `bin/spotlight` - Spotlight-style centered wofi launcher (bound to mod+r and
@@ -638,6 +642,52 @@ Notification previews follow the phone's own **Show Previews** setting - if it
 is set to "When Unlocked", locked-phone notifications arrive here with no body
 text. The onboard MediaTek adapter handles ANCS fine, which is not a given;
 some Realtek adapters fail the key negotiation.
+
+### Stopping the iPhone routing its audio here
+
+The phone is paired for notifications, but iOS also saw the laptop's **A2DP
+Sink / HFP Handsfree** records and offered it as a speaker, so music and calls
+got grabbed by the laptop whenever the phone connected - wireplumber put the
+phone's card on the `audio-gateway` (A2DP Source & HSP/HFP AG) profile and
+audio followed.
+
+`wireplumber/wireplumber.conf.d/51-no-phone-audio-sink.conf` drops the
+**sink-side** Bluetooth roles from the bluez monitor:
+
+```
+bluez5.roles = [ a2dp_source bap_source hsp_ag hfp_ag ]
+```
+
+The laptop is the *source* / audio gateway for its own headphones (AirPods,
+WH-1000XM5), so those roles are all kept and headsets are unaffected. What goes
+away is `a2dp_sink`, `bap_sink`, `hsp_hs` and `hfp_hf` - the roles that let
+another device push audio *into* the laptop. After this the phone's bluez card
+disappears entirely and the laptop no longer appears in the phone's audio
+output list. Confirm with:
+
+```sh
+bluetoothctl show | grep -iE 'UUID: (Audio|Handsfree|Headset)'
+```
+
+which should list **Audio Source**, **Headset AG** and **Handsfree Audio
+Gateway** and no Sink/HS/HF entries.
+
+The same file also pins the phone's card to the `off` profile by name, as a
+second layer in case the sink roles ever come back - `device.profile` takes
+absolute priority in wireplumber's `find-best-profile.lua`. Note the phone's
+MAC is hardcoded in that rule.
+
+The BLE/ANCS notification link is untouched by any of this: it is a GATT
+connection and does not involve the audio profiles at all.
+
+A one-off, non-persistent version of the same fix is:
+
+```sh
+pactl set-card-profile bluez_card.B8_90_47_64_83_CB off
+```
+
+wireplumber saves that to `~/.local/state/wireplumber/default-profile`, but
+state files get rewritten, hence the config above.
 
 ### Silencing blueman connect/disconnect popups
 
