@@ -29,6 +29,15 @@ while ! pgrep -x bluetoothd >/dev/null; do sleep 2; done
 	# blueman's agent, which actually asks, and use scripts/ancs-pair.sh to
 	# turn this one on for the brief window when you genuinely want it.
 	"$DIR/ancs4linux-ctl" disable-pairing
+
+	# BlueZ expires discoverability after DiscoverableTimeout (180s by
+	# default), which silently drops the laptop off the phone's "Other
+	# Devices" list a few minutes after boot -- so a later attempt to pair
+	# finds nothing to tap. The LE advertisement itself keeps running, but
+	# that is not enough for the phone to offer it as a new device. 0 = never
+	# expire, for as long as we are advertising.
+	bluetoothctl discoverable-timeout 0 >/dev/null 2>&1 || true
+	bluetoothctl discoverable on >/dev/null 2>&1 || true
 ) &
 
 exec "$DIR/ancs4linux-advertising"
