@@ -599,14 +599,26 @@ believes dunst rather than its own state file.
 
 ### Popup placement
 
-`origin = top-right` with `offset = 5x5`, so the popup's corner lands exactly on
-the corner of a tiled window (sway/config sets `gaps outer 5`).
+`origin = top-right` with `offset = 10x10`, so the popup's corner lands exactly
+on the *visible* corner of a tiled window.
+
+**10, not 5.** sway/config sets `gaps outer 5` **and** `default_border pixel 5`,
+and those borders are fully transparent (`client.*` colours are `#00000000`), so
+5px of every window is invisible and its content starts 10px in. Matching the
+5px gap makes the popup overhang every window by 5px, which is what "the border
+is the problem" turned out to mean. Measured against a real foot window: content
+begins at `screen_width - 10` and at `y = 26`, and the popup's frame now lands on
+exactly those pixels.
 
 **dunst's vertical offset is measured from the bottom of waybar's exclusive
 zone, not from the top of the screen.** The bar's own 16px height is already
-excluded, so the earlier `10x26` (16 + 10, "bar height plus the gap") pushed the
-popup a full bar-height too low while the right edge stayed where it was - the
-asymmetry that made it look wrong. Do not re-add the bar height here.
+excluded, so the original `10x26` (16 + 10, "bar height plus the gap") pushed the
+popup a full bar-height too low while the right edge stayed correct - the
+asymmetry that started this. Do not re-add the bar height here.
+
+Internal `padding` and `horizontal_padding` are both 10. Unequal values (they
+were 9 and 11) sit the text closer to one edge than the other, which reads as
+the popup being misaligned even when its outer gaps are pixel-identical.
 
 ### Device name
 

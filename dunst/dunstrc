@@ -9,16 +9,20 @@
     monitor = 0
     follow = mouse
 
-    # Line the popup up with the top-right corner of a tiled window, so it
-    # reads as part of the layout rather than floating at its own inset:
-    # sway/config sets `gaps outer 5`, so both offsets are 5.
+    # Line the popup up with the *visible* top-right corner of a tiled window.
+    # That corner is at 10px, not 5: sway/config sets `gaps outer 5` AND
+    # `default_border pixel 5`, and those borders are fully transparent
+    # (client.* colours are #00000000), so 5px of window is invisible and the
+    # content starts 10px in. Matching the 5px gap instead makes the popup
+    # overhang every window by 5px. Measured against a real foot window:
+    # content begins at x = screen_width - 10 and y = 26 (waybar 16 + 10).
     #
-    # The vertical offset is measured from the bottom of waybar's exclusive
-    # zone, NOT from the top of the screen - waybar's own 16px height is
-    # already excluded, so adding it here (the old 16 + 10 = 26) pushed the
-    # popup a full bar-height too low while the right edge stayed put.
+    # The vertical offset here is measured from the bottom of waybar's
+    # exclusive zone, NOT from the top of the screen - waybar's own 16px is
+    # already excluded, so the old `16 + 10 = 26` double-counted the bar and
+    # sat a bar-height too low while the right edge stayed correct.
     origin = top-right
-    offset = 5x5
+    offset = 10x10
     width = (200, 340)
     height = (0, 220)
     notification_limit = 4
