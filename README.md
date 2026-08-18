@@ -474,6 +474,17 @@ uncomfortably close to the original bug. So the agent refuses every other
 method (`RequestConfirmation`, `DisplayPasskey`, and the legacy PIN methods)
 rather than let a remote device negotiate its way down to a one-click bond.
 
+The prompt is a `foot` window, not wofi. `wofi --dmenu` selects from a list,
+and with an empty list there is nothing to select, so Enter exits non-zero and
+discards what was typed - which presents as entering the correct code and being
+refused. sway floats and centres it via a `for_window [app_id="bt-pair-agent"]`
+rule.
+
+The agent marks a device trusted once it is bonded. Without that BlueZ wants
+authorisation for every incoming connection, and since this agent is the only
+one registered, an unattended reconnect after a reboot has nobody to answer and
+notifications simply stop.
+
 The agent also re-asserts `RequestDefaultAgent` every 30s. Whoever calls it last
 wins, sway starts blueman-applet and the agent with no ordering between them,
 and blueman re-registers whenever it restarts - losing that race silently

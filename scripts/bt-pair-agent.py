@@ -23,8 +23,11 @@ Registering a BlueZ agent as an unprivileged user is allowed; blueman does the
 same.
 """
 
+import logging
+import os
 import subprocess
 import sys
+import tempfile
 
 import gi
 
@@ -79,6 +82,8 @@ INTROSPECTION = """
 REJECTED = "org.bluez.Error.Rejected"
 CANCELED = "org.bluez.Error.Canceled"
 
+log = logging.getLogger("bt-pair-agent")
+
 
 def device_name(bus, path):
     """Best-effort human name for whatever is asking to pair."""
@@ -101,23 +106,62 @@ def device_name(bus, path):
     return path
 
 
+def set_trusted(bus, path):
+    """Mark a freshly bonded device trusted.
+
+    Without this BlueZ wants authorisation for each incoming connection, and
+    since this agent is the only one registered, an unattended reconnect after
+    a reboot has nobody to answer -- notifications just stop. Safe to do here:
+    the bond it applies to was already gated by the passkey.
+    """
+    try:
+        proxy = Gio.DBusProxy.new_sync(
+            bus, Gio.DBusProxyFlags.NONE, None,
+            "org.bluez", path, "org.freedesktop.DBus.Properties", None,
+        )
+        proxy.call_sync(
+            "Set",
+            GLib.Variant("(ssv)", ("org.bluez.Device1", "Trusted",
+                                   GLib.Variant("b", True))),
+            Gio.DBusCallFlags.NONE, 2000, None,
+        )
+        log.info("marked %s trusted", path)
+    except GLib.Error as exc:
+        log.warning("could not mark %s trusted: %s", path, exc)
+
+
 def ask_passkey(name):
     """Put a prompt on screen and return what was typed, or None if dismissed.
 
-    wofi in dmenu mode with no options behaves as a plain text entry. Escape
-    exits non-zero, which is how a refusal reaches us.
+    Uses a terminal rather than wofi. wofi --dmenu selects from a list, and
+    with an empty list there is nothing to select, so pressing Enter exits
+    non-zero and throws away whatever was typed -- which looks exactly like
+    entering the correct code and being refused.
     """
-    try:
-        result = subprocess.run(
-            ["wofi", "--dmenu", "--lines", "1", "--width", "460",
-             "--prompt", f"Passkey shown on {name}"],
-            input="", capture_output=True, text=True, timeout=90,
+    with tempfile.TemporaryDirectory() as tmp:
+        answer = os.path.join(tmp, "passkey")
+        script = (
+            'printf "\n  Pairing with %s\n\n" "$1"; '
+            'printf "  Type the six-digit code shown on it, then Enter.\n"; '
+            'printf "  Leave blank and press Enter to refuse.\n\n  > "; '
+            'read -r code; printf "%s" "$code" > "$2"'
         )
-    except (subprocess.TimeoutExpired, FileNotFoundError):
-        return None
-    if result.returncode != 0:
-        return None
-    return result.stdout.strip()
+        try:
+            subprocess.run(
+                ["foot", "--app-id", "bt-pair-agent",
+                 "--title", "Bluetooth pairing",
+                 "sh", "-c", script, "sh", name, answer],
+                timeout=120, check=False,
+            )
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            log.warning("passkey prompt did not complete")
+            return None
+        try:
+            with open(answer) as handle:
+                return handle.read().strip()
+        except OSError:
+            # Window closed without the read completing.
+            return None
 
 
 def notify(title, body, urgency="normal"):
@@ -132,6 +176,7 @@ class Agent:
         self.bus = bus
 
     def handle(self, _conn, _sender, _path, _iface, method, params, invocation):
+        log.info("BlueZ called %s", method)
         if method in ("Release", "Cancel"):
             invocation.return_value(None)
             return
@@ -145,7 +190,10 @@ class Agent:
             # Only reached for an already-bonded device asking to use a
             # service. The bond itself was gated by the passkey, so the
             # meaningful check has already happened; refusing here would just
-            # break reconnects. Trust the bond.
+            # break reconnects. Trust the bond -- and record that trust, so
+            # later reconnects do not need an agent at all.
+            path = params.unpack()[0]
+            set_trusted(self.bus, path)
             invocation.return_value(None)
             return
 
@@ -162,6 +210,7 @@ class Agent:
                                   "showing.")
 
         typed = ask_passkey(name)
+        log.info("passkey prompt returned %r", typed)
         if typed is None:
             invocation.return_dbus_error(CANCELED, "passkey entry dismissed")
             notify("Pairing refused", f"{name} was not paired.", "critical")
@@ -176,10 +225,15 @@ class Agent:
         # BlueZ wants the passkey as a number. A leading zero is significant
         # to the user but not to int(), which is fine -- 012345 and 12345 are
         # the same value on the wire.
+        log.info("returning passkey for %s", name)
         invocation.return_value(GLib.Variant("(u)", (int(digits),)))
 
 
 def main():
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s %(message)s",
+    )
     bus = Gio.bus_get_sync(Gio.BusType.SYSTEM, None)
     agent = Agent(bus)
     node = Gio.DBusNodeInfo.new_for_xml(INTROSPECTION)

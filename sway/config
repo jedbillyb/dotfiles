@@ -73,6 +73,11 @@ exec blueman-applet
 # back. See "iPhone notifications over Bluetooth" in the README for why neither
 # ancs4linux's agent nor blueman's is good enough here.
 exec /mnt/shared/projects/dotfiles/scripts/bt-pair-agent.py
+
+# The pairing agent asks for the passkey in a foot window. Float and centre it
+# so it lands on top of whatever you are doing rather than tiling into the
+# layout, where it is easy to miss while the phone waits.
+for_window [app_id="bt-pair-agent"] floating enable, resize set 560 260, move position center, border pixel 3
 exec dunst
 
 # amdgpu_bl0 doesn't reset to max on boot; force it so the screen isn't dim on login
