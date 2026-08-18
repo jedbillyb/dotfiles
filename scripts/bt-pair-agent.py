@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bluetooth pairing agent that makes you type the passkey on this laptop.
+"""Bluetooth pairing agent that asks before letting anything bond.
 
 Replaces both agents that would otherwise handle pairing here:
 
@@ -8,15 +8,15 @@ Replaces both agents that would otherwise handle pairing here:
     accepts every bond, so a stranger only had to tap "Pair" on their own
     device. The code it showed was never compared to anything, so it was always
     "right".
-  * blueman's, which does ask, but only with a yes/no dialog. Numeric
-    comparison is only as strong as the person reading it, and a dialog that
-    can be dismissed with one click is one click from a bond.
+  * blueman's, which does ask, but is not guaranteed to be running in this
+    session and does not honour the answer the way this does.
 
-So this agent advertises KeyboardOnly, which makes BlueZ negotiate Passkey
-Entry instead of Numeric Comparison: the phone *displays* a six-digit code and
-this laptop *asks for it*. Consent now requires knowing a number shown on the
-other device, which someone pairing from across the room cannot supply -- there
-is no button to click blindly.
+Numeric comparison is the only association model available (see CAPABILITY
+below -- passkey entry breaks ANCS), so the code always matching is expected:
+both sides derive the same six digits from the pairing exchange. It defends
+against a man in the middle, not against a stranger tapping Pair. The gate
+that stops the stranger is THIS side's prompt, so the prompt has to be real
+and its answer has to be honoured.
 
 Runs as your user from the sway session so it can put the prompt on screen.
 Registering a BlueZ agent as an unprivileged user is allowed; blueman does the
@@ -26,9 +26,11 @@ same.
 import logging
 import os
 import subprocess
+import shutil
 import sys
 import threading
 import tempfile
+import time
 
 import gi
 
@@ -54,6 +56,9 @@ AGENT_PATH = "/org/jedbillyb/BtPairAgent"
 # answer is honoured -- upstream's simply returns, which is how it accepts
 # every bond.
 CAPABILITY = "DisplayYesNo"
+
+# Seconds the pairing prompt stays on screen before it refuses by default.
+CONFIRM_TIMEOUT = 45
 
 INTROSPECTION = """
 <node>
@@ -144,36 +149,79 @@ def set_trusted(bus, path):
 
 
 def confirm_passkey(name, passkey):
-    """Show the code and ask. True only on an explicit yes.
+    """Show the code and ask. True only on an explicit Accept.
 
-    A terminal, not wofi: wofi --dmenu selects from a list, and with an empty
-    list Enter exits non-zero and discards the input, which looks exactly like
-    answering correctly and being refused.
+    swaynag, matching the AirDrop receive prompt: it is part of sway itself so
+    it is always present, it draws its own surface, and it needs no
+    notification daemon -- notify-send would return success having shown nobody
+    anything, which is the worst failure mode for a consent prompt. A terminal
+    was used before, but this is the same question the AirDrop prompt asks and
+    it should look and answer the same way.
+
+    Fails closed: if there is no session to ask in, or nobody answers, the
+    answer is no.
     """
-    with tempfile.TemporaryDirectory() as tmp:
-        answer = os.path.join(tmp, "reply")
-        script = (
-            'printf "\n  Pair with %s?\n\n" "$1"; '
-            'printf "  Code on this machine:  \033[1m%s\033[0m\n\n" "$2"; '
-            'printf "  Check the phone shows the SAME code.\n"; '
-            'printf "  Type y and Enter to accept, anything else to refuse.\n\n  > "; '
-            'read -r reply; printf "%s" "$reply" > "$3"'
+    if not shutil.which("swaynag"):
+        log.warning("swaynag not found - refusing (cannot ask, so cannot consent)")
+        return False
+    if not (os.environ.get("WAYLAND_DISPLAY") or os.environ.get("SWAYSOCK")):
+        log.warning("no Wayland session visible - refusing (nobody to ask)")
+        return False
+
+    runtime = os.environ.get("XDG_RUNTIME_DIR", "/tmp")
+    with tempfile.TemporaryDirectory(dir=runtime) as tmp:
+        accept = os.path.join(tmp, "accept")
+        decline = os.path.join(tmp, "decline")
+        message = (
+            f"Pair with {name}?\n"
+            f"Code on this machine: {passkey:06d}\n"
+            "Accept only if the phone shows the SAME code."
         )
-        try:
-            subprocess.run(
-                ["foot", "--app-id", "bt-pair-agent",
-                 "--title", "Bluetooth pairing",
-                 "sh", "-c", script, "sh", name, f"{passkey:06d}", answer],
-                timeout=120, check=False,
-            )
-        except (subprocess.TimeoutExpired, FileNotFoundError):
-            log.warning("confirmation prompt did not complete")
+        nag = subprocess.Popen(
+            ["swaynag", "--type", "warning", "--message", message,
+             "--button-dismiss-no-terminal", "Accept",
+             f"/bin/sh -c 'touch \"{accept}\"'",
+             "--button-dismiss-no-terminal", "Decline",
+             f"/bin/sh -c 'touch \"{decline}\"'"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+
+        def answered():
+            if os.path.exists(accept):
+                return True
+            if os.path.exists(decline):
+                return False
+            return None
+
+        # Poll rather than wait on swaynag: --button-dismiss-no-terminal
+        # dismisses first and runs the command from a detached child, so
+        # swaynag exits *before* the marker is written. Waiting on the process
+        # and then testing loses that race every time (it cost an evening in
+        # airdrop-confirm), hence the grace period after it goes away.
+        deadline = time.monotonic() + CONFIRM_TIMEOUT
+        result = None
+        while result is None:
+            result = answered()
+            if result is not None:
+                break
+            if nag.poll() is not None:
+                grace = time.monotonic() + 1.0
+                while result is None and time.monotonic() < grace:
+                    result = answered()
+                    if result is None:
+                        time.sleep(0.1)
+                break
+            if time.monotonic() >= deadline:
+                break
+            time.sleep(0.1)
+
+        if nag.poll() is None:
+            nag.kill()
+
+        if result is None:
+            log.info("no answer within %ss - refusing", CONFIRM_TIMEOUT)
             return False
-        try:
-            with open(answer) as handle:
-                return handle.read().strip().lower() in ("y", "yes")
-        except OSError:
-            return False
+        return result
 
 
 def notify(title, body, urgency="normal"):

@@ -487,7 +487,8 @@ still cover exactly the period when someone is trying to pair.
 `scripts/bt-pair-agent.py` handles pairing instead, started from sway/config.
 It advertises **DisplayYesNo**, so BlueZ negotiates Numeric Comparison: both
 sides show the same six-digit code and this laptop asks you to confirm it
-matches, in a `foot` window, requiring a literal `y`.
+matches, in a **swaynag** bar with Accept/Decline - the same prompt style as the
+AirDrop receive confirmation.
 
 **`DisplayYesNo` is mandatory, and this is not a free choice.** The stronger
 scheme - `KeyboardOnly`, where the phone displays a code and you *type* it on
@@ -510,17 +511,24 @@ So the tradeoff is forced rather than chosen:
 
 What still fixes the original bug is that the confirmation is *real*. Upstream's
 flaw was never Numeric Comparison itself - it was that its `RequestConfirmation`
-returned unconditionally without asking anyone. This one shows the code, demands
-an explicit `y`, and refuses otherwise, so a stranger tapping Pair on their own
-phone gets nothing without a person at this keyboard. The agent refuses every
-other method (`DisplayPasskey`, `RequestPasskey`, and the legacy PIN methods)
-rather than let a remote device negotiate its way down to a one-click bond.
+returned unconditionally without asking anyone. Expect the code to always match:
+both sides derive it from the same exchange, so a legitimate pair can only ever
+agree. It is a man-in-the-middle check, not an authorisation code, and the phone
+side is meant to be a plain "yes, same number". The gate that stops a stranger
+tapping Pair is *this* side's prompt, which refuses unless somebody at this
+machine presses Accept. The agent refuses every other method (`DisplayPasskey`,
+`RequestPasskey`, and the legacy PIN methods) rather than let a remote device
+negotiate its way down to a one-click bond.
 
-The prompt is a `foot` window, not wofi. `wofi --dmenu` selects from a list,
-and with an empty list there is nothing to select, so Enter exits non-zero and
-discards what was typed - which presents as entering the correct code and being
-refused. sway floats and centres it via a `for_window [app_id="bt-pair-agent"]`
-rule.
+The prompt is `swaynag`, matching `airdrop-confirm` in airdrop-mt7921 and for the
+same reasons: it ships with sway so it is always present, it draws its own
+surface, and it needs no notification daemon - `notify-send` would exit 0 having
+shown nobody anything, the worst failure mode for a consent prompt. It fails
+closed too: no Wayland session, no swaynag, or no answer within 45s all mean
+refuse. The one subtlety inherited from `airdrop-confirm` is that
+`--button-dismiss-no-terminal` dismisses the bar *before* running its command
+from a detached child, so the answer is read from per-button marker files with a
+grace period after swaynag exits - never inferred from swaynag having quit.
 
 The agent marks a device trusted once it is bonded. Without that BlueZ wants
 authorisation for every incoming connection, and since this agent is the only
