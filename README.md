@@ -409,6 +409,16 @@ so your user must be in that group - and because group membership is only picked
 up at login, it will fail with a D-Bus policy denial until you log out and back
 in.
 
+**After re-pairing, restart the observer.** Re-pairing gives the phone new GATT
+object paths, and the observer keeps its old view - its debug line reports
+`paired connected not-communicator`, and it sits there with `connected` false
+while `bluetoothctl` says the device is connected. It never re-subscribes, so
+the phone looks connected but no notifications arrive:
+
+```sh
+sudo sv restart ancs4linux-observer
+```
+
 **The phone does not reliably reconnect on its own.** It is supposed to: a
 bonded iPhone reconnects to a peripheral it sees advertising. In practice, after
 a reboot or an advertising restart, it sat disconnected indefinitely with

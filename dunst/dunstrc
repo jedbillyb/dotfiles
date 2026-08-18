@@ -36,7 +36,10 @@
     # monospace because it is columns of numbers; notification text is prose,
     # and mono makes it look like terminal output rather than a message.
     font = DejaVu Sans 9
-    line_height = 2
+    # 0, not a positive value: line_height adds leading *below* every line,
+    # including the last, so anything above 0 quietly adds to the bottom
+    # padding only and the box stops looking evenly padded.
+    line_height = 0
     markup = full
     # Summary bold, body under it. The app name is added only for phone
     # notifications, by the rule at the bottom -- for local apps it is noise.
