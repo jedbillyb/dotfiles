@@ -40,6 +40,8 @@ My personal configuration files.
 - `scripts/wofi-backdrop.py` - Closes it on a *click* outside the box, via a
   transparent full-screen layer-shell surface underneath it
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
+- `scripts/vpn-amnezia.sh` - Full-tunnel AmneziaWG over UDP/123, for networks
+  that fingerprint the WireGuard handshake (`up|down|status|diag`)
 - `scripts/vpn-wstunnel.sh` - Full-tunnel WireGuard carried over TCP/443 via
   wstunnel, for networks that filter UDP (`up|down|status|diag`)
 - `scripts/vpn-proxy.sh` - TCP-over-SSH fallback for networks that block UDP, so
@@ -294,14 +296,87 @@ root can read must run under `sudo`, or it fails open and clobbers. Every other
 privileged path it touches (`/usr/libexec/elogind/system-sleep`,
 `/etc/udev/rules.d`, `/usr/local/bin`) is `0755`, so this was the only instance.
 
+### AmneziaWG over UDP/123 (preferred on N4L)
+
+`vpn-amnezia.sh` is the fastest transport that works on the school network, and
+unlike wstunnel it is still real UDP - measured 125 Mbit/s with 0% loss over 100
+pings, against TCP-over-TCP for the wstunnel tier.
+
+It works because of two quirks of that network, both measured:
+
+- **UDP/123 escapes the ~4-packet cap.** Twelve packets at 1/s sustained 12/12
+  on 123, against 4/12 on 19302 and 24454.
+- **UDP/123 inspects only the first byte**, and passes plausible NTP modes.
+  Junk starting `0x55` (mode 5) got 0/12 through; `0x01` and `0x1b` got 12/12.
+  Conveniently WireGuard's message types 1-4 are all valid NTP modes - which is
+  why `tcpdump` renders a WireGuard handshake on 123 as `NTPv0, symmetric
+  active`.
+
+So the only thing left blocking it is the handshake fingerprint, and AmneziaWG
+fixes exactly that by changing the four message-type bytes:
+
+```ini
+Jc = 0          # MUST stay 0 - see below
+Jmin = 8
+Jmax = 80
+S1 = 0          # MUST stay 0
+S2 = 0          # MUST stay 0
+H1 = 27         # 0x1b - init,     NTP v3 client
+H2 = 36         # 0x24 - response, NTP v4 server
+H3 = 37         # 0x25 - cookie
+H4 = 35         # 0x23 - transport data
+```
+
+**`Jc`, `S1` and `S2` must stay 0**, which is the opposite of AmneziaWG's usual
+advice. Junk packets and junk prefixes put *random* leading bytes on the wire,
+and the NTP first-byte inspector drops those. Only `H1` and `H4` travel
+client-to-server, so those two are the ones that must remain NTP-plausible.
+
+**Server side** (`server.jedbillyb.com`): the `amneziawg` DKMS module and
+`amneziawg-tools` from `ppa:amnezia/ppa`, with `awg0` on `10.0.2.1/24` listening
+on 51821 under `awg-quick@awg0`. Traffic arrives on UDP/123 and is redirected:
+
+```sh
+sudo iptables -t nat -I PREROUTING 2 -i enp0s6 -p udp --dport 123 -j REDIRECT --to-ports 51821
+```
+
+**Laptop side**: Void has no AmneziaWG package and the kernel (6.18) is too new
+for the DKMS module, so this uses the userspace `amneziawg-go` plus
+`amneziawg-tools` built from source, at `/usr/local/bin/amneziawg-go` and
+`/usr/bin/awg{,-quick}`. `awg-quick` falls back to it automatically when
+`/sys/module/amneziawg` is absent.
+
+#### Gotcha: server `FORWARD` rules must be inserted, not appended
+
+The `FORWARD` chain has a catch-all `REJECT --reject-with icmp-host-prohibited`
+partway down. `awg0`'s `PostUp` originally used `-A FORWARD`, which put its
+ACCEPT rules *after* that REJECT where they could never match. The handshake
+still completed - so `awg show` looked perfectly healthy - while every forwarded
+packet came back as `From 10.0.2.1 Destination Host Prohibited`. The `PostUp`
+uses `-I FORWARD 1` for this reason. The `wg0` rules happen to sit before the
+REJECT, which is why the older tunnel never hit this.
+
 ### WireGuard over TCP/443 (N4L / school wifi)
 
 On the school network (`Karamu Devices`, N4L) plain WireGuard fails: the
 handshake leaves the laptop and **reaches the server**, which answers, but the
 reply never comes back. Captures on both ends confirmed it - server-side
 tcpdump shows the 148-byte init arriving and a 92-byte response going out;
-laptop-side tcpdump shows zero inbound packets. It is a deliberate return-path
-filter, not a port block, and moving to another UDP port does not help.
+laptop-side tcpdump shows zero inbound packets.
+
+This was originally recorded here as a return-path filter. **That was wrong**,
+and packet-level testing on 2026-08-19/20 established what it actually is:
+
+- A **stateful DPI fingerprints the handshake exchange**. The pair "148-byte
+  type-1 out, 92-byte type-2 back" is dropped; either half alone passes 4/4.
+  It matches on the message-type header bytes, not on packet sizes, and it
+  behaves identically on 51820, 443, 24454 and 123 - so port-hopping alone
+  genuinely cannot help, just not for the reason first assumed.
+- **Unclassified UDP flows are capped at ~4 packets.** A flow gets four packets
+  through and is then dropped outbound (confirmed server-side: sequence 0-3
+  arrive, nothing after). A fresh source port earns a fresh allowance.
+- **UDP/123 is exempt from that cap** and sustains traffic indefinitely, which
+  is what makes the `vpn-amnezia.sh` transport (documented above) possible.
 
 Two other things that network does, both proven with `dig`:
 
@@ -352,9 +427,10 @@ log) so a failure is debuggable after the tunnel is already gone.
 
 #### Gotcha: port-hopping REDIRECTs must be scoped to the public interface
 
-The server also accepts WireGuard on UDP 443/53/123/500/4500, redirected to
-51820, for networks that block 51820 but allow those. The rules **must** carry
-`-i enp0s6`:
+The server also accepts WireGuard on UDP/443 redirected to 51820, and UDP/123
+redirected to 51821 (`awg0`), for networks that block 51820 but allow those. The
+53/500/4500 redirects were removed - the OCI security list never allowed those
+ports inbound, so they could not fire. The rules **must** carry `-i enp0s6`:
 
 ```sh
 sudo iptables -t nat -I PREROUTING 1 -i enp0s6 -p udp --dport 53 -j REDIRECT --to-ports 51820
@@ -364,7 +440,8 @@ Without `-i`, `nat PREROUTING` also matches traffic being forwarded *out of*
 `wg0`, so every VPN client's DNS query to `1.1.1.1:53` gets hijacked back into
 the wireguard port. Symptom: the tunnel works for everything except name
 resolution, for every client at once. (These need matching OCI security-list
-ingress rules to be reachable at all; only 443 was already open.)
+ingress rules to be reachable at all - 443 and 51820 were already open, and
+123/19302 were added on 2026-08-20.)
 
 ### AirPods battery module
 
