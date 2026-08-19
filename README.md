@@ -42,6 +42,8 @@ My personal configuration files.
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
 - `scripts/vpn-amnezia.sh` - Full-tunnel AmneziaWG over UDP/123, for networks
   that fingerprint the WireGuard handshake (`up|down|status|diag`)
+- `waybar/vpn-status.sh` - Bar module showing *which* of the four transports is
+  carrying the tunnel, since they differ by ~3x in speed
 - `scripts/vpn-wstunnel.sh` - Full-tunnel WireGuard carried over TCP/443 via
   wstunnel, for networks that filter UDP (`up|down|status|diag`)
 - `scripts/vpn-proxy.sh` - TCP-over-SSH fallback for networks that block UDP, so
@@ -345,6 +347,25 @@ for the DKMS module, so this uses the userspace `amneziawg-go` plus
 `amneziawg-tools` built from source, at `/usr/local/bin/amneziawg-go` and
 `/usr/bin/awg{,-quick}`. `awg-quick` falls back to it automatically when
 `/sys/module/amneziawg` is absent.
+
+#### Reading the waybar module
+
+`vpn-status.sh` names the transport rather than just on/off, because
+`vpn-toggle.sh` silently falls back through four of them and they are not
+equivalent - measured on the school wifi, `awg` is ~3x faster than `ws`:
+
+| Bar text | Transport | Colour |
+|---|---|---|
+| `vpn wg` | WireGuard, UDP/51820 | green - full speed |
+| `vpn awg` | AmneziaWG, UDP/123 | green - full speed |
+| `vpn ws` | WireGuard over TCP/443 | amber - degraded, ~33 Mbit/s |
+| `vpn ssh` | SSH SOCKS + redsocks | amber - IPv4 TCP only, local DNS |
+| `vpn off` | nothing up | grey |
+
+Hover for the interface, tunnel address and endpoint. Note `awg0` is a
+userspace TUN device, so it does **not** match `ip link show type wireguard` -
+the module has to check for it by name, which is why it read `vpn off` while
+AmneziaWG was actually connected.
 
 #### Gotcha: server `FORWARD` rules must be inserted, not appended
 

@@ -154,6 +154,11 @@ window#waybar {
     color: #e0af68;
 }
 
+/* A working tunnel, but on a slow fallback transport - worth seeing at a glance. */
+#custom-vpn.degraded {
+    color: #e0af68;
+}
+
 #custom-vpn.off {
     color: #aaaaaa;
 }
