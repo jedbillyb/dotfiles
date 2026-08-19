@@ -501,7 +501,7 @@ only then does this machine become the GATT *client* that reads notifications
 off the phone. That is why the advertising daemon has to keep running after
 pairing - a bonded iPhone only reconnects to a peripheral that is advertising.
 
-Three daemons, split by which bus they need:
+Three daemons, split by which bus they need, plus two local helpers:
 
 | Daemon | Bus | Started by |
 | --- | --- | --- |
@@ -509,6 +509,7 @@ Three daemons, split by which bus they need:
 | `ancs4linux-advertising` | system | runit, `/etc/sv/ancs4linux-advertising` |
 | `ancs4linux-desktop-integration` | session | `exec` in sway/config |
 | reconnect poller | - | runit, `/etc/sv/ancs4linux-reconnect` |
+| advert/observer watchdog | - | runit, `/etc/sv/ancs4linux-watchdog` |
 
 Upstream ships systemd units, which are useless here. The runit `run` scripts
 live in `ancs4linux/sv/` in this repo and `install.sh` copies them into
@@ -529,6 +530,36 @@ so your user must be in that group - and because group membership is only picked
 up at login, it will fail with a D-Bus policy denial until you log out and back
 in.
 
+**The advertisement dies silently, and the watchdog is what puts it back.**
+This is the failure mode that looks least like a failure. Every service reads
+`run:` and the advertising daemon logs nothing wrong, but the controller is
+broadcasting nothing at all, so the bonded phone has no peripheral to reconnect
+to and simply stays away. Observed 2026-08-19 with the daemon up 8h47m; the
+likely trigger is suspend/resume, since the advertising service enables the
+advert exactly once at boot and nothing ever re-arms it.
+
+Check it with `btmgmt advinfo`, never `bluetoothctl`:
+
+```sh
+sudo btmgmt advinfo | tail -3   # want "Instances list with 1 item"
+```
+
+`bluetoothctl show` has been seen reporting `ActiveInstances: 1` for an advert
+the controller had already dropped, so it is not evidence.
+
+`ancs4linux-watchdog` polls that every 30s and re-arms when it reads zero. It
+also restarts the observer on the phone's disconnected -> connected edge,
+because that resubscribe never happens on its own (see below). To do it by hand,
+note that **`enable-advertising` has to be called twice**: the first call fails
+with a rich-formatted traceback ending in `DBusError: Does Not Exist`, which is
+expected rather than a real error. The daemon still has the adapter in its
+in-process `active_advertisements` dict, so it tries to tidy up with
+`UnregisterAdvertisement` on an advert BlueZ no longer has. That dict entry is
+deleted before the throw, so the second call takes the clean path and registers
+for real. Always follow with `disable-pairing` - `enable-advertising`
+re-registers ancs4linux's own agent as the system default agent, and that agent
+consents to any bond without really asking.
+
 **After re-pairing, restart the observer.** Re-pairing gives the phone new GATT
 object paths, and the observer keeps its old view - its debug line reports
 `paired connected not-communicator`, and it sits there with `connected` false
@@ -548,6 +579,17 @@ every 60s for bonded devices whose name looks like an iPhone or iPad and
 connects any that are disconnected. Make sure the phone is **trusted**
 (`bluetoothctl trust <mac>`) too, or BlueZ wants authorisation for the incoming
 connection and there is no longer an agent standing by to give it.
+
+That poller cannot rescue a classic-led bond, which is the usual state. The
+iPhone's device record carries A2DP/HFP/NAP plus a LinkKey, so BlueZ routes
+`Device1.Connect()` over BR/EDR and will not fall back to LE, and iOS only
+accepts an inbound classic connection while its Bluetooth settings screen is
+open. Every attempt returns `br-connection-unknown`. The run script used to
+discard that error with `|| true` and log an unconditional `reconnecting ...`,
+which made a service that had never once succeeded look healthy; it now logs the
+real outcome, de-duplicated so a failure repeating for hours is logged once.
+When it is stuck there, recovery is on the phone: open Settings > Bluetooth and
+tap the laptop so iOS initiates.
 
 **Renaming does not propagate.** iOS caches the GAP name it learned at pairing
 time and will keep showing the old one - changing the adapter alias or the

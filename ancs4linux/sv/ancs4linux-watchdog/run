@@ -1,0 +1,123 @@
+#!/bin/sh
+# Keep the BLE advertisement alive, and resubscribe ANCS when the phone returns.
+#
+# Two failures that previously could only be fixed by hand, both of which look
+# perfectly healthy from `sv status`:
+#
+# 1. The advertisement silently disappears from the controller. Seen
+#    2026-08-19: ancs4linux-advertising had been up 8h47m with no errors, but
+#    `btmgmt advinfo` said "Instances list with 0 items" -- nothing was being
+#    broadcast at all, so the bonded iPhone had no peripheral to reconnect to
+#    and sat disconnected all day while the reconnect poller spun uselessly.
+#    Suspend/resume is the likely trigger (the machine had been through ~15
+#    s2idle cycles that day). The advertising run script enables the advert
+#    exactly once, in its boot-time subshell, so nothing ever put it back.
+#
+#    `btmgmt advinfo` is the ground truth, NOT bluetoothctl: bluetoothd has
+#    been seen reporting ActiveInstances: 1 for an advert the controller had
+#    already dropped.
+#
+# 2. The observer desyncs whenever the phone reattaches. The device's GATT
+#    object paths change and it never resubscribes on its own -- it just sits
+#    there while bluetoothctl reports the phone connected and not one
+#    notification arrives. Restarting it fixes it every time, so do that on the
+#    disconnected -> connected edge instead of waiting to notice by hand.
+exec 2>&1
+PATH=/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
+DIR=/mnt/shared/projects/ancs4linux/.venv/bin
+# Keep in step with BT_NAME in the advertising run script.
+BT_NAME="Jeds Linux Laptop"
+INTERVAL=30
+
+while [ ! -x "$DIR/ancs4linux-ctl" ]; do sleep 5; done
+while ! pgrep -x bluetoothd >/dev/null; do sleep 2; done
+
+# Let the advertising service finish its own boot-time enable before judging
+# it. That runs from a backgrounded subshell which waits on get-all-hci, so a
+# fresh boot legitimately reads 0 instances for ~15s; sampling earlier invents
+# a problem and re-arms on top of a working setup.
+sleep 90
+
+# Number of LE advertising instances actually on the controller. Empty output
+# means btmgmt did not answer, which is deliberately NOT the same as zero.
+instances() {
+	btmgmt advinfo 2>/dev/null | awk '/^Instances list with/ { print $4 }'
+}
+
+# Bonded iPhones/iPads that are currently attached, as a space-separated list.
+# A `for` loop over a captured list, not a `while read` pipeline: the latter
+# runs in a subshell under dash, so nothing it assigns survives the iteration.
+connected_phones() {
+	out=""
+	for m in $(bluetoothctl devices Bonded 2>/dev/null | awk '/iPhone|iPad/ { print $2 }'); do
+		if bluetoothctl info "$m" 2>/dev/null | grep -q "Connected: yes"; then
+			out="$out$m "
+		fi
+	done
+	printf '%s' "$out"
+}
+
+rearm() {
+	hci=$("$DIR/ancs4linux-ctl" get-all-hci 2>/dev/null | tr -d '["]' | cut -d, -f1)
+	if [ -z "$hci" ]; then
+		echo "cannot re-arm: advertising daemon is not answering get-all-hci"
+		return 1
+	fi
+
+	# Same ordering rule as the advertising run script: the discoverability
+	# flags go on BEFORE the advert is registered, because toggling classic
+	# discoverability tears down any LE instance already on the controller.
+	# Safe to touch here precisely because we only run when there is none.
+	bluetoothctl discoverable-timeout 0 >/dev/null 2>&1 || true
+	bluetoothctl pairable-timeout 0 >/dev/null 2>&1 || true
+	bluetoothctl discoverable on >/dev/null 2>&1 || true
+	bluetoothctl pairable on >/dev/null 2>&1 || true
+
+	# The first call is EXPECTED to fail with "DBusError: Does Not Exist", and
+	# that is not a problem to act on. The daemon still holds the adapter in
+	# its in-process active_advertisements dict (it never learned BlueZ dropped
+	# the advert), so enable_advertising first tries to tidy up by calling
+	# UnregisterAdvertisement on something that is already gone. The dict entry
+	# is deleted BEFORE that throw, so the second call takes the clean path and
+	# registers for real. Keep only the traceback's last line; rich prints
+	# about 30 lines of box drawing otherwise.
+	"$DIR/ancs4linux-ctl" enable-advertising --hci-address "$hci" --name "$BT_NAME" 2>&1 | tail -n 1
+	if [ "$(instances)" = "0" ]; then
+		"$DIR/ancs4linux-ctl" enable-advertising --hci-address "$hci" --name "$BT_NAME" 2>&1 | tail -n 1
+	fi
+
+	# enable-advertising re-registers ancs4linux's own pairing agent as the
+	# system DEFAULT agent, and that agent consents to any bond without really
+	# asking. Hand pairing straight back; scripts/ancs-pair.sh turns it on
+	# deliberately for the brief window when a new bond is actually wanted.
+	"$DIR/ancs4linux-ctl" disable-pairing >/dev/null 2>&1 || true
+
+	if [ "$(instances)" = "0" ]; then
+		echo "re-arm FAILED: still no advertising instance"
+		return 1
+	fi
+	echo "re-armed: advertising instance is back on the controller"
+}
+
+echo "watching advertisement and phone attachment every ${INTERVAL}s"
+# Seed the edge detector so a boot with the phone already attached does not
+# count as an attach and restart the observer for nothing.
+was_connected=$(connected_phones)
+
+while :; do
+	if [ "$(instances)" = "0" ]; then
+		echo "no advertising instance on the controller"
+		rearm
+	fi
+
+	now_connected=$(connected_phones)
+	if [ -n "$now_connected" ] && [ "$now_connected" != "$was_connected" ]; then
+		echo "phone attached (${now_connected}) - restarting observer to resubscribe"
+		sv restart /var/service/ancs4linux-observer >/dev/null 2>&1 || true
+	fi
+	was_connected="$now_connected"
+
+	sleep "$INTERVAL"
+done

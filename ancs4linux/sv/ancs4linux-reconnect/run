@@ -10,21 +10,50 @@
 # Cheap when connected: this only acts on bonded Apple devices that are
 # currently disconnected, and BlueZ no-ops a connect to an already-connected
 # device anyway.
+#
+# KNOWN LIMIT, do not read this log as proof of health. Where the bond is
+# classic-led -- the iPhone's device record carrying A2DP/HFP/NAP plus a
+# LinkKey, which is the usual state -- every attempt fails with
+# `br-connection-unknown`: BlueZ routes Device1.Connect() over BR/EDR and will
+# not fall back to LE, and iOS only accepts an inbound classic connection while
+# its Bluetooth settings screen is open. Recovery is phone-side (tap the laptop
+# under Settings > Bluetooth). The advert dying is the other, separate reason
+# the phone stays away, and ancs4linux-watchdog handles that one.
 exec 2>&1
+PATH=/usr/bin:/usr/sbin:/bin:/sbin
+export PATH
+
 while ! pgrep -x bluetoothd >/dev/null; do sleep 2; done
+
+# Remember the last outcome per run so a failure that repeats for hours is
+# logged once rather than 60 times an hour. This used to be an unconditional
+# "reconnecting ..." line plus `|| true`, which discarded the actual error and
+# made a service that had never once succeeded look like it was working.
+last=""
 
 while :; do
 	# Bonded, not currently connected, and looks like a phone/tablet. Matching
-	# on the name is crude, but the alternative is hardcoding a MAC.
-	bluetoothctl devices Bonded 2>/dev/null |
-	while read -r _ mac name; do
-		case "$name" in
-			*iPhone*|*iPad*) ;;
-			*) continue ;;
-		esac
-		if ! bluetoothctl info "$mac" 2>/dev/null | grep -q "Connected: yes"; then
-			echo "reconnecting $mac ($name)"
-			timeout 20 bluetoothctl connect "$mac" >/dev/null 2>&1 || true
+	# on the name is crude, but the alternative is hardcoding a MAC. A `for`
+	# over a captured list, not a `while read` pipeline: the latter runs in a
+	# subshell under dash, so `last` would reset every pass and defeat the
+	# de-duplication above.
+	for mac in $(bluetoothctl devices Bonded 2>/dev/null | awk '/iPhone|iPad/ { print $2 }'); do
+		if bluetoothctl info "$mac" 2>/dev/null | grep -q "Connected: yes"; then
+			if [ "$last" != "connected $mac" ]; then
+				echo "connected $mac"
+				last="connected $mac"
+			fi
+			continue
+		fi
+
+		err=$(timeout 20 bluetoothctl connect "$mac" 2>&1 |
+			grep -i 'Failed to connect' | tail -n 1)
+		if [ -z "$err" ]; then
+			echo "reconnected $mac"
+			last="connected $mac"
+		elif [ "$last" != "$mac $err" ]; then
+			echo "reconnecting $mac failed: $err"
+			last="$mac $err"
 		fi
 	done
 	sleep 60
