@@ -66,10 +66,32 @@ sni_map = {}                       # address -> hostname, from observed ClientHe
 pool = ThreadPoolExecutor(max_workers=16)
 
 
+def plausible_hostname(name):
+    """Reject anything that is not a DNS name.
+
+    The capture filter matches any TCP segment whose first payload byte is 0x16,
+    so mid-stream data can look enough like a ClientHello to parse. When it does,
+    the walk lands on arbitrary bytes and returns a fragment - a stray "wo" once
+    replaced a correctly labelled Teams row. A real SNI is a hostname, so demand
+    one rather than trusting the parse.
+    """
+    if not 4 <= len(name) <= 253 or "." not in name:
+        return False
+    if name[0] in ".-" or name[-1] in ".-":
+        return False
+    return all(c.isalnum() or c in ".-" for c in name)
+
+
 def sni_from_tls(payload):
     """Hostname out of a TLS ClientHello, or None. Deliberately total: a
     malformed or truncated capture must never take the display down."""
-    if len(payload) < 6 or payload[0] != 0x16 or payload[5] != 0x01:
+    if len(payload) < 9 or payload[0] != 0x16 or payload[5] != 0x01:
+        return None
+    # Cross-check the record and handshake lengths against each other. A genuine
+    # ClientHello agrees with itself; a coincidental 0x16 almost never does.
+    rec_len = struct.unpack(">H", payload[3:5])[0]
+    hs_len = int.from_bytes(payload[6:9], "big")
+    if not 4 <= rec_len <= 16384 or hs_len + 4 != rec_len:
         return None
     try:
         i = 5 + 4 + 2 + 32                                  # hdr + version + random
@@ -82,8 +104,11 @@ def sni_from_tls(payload):
             etype, elen = struct.unpack(">HH", payload[i:i + 4])
             i += 4
             if etype == 0:                                  # server_name
+                if payload[i + 2] != 0:                     # name_type: host_name
+                    return None
                 n = struct.unpack(">H", payload[i + 3:i + 5])[0]
-                return payload[i + 5:i + 5 + n].decode("ascii", "replace")
+                name = payload[i + 5:i + 5 + n].decode("ascii", "replace")
+                return name if plausible_hostname(name) else None
             i += elen
     except Exception:
         return None
