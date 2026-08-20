@@ -42,8 +42,8 @@ My personal configuration files.
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
 - `scripts/vpn-amnezia.sh` - Full-tunnel AmneziaWG over UDP/123, for networks
   that fingerprint the WireGuard handshake (`up|down|status|diag`)
-- `scripts/awg-client` - Server-side client provisioning, deployed to the OCI
-  box as `/usr/local/bin/awg-client`
+- `scripts/awg-client` - Server-side client provisioning and per-client egress
+  addressing, deployed to the OCI box as `/usr/local/bin/awg-client`
   (`add <name> [--ip A.B.C.D] [--json|--file] | list [--json] | del <name>`).
   Also the privileged half of [`awg-dashboard`](../awg-dashboard). Kept here
   as the source of truth; see "Rolling out AmneziaWG clients" below
@@ -412,6 +412,10 @@ sudo awg-client add <name> --json     # one machine-readable object, for the das
 sudo awg-client list                  # every peer, its IP, and last handshake age
 sudo awg-client list --json           # ...plus endpoint and transfer counters
 sudo awg-client del <name>            # removes it live and from the config
+sudo awg-client egress list           # public/private address pool + SNAT rules, as JSON
+sudo awg-client egress alloc --label X  # reserve a new public IPv4 from OCI and wire it up
+sudo awg-client egress release <priv>   # hand one back to OCI
+sudo awg-client egress apply          # rebuild the SNAT chain from the dashboard's plan
 ```
 
 `add` bakes in the `H1-H4`/`Jc=S1=S2=0` params every client needs to clear the
@@ -426,6 +430,16 @@ UDP/123 filter. Three deliberate safety choices:
 - If persisting the peer block to `awg0.conf` fails - a read-only `/etc`, a full
   disk - the **live add is rolled back**. Otherwise the interface would carry a
   peer the config file has never heard of.
+
+`egress` is the one subcommand that is not implemented here: it execs
+`/usr/local/lib/awg-dash/egress.py` (from
+[`awg-dashboard`](../awg-dashboard)'s `privileged/`) with the OCI SDK's
+interpreter, because the OCI API calls and the JSON they involve are miserable
+in bash. It lives behind `awg-client` anyway so the sudoers rule stays a single
+line. What it does: give a client its own public IPv4 by SNAT-ing it to a
+secondary private address that OCI has a reserved public IP mapped onto. The
+rules go in their own `AWG_EGRESS` nat chain ahead of the catch-all
+`MASQUERADE`, so anything without a rule keeps the old shared-IP behaviour.
 
 `--ip` and `--json` exist for [`awg-dashboard`](../awg-dashboard), the VPN-only
 web UI, which runs unprivileged and reaches root *only* through this script via

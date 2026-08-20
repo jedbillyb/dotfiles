@@ -14,6 +14,10 @@
 #                           --json emits one machine-readable object instead.
 #   awg-client list [--json]  show configured peers, IPs, handshake, transfer
 #   awg-client del <name>     remove the peer live and from the config file
+#   awg-client egress ...     per-client public IP: list/alloc/release/apply.
+#                           Hands straight off to the root helper at
+#                           /usr/local/lib/awg-dash/egress.py, which owns the
+#                           OCI API calls and the SNAT chain; see its header.
 #
 # The tunnel rides UDP/123 with the message-type headers reshaped (H1-H4) and
 # junk disabled (Jc/S1/S2=0) to clear the N4L school filter - see the header of
@@ -37,6 +41,11 @@ set -euo pipefail
 
 CONF=/etc/amnezia/amneziawg/awg0.conf
 IFACE=awg0
+EGRESS_HELPER=/usr/local/lib/awg-dash/egress.py
+# The OCI SDK only exists inside the CLI's virtualenv, so the helper is run with
+# that interpreter when it is present and the system one otherwise - the helper
+# degrades to "no new allocations" rather than failing outright.
+EGRESS_PYTHON=/opt/oci-cli/bin/python3
 ENDPOINT=152.69.172.139:123
 DNS=1.1.1.1
 SUBNET=10.0.2                       # /24; .1 is the server
@@ -261,9 +270,17 @@ do_list() {
     done
 }
 
+do_egress() {
+    [[ -x "$EGRESS_HELPER" ]] || die "egress helper not installed at $EGRESS_HELPER"
+    local py=$EGRESS_PYTHON
+    [[ -x "$py" ]] || py=$(command -v python3) || die "no python3"
+    exec "$py" "$EGRESS_HELPER" "$@"
+}
+
 case "${1:-}" in
-    add)  shift; do_add "$@" ;;
-    del)  [[ $# -eq 2 ]] || die "usage: awg-client del <name>"; do_del "$2" ;;
-    list) shift; do_list "${1:-}" ;;
-    *)    die "usage: awg-client add <name> [--ip A.B.C.D] [--json|--file] | list [--json] | del <name>" ;;
+    add)    shift; do_add "$@" ;;
+    del)    [[ $# -eq 2 ]] || die "usage: awg-client del <name>"; do_del "$2" ;;
+    list)   shift; do_list "${1:-}" ;;
+    egress) shift; do_egress "$@" ;;
+    *)      die "usage: awg-client add <name> [--ip A.B.C.D] [--json|--file] | list [--json] | del <name> | egress list|alloc|release|apply" ;;
 esac
