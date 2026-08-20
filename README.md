@@ -544,19 +544,24 @@ Two things constrain this far more than they look:
   DIRECT  52.108.8.12      443    chrome           Office web apps
   DIRECT  152.69.172.139   443    claude           your OCI server
   VPN     10.0.2.1         443    firefox          VPN internal
-  VPN     140.82.113.25    443    firefox          lb-...-iad.github.com
+  VPN     140.82.113.25    443    firefox        lb-...-iad.github.com
+  VPN     172.217.25.174   443    firefox        accounts.youtube.com
   ```
 
   Teams, Outlook, SharePoint, Office and Entra sign-in should read DIRECT;
   everything else, including the dashboard at `10.0.2.1`, should read VPN.
 
-  `HOST / SERVICE` is a best-effort identification and **not the real SNI** -
-  reading that needs packet capture. It is reverse DNS, overridden by a small
-  built-in label table when the address falls in a known range, because PTR is
-  useless for exactly the addresses that matter here (most Microsoft service IPs
-  have no PTR at all, and every Google address answers `1e100.net`). PTR is
-  resolved off-thread, so a slow lookup never stalls the display and a row can
-  be blank for a frame or two before its name lands. The label table is display
+  `HOST / SERVICE` is the **real TLS SNI** wherever possible: a `tcpdump` reads
+  ClientHello messages on every interface and maps address to hostname, so a
+  YouTube tab reads `www.youtube.com` rather than a bare `142.x`. Both cheaper
+  options fail here - Google publishes no PTR for its frontends (and most
+  Microsoft service IPs have none either), and passive DNS sniffing sees nothing
+  because Firefox and Chrome resolve over DoH.
+
+  SNI only exists for a **new** connection, so a flow that handshook before the
+  tool started never shows one. Those fall back to the built-in label table, then
+  to PTR, so nothing stays blank forever and a row can sharpen from
+  "Microsoft Teams" to a real hostname once it reconnects. All three are display
   only; the PATH column always asks the kernel.
 
   Consequence worth knowing: reaching the server's *public* address no longer

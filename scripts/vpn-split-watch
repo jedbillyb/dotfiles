@@ -15,16 +15,22 @@ Two panels, answering different questions:
           use, asked of the routing table per destination. This is the
           authoritative half. DIRECT rows sort first.
 
-The HOST column is a best-effort identification, NOT the real SNI: reading that
-needs packet capture. It is a reverse-DNS lookup, overridden by the label table
-below when the address falls in a known range - because PTR is exactly useless
-for the addresses that matter here (most Microsoft service IPs have no PTR at
-all, and Google's all say 1e100.net).
+The HOST column is the real TLS SNI wherever possible: a tcpdump sniffs
+ClientHello messages on every interface and maps address -> hostname, so you get
+"www.youtube.com" rather than a bare 142.x. This is needed because neither of
+the cheap alternatives works. Reverse DNS is useless for exactly the addresses
+that matter (Google publishes no PTR for its frontends, and Microsoft service
+IPs mostly have none either), and passive DNS sniffing sees nothing because
+Firefox and Chrome both resolve over DoH.
+
+SNI is only visible when a connection is NEW, so a long-lived flow that
+handshook before this started will not have one. Those fall back to the label
+table below, then to PTR, so a row is never blank forever.
 
 With the Microsoft 365 split in place, Teams/Outlook/SharePoint/Office and Entra
 sign-in should read DIRECT and everything else VPN. See awg-split-update.
 """
-import ipaddress, os, socket, subprocess, sys, time
+import ipaddress, os, socket, struct, subprocess, sys, threading, time
 from concurrent.futures import ThreadPoolExecutor
 
 VPN_IF = "awg0"
@@ -56,7 +62,74 @@ LABELS = [
 LABELS = [(ipaddress.ip_network(n), t) for n, t in LABELS]
 
 route_cache, host_cache = {}, {}
+sni_map = {}                       # address -> hostname, from observed ClientHellos
 pool = ThreadPoolExecutor(max_workers=16)
+
+
+def sni_from_tls(payload):
+    """Hostname out of a TLS ClientHello, or None. Deliberately total: a
+    malformed or truncated capture must never take the display down."""
+    if len(payload) < 6 or payload[0] != 0x16 or payload[5] != 0x01:
+        return None
+    try:
+        i = 5 + 4 + 2 + 32                                  # hdr + version + random
+        i += 1 + payload[i]                                 # session id
+        i += 2 + struct.unpack(">H", payload[i:i + 2])[0]   # cipher suites
+        i += 1 + payload[i]                                 # compression methods
+        end = i + 2 + struct.unpack(">H", payload[i:i + 2])[0]
+        i += 2
+        while i + 4 <= end:
+            etype, elen = struct.unpack(">HH", payload[i:i + 4])
+            i += 4
+            if etype == 0:                                  # server_name
+                n = struct.unpack(">H", payload[i + 3:i + 5])[0]
+                return payload[i + 5:i + 5 + n].decode("ascii", "replace")
+            i += elen
+    except Exception:
+        return None
+    return None
+
+
+def sni_watcher():
+    """Fill sni_map from ClientHellos on every interface.
+
+    -i any so this sees both sides at once: the decrypted inner traffic on awg0
+    and anything going out direct on the physical link. Tunnelled flows also
+    appear on the physical link as WireGuard, but that is encrypted and yields
+    no SNI, so there is nothing to de-duplicate.
+    """
+    cmd = ["sudo", "tcpdump", "-i", "any", "-nn", "-s", "0", "-U", "-w", "-", "-q",
+           "tcp port 443 and (tcp[((tcp[12:1]&0xf0)>>2)]=22)"]
+    try:
+        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    except Exception:
+        return
+    header = proc.stdout.read(24)
+    if len(header) < 24:
+        return
+    endian = "<" if header[:4] in (b"\xd4\xc3\xb2\xa1", b"\x4d\x3c\xb2\xa1") else ">"
+    while True:
+        rec = proc.stdout.read(16)
+        if len(rec) < 16:
+            return
+        caplen = struct.unpack(endian + "IIII", rec)[2]
+        pkt = proc.stdout.read(caplen)
+        # "any" yields a Linux cooked header whose size varies by kernel, so
+        # find the IPv4 header by scanning the plausible offsets for a v4 nibble
+        # rather than hardcoding one and silently capturing nothing.
+        for off in (20, 16, 14, 0, 2, 4):
+            if off + 20 > len(pkt) or pkt[off] >> 4 != 4:
+                continue
+            ip = pkt[off:]
+            ihl = (ip[0] & 0xF) * 4
+            if len(ip) < ihl + 20:
+                break
+            dst = ".".join(str(b) for b in ip[16:20])
+            toff = ihl + ((ip[ihl + 12] >> 4) * 4)
+            name = sni_from_tls(ip[toff:])
+            if name:
+                sni_map[dst] = name
+            break
 
 
 def phys_iface():
@@ -107,8 +180,14 @@ def label_for(ip):
 
 
 def host_for(ip):
-    """Label if known, else PTR. Looked up off-thread so a slow or missing PTR
-    never stalls the display; the row shows blank until the answer lands."""
+    """Observed SNI first, then the label table, then PTR.
+
+    SNI is checked on every call rather than cached, because it can arrive after
+    the row was first drawn - a flow shows its label until its ClientHello is
+    seen, then sharpens to the real hostname.
+    """
+    if ip in sni_map:
+        return sni_map[ip]
     if ip in host_cache:
         return host_cache[ip]
     known = label_for(ip)
@@ -152,6 +231,8 @@ def main():
     if not ph:
         sys.exit("no default route; is the network up?")
 
+    threading.Thread(target=sni_watcher, daemon=True).start()
+
     prev_v = counter(VPN_IF, "rx_bytes") + counter(VPN_IF, "tx_bytes")
     prev_p = counter(ph, "rx_bytes") + counter(ph, "tx_bytes")
     print("\033[?25l", end="")
@@ -176,10 +257,10 @@ def main():
             out = ["\033[H\033[2J",
                    f"  VPN {VPN_IF} ({state})   direct via {ph}\n",
                    f"  RATES   through VPN: {human(rate_v)}      direct: {human(rate_d)}\n",
-                   "  %-7s %-16s %-6s %-16s %s" % ("PATH", "REMOTE", "PORT", "PROCESS", "HOST / SERVICE"),
-                   "  %-7s %-16s %-6s %-16s %s" % ("-" * 7, "-" * 16, "-" * 6, "-" * 16, "-" * 30)]
+                   "  %-7s %-16s %-6s %-14s %s" % ("PATH", "REMOTE", "PORT", "PROCESS", "HOST / SERVICE"),
+                   "  %-7s %-16s %-6s %-14s %s" % ("-" * 7, "-" * 16, "-" * 6, "-" * 14, "-" * 30)]
             for path, addr, port, proc in rows[:30]:
-                out.append("  %-7s %-16s %-6s %-16s %s"
+                out.append("  %-7s %-16s %-6s %-14s %s"
                            % (path, addr, port, proc or "?", host_for(addr)))
             print("\n".join(out))
     except KeyboardInterrupt:
