@@ -348,6 +348,21 @@ for the DKMS module, so this uses the userspace `amneziawg-go` plus
 `/usr/bin/awg{,-quick}`. `awg-quick` falls back to it automatically when
 `/sys/module/amneziawg` is absent.
 
+#### Remembering the transport per network
+
+Walking the ladder from the top costs ~12s on every connect where plain UDP can
+never work - and those doomed WireGuard handshakes are exactly what the school's
+DPI is built to spot, so the slowest path is also the loudest. `vpn-toggle.sh`
+therefore records the transport that succeeded, keyed on SSID, in
+`~/.cache/vpn-toggle-transports`, and tries that one first next time. Measured on
+`Karamu Devices`: **20s to connect on first use, 5s thereafter.**
+
+It is a hint, not a pin - everything else still falls back in the normal order,
+so a remembered transport that stops working just walks the rest of the ladder
+and rewrites its own entry. Verified by poisoning the cache with `wg` on a
+network where `wg` cannot work: it failed, fell through to `awg`, and corrected
+the entry itself. Unrecognised values are ignored. Delete the file to reset.
+
 #### Reading the waybar module
 
 `vpn-status.sh` names the transport rather than just on/off, because

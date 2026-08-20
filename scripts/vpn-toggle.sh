@@ -13,6 +13,13 @@
 # Some networks drop or filter outbound UDP, so WireGuard comes up but never
 # handshakes and silently blackholes traffic. Rather than leave that broken
 # interface in place, tear it back down and move to the next transport.
+#
+# Walking that ladder from the top costs HANDSHAKE_TIMEOUT seconds on every
+# connect on a network where plain UDP will never work - and those doomed
+# handshakes are precisely what the school's DPI watches for. So the transport
+# that worked is remembered per network and tried first next time. Everything
+# else still falls back in the normal order, and a remembered transport that
+# stops working just falls through the rest of the ladder as usual.
 
 HANDSHAKE_TIMEOUT=12
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
@@ -20,6 +27,7 @@ PROXY="$SCRIPT_DIR/vpn-proxy.sh"
 WSTUNNEL="$SCRIPT_DIR/vpn-wstunnel.sh"
 AMNEZIA="$SCRIPT_DIR/vpn-amnezia.sh"
 STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/vpn-toggle-state"
+CACHE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/vpn-toggle-transports"
 
 notify() {
     notify-send -t 3000 "VPN" "$1" 2>/dev/null
@@ -44,8 +52,34 @@ wg_handshaked() {
     [[ -n "$hs" && "$hs" != "0" ]]
 }
 
+# Key the memory on the SSID, falling back to the active connection name so
+# ethernet and USB tethering still get an entry. Tabs are the field separator,
+# so strip them rather than risk a corrupt cache line.
+current_net() {
+    local net
+    net=$(nmcli -t -f active,ssid dev wifi 2>/dev/null | awk -F: '$1=="yes"{print $2; exit}')
+    [[ -z "$net" ]] && net=$(nmcli -t -f NAME con show --active 2>/dev/null | head -1)
+    printf '%s' "${net//[$'\t\n']/ }"
+}
+
+recall_transport() {
+    [[ -f "$CACHE_FILE" ]] || return 0
+    awk -F'\t' -v n="$1" '$1==n {print $2; exit}' "$CACHE_FILE"
+}
+
+remember_transport() {
+    local net="$1" t="$2" tmp
+    [[ -n "$net" ]] || return 0
+    mkdir -p "$(dirname "$CACHE_FILE")"
+    tmp=$(mktemp) || return 0
+    [[ -f "$CACHE_FILE" ]] && awk -F'\t' -v n="$net" '$1!=n' "$CACHE_FILE" > "$tmp"
+    printf '%s\t%s\n' "$net" "$t" >> "$tmp"
+    mv "$tmp" "$CACHE_FILE"
+}
+
 connected() {
-    notify "$1"
+    remember_transport "$NET" "$1"
+    notify "$2"
     rm -f "$STATE_FILE"
     refresh_waybar
     exit 0
@@ -65,37 +99,61 @@ if wg_is_up || "$AMNEZIA" status >/dev/null 2>&1 || "$WSTUNNEL" status >/dev/nul
 fi
 
 set_state "connecting"
+NET="$(current_net)"
 
-if sudo /usr/bin/wg-quick up wg0 >/dev/null 2>&1; then
+try_wg() {
+    sudo /usr/bin/wg-quick up wg0 >/dev/null 2>&1 || return 1
     for _ in $(seq 1 $((HANDSHAKE_TIMEOUT * 2))); do
-        wg_handshaked && connected "Connected - WireGuard (10.0.0.4)"
+        wg_handshaked && return 0
         sleep 0.5
     done
     # No handshake means UDP is blocked here; don't leave the interface
     # blackholing everything.
     sudo /usr/bin/wg-quick down wg0 >/dev/null 2>&1
-fi
+    return 1
+}
 
-# Plain WireGuard is blocked, but UDP itself may not be. AmneziaWG on UDP/123
-# reshapes the message-type bytes so the handshake is not fingerprinted, and
-# keeps full UDP speed. It verifies DNS and HTTPS before reporting success.
-notify "UDP blocked, trying AmneziaWG on UDP/123..."
-if "$AMNEZIA" up >/dev/null 2>&1; then
-    connected "Connected - AmneziaWG UDP/123 (10.0.2.4)"
-fi
+# Each of these verifies DNS and HTTPS through the tunnel before reporting
+# success - a handshake alone is not proof the link is usable.
+try_awg()   { "$AMNEZIA" up >/dev/null 2>&1; }
+try_ws()    { "$WSTUNNEL" up >/dev/null 2>&1; }
+try_proxy() { "$PROXY" up >/dev/null 2>&1; }
 
-# Still a full tunnel, just carried over TCP/443. vpn-wstunnel.sh verifies DNS
-# and HTTPS through the tunnel before reporting success, and tears itself down
-# if it can't - a handshake alone is not proof the link is usable.
-notify "UDP/123 failed, trying WireGuard over TCP..."
-if "$WSTUNNEL" up >/dev/null 2>&1; then
-    connected "Connected - WireGuard over TCP/443"
-fi
+attempt_msg() {
+    case "$1" in
+        wg)    echo "Trying WireGuard over UDP..." ;;
+        awg)   echo "Trying AmneziaWG on UDP/123..." ;;
+        ws)    echo "Trying WireGuard over TCP/443..." ;;
+        proxy) echo "Trying SSH tunnel..." ;;
+    esac
+}
 
-notify "Trying SSH tunnel..."
-if "$PROXY" up >/dev/null 2>&1; then
-    connected "Connected - SSH tunnel (TCP only, local DNS)"
-fi
+success_msg() {
+    case "$1" in
+        wg)    echo "Connected - WireGuard (10.0.0.4)" ;;
+        awg)   echo "Connected - AmneziaWG UDP/123 (10.0.2.4)" ;;
+        ws)    echo "Connected - WireGuard over TCP/443" ;;
+        proxy) echo "Connected - SSH tunnel (TCP only, local DNS)" ;;
+    esac
+}
+
+# Whatever worked here last time goes first; the rest keep their normal order.
+ORDER=()
+PREFERRED="$(recall_transport "$NET")"
+case "$PREFERRED" in
+    wg|awg|ws|proxy) ORDER+=("$PREFERRED") ;;
+    *)               PREFERRED="" ;;
+esac
+for t in wg awg ws proxy; do
+    [[ "$t" == "$PREFERRED" ]] || ORDER+=("$t")
+done
+
+for t in "${ORDER[@]}"; do
+    notify "$(attempt_msg "$t")"
+    if "try_$t"; then
+        connected "$t" "$(success_msg "$t")"
+    fi
+done
 
 notify "Connection failed"
 set_state "failed"
