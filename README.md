@@ -425,9 +425,10 @@ Getting the config onto each platform:
   `id6478942365`, or Play Store - the stock WireGuard app can't speak it), then
   **+ → Scan QR** at the terminal. Import and toggle on.
 - **Windows**: use **AmneziaWG for Windows**
-  (`github.com/amnezia-vpn/amneziawg-windows` - the Amnezia fork of the WireGuard
-  GUI; the stock WireGuard app can't speak it either). It imports a native
-  `.conf`, so grab a clean one and scp it over:
+  (`github.com/amnezia-vpn/amneziawg-windows-client` - the Amnezia fork of the
+  WireGuard GUI, Wintun-based, the official/recommended Windows client; the stock
+  WireGuard app silently ignores the `H`/`Jc` lines and won't handshake). It
+  imports a native `.conf`, so grab a clean one and scp it over:
   ```
   ssh oci "sudo awg-client add sophias-laptop" > sophias-laptop.conf
   ```
