@@ -108,28 +108,31 @@ def sni_watcher():
     if len(header) < 24:
         return
     endian = "<" if header[:4] in (b"\xd4\xc3\xb2\xa1", b"\x4d\x3c\xb2\xa1") else ">"
+    # The link-layer header size comes from the pcap link type, never from
+    # guessing. Scanning the packet for a 0x4x nibble instead looks like it
+    # works - "any" happens to be 20 bytes so SLL2 lands right - but on plain
+    # Ethernet it false-matches inside the payload and silently finds nothing.
+    linktype = struct.unpack(endian + "I", header[20:24])[0]
+    ll_offset = {1: 14, 101: 0, 113: 16, 276: 20}.get(linktype)
+    if ll_offset is None:
+        return
     while True:
         rec = proc.stdout.read(16)
         if len(rec) < 16:
             return
         caplen = struct.unpack(endian + "IIII", rec)[2]
         pkt = proc.stdout.read(caplen)
-        # "any" yields a Linux cooked header whose size varies by kernel, so
-        # find the IPv4 header by scanning the plausible offsets for a v4 nibble
-        # rather than hardcoding one and silently capturing nothing.
-        for off in (20, 16, 14, 0, 2, 4):
-            if off + 20 > len(pkt) or pkt[off] >> 4 != 4:
-                continue
-            ip = pkt[off:]
-            ihl = (ip[0] & 0xF) * 4
-            if len(ip) < ihl + 20:
-                break
-            dst = ".".join(str(b) for b in ip[16:20])
-            toff = ihl + ((ip[ihl + 12] >> 4) * 4)
-            name = sni_from_tls(ip[toff:])
-            if name:
-                sni_map[dst] = name
-            break
+        if len(pkt) < ll_offset + 20 or pkt[ll_offset] >> 4 != 4:
+            continue                      # not IPv4; VLAN tags and v6 land here
+        ip = pkt[ll_offset:]
+        ihl = (ip[0] & 0xF) * 4
+        if len(ip) < ihl + 20:
+            continue
+        dst = ".".join(str(b) for b in ip[16:20])
+        toff = ihl + ((ip[ihl + 12] >> 4) * 4)
+        name = sni_from_tls(ip[toff:])
+        if name:
+            sni_map[dst] = name
 
 
 def phys_iface():
