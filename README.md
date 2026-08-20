@@ -44,6 +44,9 @@ My personal configuration files.
   that fingerprint the WireGuard handshake (`up|down|status|diag`)
 - `scripts/awg-client` - Server-side client provisioning and per-client egress
   addressing, deployed to the OCI box as `/usr/local/bin/awg-client`
+- `scripts/awg-split-update` - Regenerates the Microsoft 365 split-tunnel range
+  list `awg-client` bakes into new configs, deployed alongside it as
+  `/usr/local/bin/awg-split-update`
   (`add <name> [--ip A.B.C.D] [--json|--file] | list [--json] | del <name>`).
   Also the privileged half of [`awg-dashboard`](../awg-dashboard). Kept here
   as the source of truth; see "Rolling out AmneziaWG clients" below
@@ -447,6 +450,76 @@ a one-line sudoers rule. That is why every argument is validated here rather
 than by the caller: `--ip` must be a free host address in `10.0.2.0/24` and
 never the server, and `--file` is refused when there is no controlling terminal
 (it would write a root-owned file into an unattended caller's cwd).
+
+#### Microsoft 365 split tunnel
+
+The tunnel egresses in the OCI region, so Microsoft geolocates every user there:
+"unusual sign-in location" prompts, and region-wrong content in Teams and the
+Office web apps. `awg-split-update` fixes that by generating `AllowedIPs` as
+`0.0.0.0/0` **minus** Microsoft's published M365 ranges, so that traffic leaves
+via the user's own connection and they appear where they actually are.
+
+```
+sudo awg-split-update              # refresh if Microsoft published a new version
+sudo awg-split-update --force      # rebuild regardless
+sudo awg-split-update --dry-run    # print the list and stats, write nothing
+```
+
+It writes `/etc/awg-dash/split-allowedips.txt`; `awg-client` reads that file, and
+falls back to a plain `0.0.0.0/0` full tunnel when it is missing or unreadable.
+A failed update therefore degrades to the old behaviour instead of breaking
+provisioning. A weekly `awg-split-update.timer` (in
+[`awg-dashboard`](../awg-dashboard)'s `deploy/`) keeps it current; Microsoft
+revises the list roughly monthly.
+
+Two things constrain this far more than they look:
+
+- **Routing is decided client-side.** `AllowedIPs` lives in the client's own
+  config file, fixed at the moment the config is generated. This can only ever
+  affect *newly issued* configs, and since `awg-client` keeps no copy of a
+  client's private key, retrofitting an existing peer means deleting it,
+  re-adding it, and having them re-import a new keypair. **Land this before a
+  rollout, not after.**
+- **The QR code sets a hard size budget.** Phones onboard by scanning, and
+  `qrencode --level=M` tops out near 2331 bytes. A full tunnel is 9 bytes of
+  `AllowedIPs`; a split is 120 CIDRs. Microsoft's *complete* published list
+  comes to 193 CIDRs / 2975 bytes and does not fit a QR at any error-correction
+  level, so three measured policies trim it back to 120 CIDRs / 1600 bytes
+  (a 1912-byte config, a version 37 QR):
+
+  1. **Snap to parent blocks** `13.107.0.0/16`, `150.171.0.0/16`, `52.96.0.0/11`.
+     The first two are Front Door anycast, so snapping them also catches the CDN
+     addresses behind the 53 URL-only entries that publish no IPs at all.
+     `40.96.0.0/11` is deliberately *not* snapped: only ~37% of it is M365
+     (against ~69% for `52.96.0.0/11`), so it would drag unrelated Azure out of
+     the tunnel, and on school wifi that means those sites meet the N4L filter
+     again.
+  2. **Drop stray addresses outside those blocks.** Microsoft lists a handful of
+     lone `/32`s as extra addresses for hostnames whose main ranges are already
+     excluded. Each one punches a deep hole in the complement and costs 14-21
+     CIDRs of the budget to catch a single address.
+  3. **Drop inbound mail-flow ranges** (`*.protection.outlook.com`,
+     `*.mx.microsoft`). These are what a *sending mail server* talks to, never
+     user traffic, so they do nothing for geolocation - and `40.92.0.0/15`,
+     `40.107.0.0/16` and `104.47.0.0/17` together are precisely what pushes a
+     full list past the QR limit.
+
+  `awg-split-update` **enforces the budget itself**: it runs the candidate list
+  through `qrencode` and refuses to write if it would not fit, keeping the
+  previous list rather than silently breaking phone onboarding. It likewise
+  refuses a suspiciously short feed, or any list that would stop routing
+  `10.0.2.0/24` or the server endpoint through the tunnel.
+
+Verified against the live feed (version `2026081400`): Teams, Outlook, SharePoint
+/OneDrive, the Office web apps, `portal.office.com` and Entra sign-in all resolve
+to addresses **outside** `AllowedIPs` (they bypass), while Google, GitHub,
+Wikipedia, Netflix and the BBC all stay **inside** it. `github.com` resolves into
+Azure and still tunnels, which confirms the roundups did not over-reach. The
+generated config re-decodes byte-identical from its QR with all 120 CIDRs intact.
+
+What still rides the tunnel: the URL-only CDN entries that publish no IPs
+(`*.cdn.office.net` and friends, mostly static assets), and IPv6 is untouched
+because configs carry no `::/0` and so already bypass.
 
 Getting the config onto each platform:
 

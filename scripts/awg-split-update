@@ -1,0 +1,191 @@
+#!/usr/bin/env python3
+# Regenerate the Microsoft 365 split-tunnel exclusion list used by awg-client.
+# Runs ON THE OCI SERVER (152.69.172.139) as root; deployed to
+# /usr/local/bin/awg-split-update. This copy is the source of truth in dotfiles.
+#
+#   awg-split-update [--force] [--dry-run] [-o FILE]
+#
+# Writes /etc/awg-dash/split-allowedips.txt: the AllowedIPs list that every new
+# client config gets, computed as 0.0.0.0/0 MINUS Microsoft's published M365
+# ranges. awg-client reads that file; if it is missing, clients fall back to a
+# plain full tunnel (0.0.0.0/0), so a failed update can never break provisioning.
+#
+# WHY THIS EXISTS: the VPN egresses in the OCI region, so Microsoft geolocates
+# every user there - "unusual sign-in location" prompts and region-wrong content.
+# Routing M365 outside the tunnel makes users appear at their real location.
+# Routing is decided CLIENT-side by AllowedIPs, so this can only ever affect
+# newly generated configs. Existing peers keep whatever they were issued.
+#
+# THE SIZE CONSTRAINT IS THE WHOLE DESIGN. Configs are handed to iOS/Android by
+# QR code, and qrencode at --level=M tops out near 2331 bytes. A full tunnel is
+# 9 bytes of AllowedIPs; a split is over a hundred CIDRs. Three policy choices
+# below exist purely to stay inside that budget, and check_qr() enforces it -
+# if Microsoft grows the list past what a QR holds, this refuses to write and
+# keeps the previous list rather than silently breaking phone onboarding.
+import argparse, ipaddress, json, os, subprocess, sys, tempfile, urllib.request, uuid
+
+ENDPOINTS = 'https://endpoints.office.com'
+OUT       = '/etc/awg-dash/split-allowedips.txt'
+
+# Policy 1: snap to parent blocks. Microsoft scatters dozens of small prefixes
+# (and bare /32s) through these; each awkward prefix costs many CIDRs in the
+# complement. 13.107/16 and 150.171/16 are Front Door anycast - snapping them
+# also catches the CDN addresses behind the URL-only entries, which publish no
+# IPs at all. 52.96/11 is ~69% published M365, so rounding it up is cheap.
+# 40.96/11 is deliberately NOT snapped: only ~37% of it is M365, so it would
+# drag a lot of unrelated Azure out of the tunnel.
+SNAP = [ipaddress.ip_network(n) for n in
+        ('13.107.0.0/16', '150.171.0.0/16', '52.96.0.0/11')]
+
+# Policy 2: drop lone addresses that sit outside the SNAP blocks. Microsoft
+# lists a few stray /32s (131.253.33.215, 204.79.197.215, 52.244.37.168) as
+# extra addresses for hostnames whose main ranges are already excluded above.
+# Catching one costs 14-21 CIDRs of the QR budget, because a single address
+# punches a deep hole in the complement - measured, not guessed. Skipping them
+# means the odd Outlook or Office connection to a legacy address rides the
+# tunnel; keeping them would cost the QR outright. Strays inside a SNAP block
+# are free and are kept.
+MIN_PREFIX = 24
+
+# Policy 3: skip inbound mail-flow endpoints. These are the ranges a sending
+# mail server talks to, never user traffic, so they do nothing for geolocation -
+# and they are the single most expensive group in the list (40.92/15, 40.107/16
+# and 104.47/17 together are what push a full list past the QR limit).
+MAIL_ONLY = ('protection.outlook.com', 'mx.microsoft')
+
+# Must keep working no matter what Microsoft publishes.
+TUNNEL_SUBNET = ipaddress.ip_network('10.0.2.0/24')
+SERVER_ENDPOINT = ipaddress.ip_network('152.69.172.139/32')
+
+# Roughly the non-AllowedIPs part of a client config, so the QR check measures
+# something close to the real payload rather than the bare address list.
+CONFIG_OVERHEAD = 400
+
+
+def fetch(path):
+    url = f'{ENDPOINTS}/{path}/worldwide?clientrequestid={uuid.uuid4()}'
+    with urllib.request.urlopen(url, timeout=30) as r:
+        return json.load(r)
+
+
+def wanted_networks(feed):
+    """IPv4 networks to route OUTSIDE the tunnel, after policies 1-3."""
+    out = set()
+    for entry in feed:
+        urls = entry.get('urls', [])
+        if urls and all(any(m in u for m in MAIL_ONLY) for u in urls):
+            continue                                    # policy 3
+        for ip in entry.get('ips', []):
+            if ':' in ip:
+                continue          # configs carry no ::/0, so v6 already bypasses
+            net = ipaddress.ip_network(ip)
+            snapped = next((s for s in SNAP if net.subnet_of(s)), None)
+            if snapped:
+                out.add(snapped)                        # policy 1
+            elif net.prefixlen > MIN_PREFIX:
+                continue                                # policy 2
+            else:
+                out.add(net)
+    return list(ipaddress.collapse_addresses(out))
+
+
+def complement(excludes):
+    """0.0.0.0/0 minus `excludes`, as a minimal list of CIDRs."""
+    remaining = [ipaddress.ip_network('0.0.0.0/0')]
+    for ex in excludes:
+        step = []
+        for net in remaining:
+            if not net.overlaps(ex):
+                step.append(net)
+            elif ex.subnet_of(net):
+                step.extend(net.address_exclude(ex))
+            elif not net.subnet_of(ex):
+                step.append(net)        # partial overlap; collapse_addresses
+                                        # makes this unreachable, kept for safety
+        remaining = step
+    return list(ipaddress.collapse_addresses(remaining))
+
+
+def check_qr(line):
+    """True if a config carrying `line` still fits a level-M QR code."""
+    payload = b'x' * (len(line) + CONFIG_OVERHEAD)
+    try:
+        subprocess.run(['qrencode', '-t', 'PNG', '-o', os.devnull, '--level=M'],
+                       input=payload, check=True, capture_output=True)
+        return True
+    except subprocess.CalledProcessError:
+        return False
+    except FileNotFoundError:
+        print('awg-split-update: qrencode missing, skipping QR check',
+              file=sys.stderr)
+        return True
+
+
+def cached_version(path):
+    try:
+        with open(path) as f:
+            for line in f:
+                if line.startswith('# version:'):
+                    return line.split(':', 1)[1].strip()
+    except OSError:
+        pass
+    return None
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument('--force', action='store_true',
+                    help='rebuild even if Microsoft reports no new version')
+    ap.add_argument('--dry-run', action='store_true',
+                    help='print the list and stats, write nothing')
+    ap.add_argument('-o', '--output', default=OUT)
+    args = ap.parse_args()
+
+    latest = fetch('version')['latest']
+    if not args.force and not args.dry_run and cached_version(args.output) == latest:
+        print(f'awg-split-update: already at {latest}, nothing to do')
+        return 0
+
+    excludes = wanted_networks(fetch('endpoints'))
+    # A truncated or malformed feed must never silently produce a near-full
+    # tunnel; 8 is far below the ~20 Microsoft has published for years.
+    if len(excludes) < 8:
+        sys.exit(f'awg-split-update: only {len(excludes)} ranges, refusing')
+
+    allowed = complement(excludes)
+    # The tunnel would eat itself if either of these stopped being routed.
+    for critical in (TUNNEL_SUBNET, SERVER_ENDPOINT):
+        if not any(critical.subnet_of(n) for n in allowed):
+            sys.exit(f'awg-split-update: {critical} would leave the tunnel, refusing')
+
+    line = ','.join(str(n) for n in allowed)
+    if not check_qr(line):
+        sys.exit(f'awg-split-update: {len(allowed)} CIDRs ({len(line)} bytes) '
+                 'will not fit a level-M QR; keeping previous list')
+
+    print(f'version {latest}: {len(excludes)} Microsoft ranges excluded, '
+          f'{len(allowed)} CIDRs, {len(line)} bytes', file=sys.stderr)
+    body = (f'# Generated by awg-split-update. Do not edit.\n'
+            f'# version: {latest}\n'
+            + '\n'.join(str(n) for n in allowed) + '\n')
+
+    if args.dry_run:
+        sys.stdout.write(body)
+        return 0
+
+    os.makedirs(os.path.dirname(args.output), exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=os.path.dirname(args.output))
+    try:
+        with os.fdopen(fd, 'w') as f:
+            f.write(body)
+        os.chmod(tmp, 0o644)
+        os.replace(tmp, args.output)     # atomic: awg-client never sees a partial list
+    except BaseException:
+        os.unlink(tmp)
+        raise
+    print(f'awg-split-update: wrote {args.output}')
+    return 0
+
+
+if __name__ == '__main__':
+    sys.exit(main())
