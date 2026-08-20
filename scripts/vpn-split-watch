@@ -1,0 +1,101 @@
+#!/bin/bash
+# Live view of which traffic is riding the VPN and which is going out direct.
+#
+#   vpn-split-watch [interval]      default 2s, Ctrl-C to quit
+#
+# Two panels, because they answer different questions:
+#
+#   RATES   how many bytes per second are taking each path. awg0's counters are
+#           the decrypted inner traffic; the direct figure is wlp2s0 minus awg0,
+#           so it is approximate - the tunnel's own encrypted packets and their
+#           overhead also cross wlp2s0. Treat it as "is anything material going
+#           out in the clear", not as an exact byte count.
+#
+#   FLOWS   every established connection, with the path the kernel will actually
+#           use for it. This is the authoritative half: it asks the routing
+#           table the same question the kernel asks, per destination.
+#
+# With the Microsoft 365 split in place, Teams/Outlook/SharePoint/Office and
+# Entra sign-in should show DIRECT and everything else VPN. See awg-split-update.
+set -uo pipefail
+
+IF_VPN=awg0
+INTERVAL="${1:-2}"
+
+# Physical interface = whatever currently carries the default route.
+phys() { ip route show default | grep -oP 'dev \K\S+' | head -1; }
+
+counter() { cat "/sys/class/net/$1/statistics/$2" 2>/dev/null || echo 0; }
+
+human() {
+    local b=$1
+    if   (( b >= 1048576 )); then printf '%6.1f MB/s' "$(bc -l <<<"$b/1048576")"
+    elif (( b >= 1024    )); then printf '%6.1f kB/s' "$(bc -l <<<"$b/1024")"
+    else                          printf '%6d  B/s' "$b"
+    fi
+}
+
+# Cache route decisions: ss can list the same peer many times and `ip route get`
+# is a syscall each time.
+declare -A ROUTE_CACHE
+path_for() {
+    local ip=$1
+    [[ -n "${ROUTE_CACHE[$ip]:-}" ]] && { echo "${ROUTE_CACHE[$ip]}"; return; }
+    local dev
+    dev=$(ip route get "$ip" 2>/dev/null | grep -oP 'dev \K\S+' | head -1)
+    local verdict="DIRECT"
+    [[ "$dev" == "$IF_VPN" ]] && verdict="VPN"
+    ROUTE_CACHE[$ip]=$verdict
+    echo "$verdict"
+}
+
+trap 'printf "\e[?25h\n"; exit 0' INT TERM
+printf '\e[?25l'    # hide cursor; the trap puts it back
+
+PHYS=$(phys)
+[[ -z "$PHYS" ]] && { echo "no default route; is the network up?" >&2; exit 1; }
+
+prev_v=$(( $(counter "$IF_VPN" rx_bytes) + $(counter "$IF_VPN" tx_bytes) ))
+prev_p=$(( $(counter "$PHYS"   rx_bytes) + $(counter "$PHYS"   tx_bytes) ))
+
+while :; do
+    sleep "$INTERVAL"
+
+    if ! ip link show "$IF_VPN" &>/dev/null; then
+        clear; echo "  $IF_VPN is DOWN - everything is going out direct."
+        continue
+    fi
+
+    now_v=$(( $(counter "$IF_VPN" rx_bytes) + $(counter "$IF_VPN" tx_bytes) ))
+    now_p=$(( $(counter "$PHYS"   rx_bytes) + $(counter "$PHYS"   tx_bytes) ))
+    # Inner (decrypted) traffic, and what crossed the wire beyond it.
+    rate_v=$(( (now_v - prev_v) / INTERVAL ))
+    rate_d=$(( (now_p - prev_p - (now_v - prev_v)) / INTERVAL ))
+    (( rate_d < 0 )) && rate_d=0          # tunnel overhead can outrun the delta
+    prev_v=$now_v; prev_p=$now_p
+
+    clear
+    hs=$(sudo awg show "$IF_VPN" latest-handshakes 2>/dev/null | awk '{print $2}' | head -1)
+    if [[ -n "$hs" && "$hs" != 0 ]]; then
+        age=$(( $(date +%s) - hs )); state="up, handshake ${age}s ago"
+    else
+        state="up, NO HANDSHAKE"
+    fi
+    printf '  VPN %s (%s)   direct via %s\n\n' "$IF_VPN" "$state" "$PHYS"
+    printf '  RATES   through VPN: %s      direct: %s\n\n' \
+        "$(human "$rate_v")" "$(human "$rate_d")"
+
+    printf '  %-7s %-22s %-6s %s\n' PATH REMOTE PORT PROCESS
+    printf '  %-7s %-22s %-6s %s\n' ------- ---------------------- ------ ---------------
+    # -n keeps ss from resolving names (slow, and it would resolve through the
+    # tunnel anyway); the peer column is addr:port, IPv6 in brackets.
+    sudo ss -tunpH state established 2>/dev/null \
+      | awk '{print $5, $6}' \
+      | while read -r peer proc; do
+            addr=${peer%:*}; port=${peer##*:}
+            addr=${addr#[}; addr=${addr%]}
+            [[ -z "$addr" || "$addr" == "*" ]] && continue
+            name=$(sed -n 's/.*(("\([^"]*\)".*/\1/p' <<<"$proc")
+            printf '  %-7s %-22s %-6s %s\n' "$(path_for "$addr")" "$addr" "$port" "${name:-?}"
+        done | sort | head -30
+done

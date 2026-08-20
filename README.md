@@ -47,6 +47,8 @@ My personal configuration files.
 - `scripts/awg-split-update` - Regenerates the Microsoft 365 split-tunnel range
   list `awg-client` bakes into new configs, deployed alongside it as
   `/usr/local/bin/awg-split-update`
+- `scripts/vpn-split-watch` - Live view of which traffic is taking the VPN and
+  which is going out direct
   (`add <name> [--ip A.B.C.D] [--json|--file] | list [--json] | del <name>`).
   Also the privileged half of [`awg-dashboard`](../awg-dashboard). Kept here
   as the source of truth; see "Rolling out AmneziaWG clients" below
@@ -521,6 +523,22 @@ Two things constrain this far more than they look:
      user traffic, so they do nothing for geolocation - and `40.92.0.0/15`,
      `40.107.0.0/16` and `104.47.0.0/17` together are precisely what pushes a
      full list past the QR limit.
+
+  To watch the split actually happening rather than reason about it:
+
+  ```
+  vpn-split-watch [interval]     # default 2s, Ctrl-C to quit
+  ```
+
+  Two panels. **RATES** is bytes/sec down each path; `awg0`'s counters are the
+  decrypted inner traffic and the direct figure is the physical interface minus
+  that, so it is approximate (the tunnel's own encrypted packets cross the same
+  wire) - read it as "is anything material leaving in the clear". **FLOWS** is
+  the authoritative half: every established connection with the path the kernel
+  will actually use, asked of the routing table per destination, DIRECT rows
+  first. Teams, Outlook, SharePoint, Office and Entra sign-in should read
+  DIRECT; everything else, including the dashboard at `10.0.2.1`, should read
+  VPN.
 
   Consequence worth knowing: reaching the server's *public* address no longer
   goes through the tunnel, because the endpoint hole covers it. `ssh oci` still
