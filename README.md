@@ -43,7 +43,9 @@ My personal configuration files.
 - `scripts/vpn-amnezia.sh` - Full-tunnel AmneziaWG over UDP/123, for networks
   that fingerprint the WireGuard handshake (`up|down|status|diag`)
 - `scripts/awg-client` - Server-side client provisioning, deployed to the OCI
-  box as `/usr/local/bin/awg-client` (`add <name>|list|del <name>`). Kept here
+  box as `/usr/local/bin/awg-client`
+  (`add <name> [--ip A.B.C.D] [--json|--file] | list [--json] | del <name>`).
+  Also the privileged half of [`awg-dashboard`](../awg-dashboard). Kept here
   as the source of truth; see "Rolling out AmneziaWG clients" below
 - `waybar/vpn-status.sh` - Bar module showing *which* of the four transports is
   carrying the tunnel, since they differ by ~3x in speed
@@ -403,14 +405,17 @@ hand-edit the peer block, reload, write the client config, make a QR. `awg-clien
 the whole thing:
 
 ```
-sudo awg-client add <name>          # keys + next free IP + live add, prints config & QR
-sudo awg-client add <name> --file   # ...and writes <name>.conf (0600) beside you instead
-sudo awg-client list                # every peer, its IP, and last handshake age
-sudo awg-client del <name>          # removes it live and from the config
+sudo awg-client add <name>            # keys + next free IP + live add, prints config & QR
+sudo awg-client add <name> --file     # ...and writes <name>.conf (0600) beside you instead
+sudo awg-client add <name> --ip A.B.C.D  # pick the address instead of taking the lowest free
+sudo awg-client add <name> --json     # one machine-readable object, for the dashboard
+sudo awg-client list                  # every peer, its IP, and last handshake age
+sudo awg-client list --json           # ...plus endpoint and transfer counters
+sudo awg-client del <name>            # removes it live and from the config
 ```
 
 `add` bakes in the `H1-H4`/`Jc=S1=S2=0` params every client needs to clear the
-UDP/123 filter. Two deliberate safety choices:
+UDP/123 filter. Three deliberate safety choices:
 
 - The peer is added with **`awg set <if> peer …`, not `syncconf`/`addconf`** -
   that touches only the one peer and never re-applies the interface obfuscation
@@ -418,6 +423,16 @@ UDP/123 filter. Two deliberate safety choices:
 - The generated config holds the client **private key**. By default it goes to
   **stdout alone** (all chatter and the QR go to stderr) and is never written to
   disk server-side, so there is nothing to shred.
+- If persisting the peer block to `awg0.conf` fails - a read-only `/etc`, a full
+  disk - the **live add is rolled back**. Otherwise the interface would carry a
+  peer the config file has never heard of.
+
+`--ip` and `--json` exist for [`awg-dashboard`](../awg-dashboard), the VPN-only
+web UI, which runs unprivileged and reaches root *only* through this script via
+a one-line sudoers rule. That is why every argument is validated here rather
+than by the caller: `--ip` must be a free host address in `10.0.2.0/24` and
+never the server, and `--file` is refused when there is no controlling terminal
+(it would write a root-owned file into an unattended caller's cwd).
 
 Getting the config onto each platform:
 

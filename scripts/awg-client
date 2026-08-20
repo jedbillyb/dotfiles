@@ -3,14 +3,17 @@
 # peers untouched. Runs ON THE OCI SERVER (152.69.172.139) as root; deployed to
 # /usr/local/bin/awg-client. This copy is the source of truth in dotfiles.
 #
-#   awg-client add <name>   generate keys, allocate the next free IP, add the
-#                           peer live, and print the config + a scannable QR.
-#                           Config goes to stdout, QR/chatter to stderr, so
+#   awg-client add <name> [--ip A.B.C.D] [--json|--file]
+#                           generate keys, allocate an IP (lowest free, or the
+#                           one named by --ip), add the peer live, and print the
+#                           config + a scannable QR. Config goes to stdout,
+#                           QR/chatter to stderr, so
 #                           `ssh oci sudo awg-client add NAME > NAME.conf` grabs
-#                           a clean config. Add --file to drop NAME.conf (0600)
-#                           beside you instead - handy for scp to a Windows box.
-#   awg-client list         show configured peers, their IPs and last handshake
-#   awg-client del <name>   remove the peer live and from the config file
+#                           a clean config. --file drops NAME.conf (0600) beside
+#                           you instead - handy for scp to a Windows box.
+#                           --json emits one machine-readable object instead.
+#   awg-client list [--json]  show configured peers, IPs, handshake, transfer
+#   awg-client del <name>     remove the peer live and from the config file
 #
 # The tunnel rides UDP/123 with the message-type headers reshaped (H1-H4) and
 # junk disabled (Jc/S1/S2=0) to clear the N4L school filter - see the header of
@@ -19,12 +22,17 @@
 #
 # The peer is added with `awg set ... peer`, NOT syncconf/addconf: that touches
 # only the one peer and never re-applies (or resets) the interface obfuscation
-# params, so an add can't knock the other four family members offline.
+# params, so an add can't knock the other family members offline.
 #
 # The generated config holds the client PRIVATE KEY. It is printed to the
 # terminal and never written to disk, so there is nothing to shred afterwards.
 # Scan the QR straight into the AmneziaWG app, or copy the text into a .conf on
 # the client and delete it once imported.
+#
+# This is also the ONLY privileged entry point used by the awg-dashboard web UI
+# (/mnt/shared/projects/awg-dashboard), which runs unprivileged as `awgdash` and
+# reaches root solely through a sudoers rule naming this script. Every argument
+# is therefore validated here rather than by the caller.
 set -euo pipefail
 
 CONF=/etc/amnezia/amneziawg/awg0.conf
@@ -41,7 +49,19 @@ die() { echo "awg-client: $*" >&2; exit 1; }
 
 valid_name() { [[ "$1" =~ ^[a-zA-Z0-9._-]+$ ]]; }
 
-# Public key configured for a named peer, read from its "# name" comment block.
+# Escape a blob for embedding in a JSON string. Peer names are already
+# restricted to [a-zA-Z0-9._-] and keys are base64, so newline/quote/backslash
+# cover everything that can actually appear; the rest is defensive.
+json_escape() {
+    awk 'BEGIN{ORS=""} { gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); print (NR>1?"\\n":"") $0 }'
+}
+
+# Host octets already spoken for in the config, one per line.
+used_octets() {
+    grep -E '^AllowedIPs' "$CONF" \
+        | sed -nE "s#^AllowedIPs = ${SUBNET//./\\.}\.([0-9]+)/.*#\1#p"
+}
+
 # Peer blocks are "[Peer] / # name / PublicKey / AllowedIPs"; the comment can be
 # on any line of the block, so scan the whole paragraph rather than assume $1.
 peer_pubkey() {
@@ -51,29 +71,60 @@ peer_pubkey() {
               sub(/PublicKey[ ]*=[ ]*/,"",$i); print $i } }' "$CONF"
 }
 
+# Emit "name<TAB>ip<TAB>pubkey" per configured peer, config order.
+peer_rows() {
+    awk 'BEGIN{RS="";FS="\n"}
+        { isp=0; name=""; ip=""; pub=""
+          for(i=1;i<=NF;i++){
+              if($i ~ /^\[Peer\]/) isp=1
+              if($i ~ /^# /){ n=$i; sub(/^# /,"",n); name=n }
+              if($i ~ /^PublicKey/){ p=$i; sub(/PublicKey[ ]*=[ ]*/,"",p); pub=p }
+              if($i ~ /^AllowedIPs/){ a=$i; sub(/AllowedIPs[ ]*=[ ]*/,"",a); ip=a }
+          }
+          if(isp && pub!="") print name "\t" ip "\t" pub }' "$CONF"
+}
+
 do_add() {
-    local name="" tofile=0 priv pub ip used n
+    local name="" tofile=0 asjson=0 want_ip="" priv pub ip used n
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --file) tofile=1 ;;
+            --json) asjson=1 ;;
+            --ip)   [[ $# -ge 2 ]] || die "--ip needs an address"
+                    want_ip="$2"; shift ;;
+            --ip=*) want_ip="${1#--ip=}" ;;
             -*)     die "unknown flag: $1" ;;
             *)      [[ -z "$name" ]] && name="$1" || die "one name only" ;;
         esac
         shift
     done
-    [[ -n "$name" ]] || die "usage: awg-client add <name> [--file]"
+    [[ -n "$name" ]] || die "usage: awg-client add <name> [--ip A.B.C.D] [--json|--file]"
     valid_name "$name" || die "name: letters, digits, . _ - only"
+    [[ $tofile -eq 1 && $asjson -eq 1 ]] && die "--file and --json are mutually exclusive"
+    # --file writes a root-owned 0600 file into the caller's cwd, which is not
+    # something an unattended caller (the dashboard) should ever trigger.
+    [[ $tofile -eq 1 && ! -t 0 ]] && die "--file needs an interactive terminal"
     grep -qx "# $name" "$CONF" && die "peer '$name' already exists"
 
-    # Lowest free host in the /24, skipping the server (.1) and taken IPs.
-    used=$(grep -E '^AllowedIPs' "$CONF" \
-           | sed -nE "s#^AllowedIPs = ${SUBNET//./\\.}\.([0-9]+)/.*#\1#p")
-    ip=""
-    for n in $(seq 2 254); do
-        grep -qx "$n" <<<"$used" && continue
-        ip="${SUBNET}.${n}"; break
-    done
-    [[ -n "$ip" ]] || die "no free address in ${SUBNET}.0/24"
+    used=$(used_octets)
+    if [[ -n "$want_ip" ]]; then
+        # Explicit allocation, for the dashboard's IP planner. Must be a host in
+        # our own /24, never the server, never already taken.
+        [[ "$want_ip" =~ ^${SUBNET//./\.}\.([0-9]{1,3})$ ]] \
+            || die "--ip must be an address in ${SUBNET}.0/24"
+        n="${BASH_REMATCH[1]}"
+        (( n >= 2 && n <= 254 )) || die "--ip host octet must be 2-254 (.1 is the server)"
+        grep -qx "$n" <<<"$used" && die "$want_ip is already assigned"
+        ip="$want_ip"
+    else
+        # Lowest free host in the /24, skipping the server (.1) and taken IPs.
+        ip=""
+        for n in $(seq 2 254); do
+            grep -qx "$n" <<<"$used" && continue
+            ip="${SUBNET}.${n}"; break
+        done
+        [[ -n "$ip" ]] || die "no free address in ${SUBNET}.0/24"
+    fi
 
     priv=$(awg genkey)
     pub=$(awg pubkey <<<"$priv")
@@ -82,8 +133,19 @@ do_add() {
     awg set "$IFACE" peer "$pub" allowed-ips "${ip}/32"
     # Then persist so it survives an awg-quick down/up, matching the existing
     # block style ([Peer] first, then the naming comment).
-    printf '\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s/32\n' \
-        "$name" "$pub" "$ip" >> "$CONF"
+    #
+    # If persisting fails - a read-only /etc (systemd ProtectSystem=strict bit
+    # us here), a full disk - roll the live add back. Otherwise the interface
+    # ends up with a peer the config file has never heard of, which `list` and
+    # the dashboard would both then report as untracked drift.
+    # Subshell so the shell's own "cannot open" message is captured too, not
+    # just the command's - otherwise it leaks past 2>/dev/null into whatever is
+    # parsing our output.
+    if ! ( printf '\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s/32\n' \
+           "$name" "$pub" "$ip" >> "$CONF" ) 2>/dev/null; then
+        awg set "$IFACE" peer "$pub" remove 2>/dev/null || true
+        die "could not write $CONF - live add rolled back, no peer created"
+    fi
 
     local cfg
     cfg=$(cat <<EOF
@@ -108,6 +170,14 @@ AllowedIPs = 0.0.0.0/0
 PersistentKeepalive = 25
 EOF
 )
+    # --json is the dashboard's path: one object on stdout, nothing else, so the
+    # caller never has to parse human text. It carries the private key, exactly
+    # like the stdout config does, and is likewise never written to disk here.
+    if [[ $asjson -eq 1 ]]; then
+        printf '{"name":"%s","ip":"%s","pubkey":"%s","config":"%s"}\n' \
+            "$name" "$ip" "$pub" "$(printf '%s\n' "$cfg" | json_escape)"
+        return
+    fi
     # --file writes the config beside you (root 0600) for scp to a desktop.
     # Otherwise the config goes to stdout ALONE - all chatter and the QR go to
     # stderr - so `ssh oci sudo awg-client add NAME > NAME.conf` captures a clean
@@ -146,20 +216,42 @@ do_del() {
     echo "Removed '$name'." >&2
 }
 
+# `awg show <if> dump` gives pubkey/psk/endpoint/allowed-ips/handshake/rx/tx/
+# keepalive in one shot, so live state costs a single call rather than one per
+# peer. Line 1 is the interface itself; skip it.
+dump_field() {
+    # `|| true` so a down interface degrades to "no live data" instead of
+    # aborting under `set -e pipefail` - the dashboard must still be able to
+    # list configured peers while awg0 is down.
+    { awg show "$IFACE" dump 2>/dev/null || true; } \
+        | awk -v k="$1" -v f="$2" 'NR>1 && $1==k{print $f}'
+}
+
 do_list() {
+    local asjson=0
+    [[ "${1:-}" == "--json" ]] && asjson=1
+
+    if [[ $asjson -eq 1 ]]; then
+        local first=1 name ip pub hs rx tx ep
+        printf '['
+        while IFS=$'\t' read -r name ip pub; do
+            [[ -z "$pub" ]] && continue
+            ep=$(dump_field "$pub" 3);  hs=$(dump_field "$pub" 5)
+            rx=$(dump_field "$pub" 6);  tx=$(dump_field "$pub" 7)
+            ip="${ip%%/*}"          # bare address; the store keys on /32-less IPs
+            [[ $first -eq 1 ]] || printf ','
+            first=0
+            printf '{"name":"%s","ip":"%s","pubkey":"%s","endpoint":"%s","handshake":%s,"rx":%s,"tx":%s}' \
+                "$name" "$ip" "$pub" "${ep:-}" "${hs:-0}" "${rx:-0}" "${tx:-0}"
+        done < <(peer_rows)
+        printf ']\n'
+        return
+    fi
+
     printf '%-18s %-12s %s\n' NAME IP HANDSHAKE
     local now; now=$(date +%s)
-    awk 'BEGIN{RS="";FS="\n"}
-        { isp=0; name=""; ip=""; pub=""
-          for(i=1;i<=NF;i++){
-              if($i ~ /^\[Peer\]/) isp=1
-              if($i ~ /^# /){ n=$i; sub(/^# /,"",n); name=n }
-              if($i ~ /^PublicKey/){ p=$i; sub(/PublicKey[ ]*=[ ]*/,"",p); pub=p }
-              if($i ~ /^AllowedIPs/){ a=$i; sub(/AllowedIPs[ ]*=[ ]*/,"",a); ip=a }
-          }
-          if(isp && pub!="") print name "\t" ip "\t" pub }' "$CONF" \
-    | while IFS=$'\t' read -r name ip pub; do
-        hs=$(awg show "$IFACE" latest-handshakes 2>/dev/null | awk -v k="$pub" '$1==k{print $2}')
+    peer_rows | while IFS=$'\t' read -r name ip pub; do
+        hs=$(dump_field "$pub" 5)
         if [[ -n "$hs" && "$hs" != "0" ]]; then
             when="$(( (now - hs) / 60 ))m ago"
         else
@@ -172,6 +264,6 @@ do_list() {
 case "${1:-}" in
     add)  shift; do_add "$@" ;;
     del)  [[ $# -eq 2 ]] || die "usage: awg-client del <name>"; do_del "$2" ;;
-    list) do_list ;;
-    *)    die "usage: awg-client add <name> | list | del <name>" ;;
+    list) shift; do_list "${1:-}" ;;
+    *)    die "usage: awg-client add <name> [--ip A.B.C.D] [--json|--file] | list [--json] | del <name>" ;;
 esac
