@@ -1,0 +1,153 @@
+#!/bin/bash
+# Roll AmneziaWG clients on/off awg0 - live, no interface restart, existing
+# peers untouched. Runs ON THE OCI SERVER (152.69.172.139) as root; deployed to
+# /usr/local/bin/awg-client. This copy is the source of truth in dotfiles.
+#
+#   awg-client add <name>   generate keys, allocate the next free IP, add the
+#                           peer live, and print the config + a scannable QR
+#   awg-client list         show configured peers, their IPs and last handshake
+#   awg-client del <name>   remove the peer live and from the config file
+#
+# The tunnel rides UDP/123 with the message-type headers reshaped (H1-H4) and
+# junk disabled (Jc/S1/S2=0) to clear the N4L school filter - see the header of
+# ~/.local/bin/vpn-amnezia.sh on the laptop for the full why. Every client MUST
+# carry these exact params or its packets won't match the server interface.
+#
+# The peer is added with `awg set ... peer`, NOT syncconf/addconf: that touches
+# only the one peer and never re-applies (or resets) the interface obfuscation
+# params, so an add can't knock the other four family members offline.
+#
+# The generated config holds the client PRIVATE KEY. It is printed to the
+# terminal and never written to disk, so there is nothing to shred afterwards.
+# Scan the QR straight into the AmneziaWG app, or copy the text into a .conf on
+# the client and delete it once imported.
+set -euo pipefail
+
+CONF=/etc/amnezia/amneziawg/awg0.conf
+IFACE=awg0
+ENDPOINT=152.69.172.139:123
+DNS=1.1.1.1
+SUBNET=10.0.2                       # /24; .1 is the server
+# AmneziaWG obfuscation params - MUST match the awg0 interface exactly.
+JC=0 JMIN=8 JMAX=80 S1=0 S2=0 H1=27 H2=36 H3=37 H4=35
+
+die() { echo "awg-client: $*" >&2; exit 1; }
+[[ $EUID -eq 0 ]] || die "run as root (sudo awg-client ...)"
+[[ -f "$CONF" ]] || die "$CONF not found"
+
+valid_name() { [[ "$1" =~ ^[a-zA-Z0-9._-]+$ ]]; }
+
+# Public key configured for a named peer, read from its "# name" comment block.
+# Peer blocks are "[Peer] / # name / PublicKey / AllowedIPs"; the comment can be
+# on any line of the block, so scan the whole paragraph rather than assume $1.
+peer_pubkey() {
+    awk -v t="# $1" 'BEGIN{RS="";FS="\n"}
+        { has=0; for(i=1;i<=NF;i++) if($i==t) has=1
+          if(has) for(i=1;i<=NF;i++) if($i ~ /^PublicKey/){
+              sub(/PublicKey[ ]*=[ ]*/,"",$i); print $i } }' "$CONF"
+}
+
+do_add() {
+    local name="$1" priv pub ip used n
+    valid_name "$name" || die "name: letters, digits, . _ - only"
+    grep -qx "# $name" "$CONF" && die "peer '$name' already exists"
+
+    # Lowest free host in the /24, skipping the server (.1) and taken IPs.
+    used=$(grep -E '^AllowedIPs' "$CONF" \
+           | sed -nE "s#^AllowedIPs = ${SUBNET//./\\.}\.([0-9]+)/.*#\1#p")
+    ip=""
+    for n in $(seq 2 254); do
+        grep -qx "$n" <<<"$used" && continue
+        ip="${SUBNET}.${n}"; break
+    done
+    [[ -n "$ip" ]] || die "no free address in ${SUBNET}.0/24"
+
+    priv=$(awg genkey)
+    pub=$(awg pubkey <<<"$priv")
+
+    # Live add first - surgical, one peer, no restart, no param reset.
+    awg set "$IFACE" peer "$pub" allowed-ips "${ip}/32"
+    # Then persist so it survives an awg-quick down/up, matching the existing
+    # block style ([Peer] first, then the naming comment).
+    printf '\n[Peer]\n# %s\nPublicKey = %s\nAllowedIPs = %s/32\n' \
+        "$name" "$pub" "$ip" >> "$CONF"
+
+    local cfg
+    cfg=$(cat <<EOF
+[Interface]
+PrivateKey = ${priv}
+Address = ${ip}/32
+DNS = ${DNS}
+Jc = ${JC}
+Jmin = ${JMIN}
+Jmax = ${JMAX}
+S1 = ${S1}
+S2 = ${S2}
+H1 = ${H1}
+H2 = ${H2}
+H3 = ${H3}
+H4 = ${H4}
+
+[Peer]
+PublicKey = $(awg show "$IFACE" public-key)
+Endpoint = ${ENDPOINT}
+AllowedIPs = 0.0.0.0/0
+PersistentKeepalive = 25
+EOF
+)
+    echo "Added '$name' as ${ip} (live + persisted)." >&2
+    echo >&2
+    echo "$cfg"
+    echo >&2
+    echo "=== scan into the AmneziaWG app (App Store id6478942365 / Play Store) ===" >&2
+    qrencode -t ANSIUTF8 <<<"$cfg"
+}
+
+do_del() {
+    local name="$1" pub tmp
+    valid_name "$name" || die "name: letters, digits, . _ - only"
+    grep -qx "# $name" "$CONF" || die "no peer named '$name'"
+
+    pub=$(peer_pubkey "$name")
+    [[ -n "$pub" ]] && awg set "$IFACE" peer "$pub" remove
+
+    # Drop the paragraph whose block carries "# name", keep everything else.
+    tmp=$(mktemp)
+    awk -v t="# $name" 'BEGIN{RS="";FS="\n";ORS=""}
+        { has=0; for(i=1;i<=NF;i++) if($i==t) has=1
+          if(has) next
+          print sep $0; sep="\n\n" } END{print "\n"}' "$CONF" >"$tmp"
+    cat "$tmp" >"$CONF"          # preserve file owner/mode
+    rm -f "$tmp"
+    echo "Removed '$name'." >&2
+}
+
+do_list() {
+    printf '%-18s %-12s %s\n' NAME IP HANDSHAKE
+    local now; now=$(date +%s)
+    awk 'BEGIN{RS="";FS="\n"}
+        { isp=0; name=""; ip=""; pub=""
+          for(i=1;i<=NF;i++){
+              if($i ~ /^\[Peer\]/) isp=1
+              if($i ~ /^# /){ n=$i; sub(/^# /,"",n); name=n }
+              if($i ~ /^PublicKey/){ p=$i; sub(/PublicKey[ ]*=[ ]*/,"",p); pub=p }
+              if($i ~ /^AllowedIPs/){ a=$i; sub(/AllowedIPs[ ]*=[ ]*/,"",a); ip=a }
+          }
+          if(isp && pub!="") print name "\t" ip "\t" pub }' "$CONF" \
+    | while IFS=$'\t' read -r name ip pub; do
+        hs=$(awg show "$IFACE" latest-handshakes 2>/dev/null | awk -v k="$pub" '$1==k{print $2}')
+        if [[ -n "$hs" && "$hs" != "0" ]]; then
+            when="$(( (now - hs) / 60 ))m ago"
+        else
+            when="never"
+        fi
+        printf '%-18s %-12s %s\n' "$name" "$ip" "$when"
+    done
+}
+
+case "${1:-}" in
+    add)  [[ $# -eq 2 ]] || die "usage: awg-client add <name>"; do_add "$2" ;;
+    del)  [[ $# -eq 2 ]] || die "usage: awg-client del <name>"; do_del "$2" ;;
+    list) do_list ;;
+    *)    die "usage: awg-client add <name> | list | del <name>" ;;
+esac

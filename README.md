@@ -42,6 +42,9 @@ My personal configuration files.
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
 - `scripts/vpn-amnezia.sh` - Full-tunnel AmneziaWG over UDP/123, for networks
   that fingerprint the WireGuard handshake (`up|down|status|diag`)
+- `scripts/awg-client` - Server-side client provisioning, deployed to the OCI
+  box as `/usr/local/bin/awg-client` (`add <name>|list|del <name>`). Kept here
+  as the source of truth; see "Rolling out AmneziaWG clients" below
 - `waybar/vpn-status.sh` - Bar module showing *which* of the four transports is
   carrying the tunnel, since they differ by ~3x in speed
 - `scripts/vpn-wstunnel.sh` - Full-tunnel WireGuard carried over TCP/443 via
@@ -391,6 +394,34 @@ still completed - so `awg show` looked perfectly healthy - while every forwarded
 packet came back as `From 10.0.2.1 Destination Host Prohibited`. The `PostUp`
 uses `-I FORWARD 1` for this reason. The `wg0` rules happen to sit before the
 REJECT, which is why the older tunnel never hit this.
+
+#### Rolling out AmneziaWG clients
+
+Adding a device used to be a manual grind - generate a keypair, find a free IP,
+hand-edit the peer block, reload, write the client config, make a QR. `awg-client`
+(in `scripts/`, deployed to the OCI server at `/usr/local/bin/awg-client`) does
+the whole thing:
+
+```
+sudo awg-client add <name>    # keys + next free IP + live add, prints config & QR
+sudo awg-client list          # every peer, its IP, and last handshake age
+sudo awg-client del <name>    # removes it live and from the config
+```
+
+`add` scans the QR straight into the AmneziaWG app (App Store `id6478942365`, or
+Play Store), and bakes in the `H1-H4`/`Jc=S1=S2=0` params every client needs to
+clear the UDP/123 filter. Two deliberate safety choices:
+
+- The peer is added with **`awg set <if> peer …`, not `syncconf`/`addconf`** -
+  that touches only the one peer and never re-applies the interface obfuscation
+  params, so an `add` can't knock the other family members offline.
+- The generated config holds the client **private key** and is printed to the
+  terminal only, **never written to disk** - so there is nothing to shred after.
+  Scan it and it's gone; nothing lingers server-side.
+
+Verified end to end: adding a throwaway peer allocated the lowest free IP, went
+in live (`awg show` +1 peer) and persisted; deleting it restored the config
+byte-for-byte, with the other five peers untouched throughout.
 
 ### WireGuard over TCP/443 (N4L / school wifi)
 
