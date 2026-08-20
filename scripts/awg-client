@@ -4,7 +4,11 @@
 # /usr/local/bin/awg-client. This copy is the source of truth in dotfiles.
 #
 #   awg-client add <name>   generate keys, allocate the next free IP, add the
-#                           peer live, and print the config + a scannable QR
+#                           peer live, and print the config + a scannable QR.
+#                           Config goes to stdout, QR/chatter to stderr, so
+#                           `ssh oci sudo awg-client add NAME > NAME.conf` grabs
+#                           a clean config. Add --file to drop NAME.conf (0600)
+#                           beside you instead - handy for scp to a Windows box.
 #   awg-client list         show configured peers, their IPs and last handshake
 #   awg-client del <name>   remove the peer live and from the config file
 #
@@ -48,7 +52,16 @@ peer_pubkey() {
 }
 
 do_add() {
-    local name="$1" priv pub ip used n
+    local name="" tofile=0 priv pub ip used n
+    while [[ $# -gt 0 ]]; do
+        case "$1" in
+            --file) tofile=1 ;;
+            -*)     die "unknown flag: $1" ;;
+            *)      [[ -z "$name" ]] && name="$1" || die "one name only" ;;
+        esac
+        shift
+    done
+    [[ -n "$name" ]] || die "usage: awg-client add <name> [--file]"
     valid_name "$name" || die "name: letters, digits, . _ - only"
     grep -qx "# $name" "$CONF" && die "peer '$name' already exists"
 
@@ -95,12 +108,23 @@ AllowedIPs = 0.0.0.0/0
 PersistentKeepalive = 25
 EOF
 )
-    echo "Added '$name' as ${ip} (live + persisted)." >&2
-    echo >&2
-    echo "$cfg"
-    echo >&2
-    echo "=== scan into the AmneziaWG app (App Store id6478942365 / Play Store) ===" >&2
-    qrencode -t ANSIUTF8 <<<"$cfg"
+    # --file writes the config beside you (root 0600) for scp to a desktop.
+    # Otherwise the config goes to stdout ALONE - all chatter and the QR go to
+    # stderr - so `ssh oci sudo awg-client add NAME > NAME.conf` captures a clean
+    # config with no noise, and a terminal user still sees the QR to scan.
+    if [[ $tofile -eq 1 ]]; then
+        local out="${name}.conf"
+        ( umask 077; printf '%s\n' "$cfg" > "$out" )
+        echo "Added '$name' as ${ip} (live + persisted)." >&2
+        echo "Wrote $(readlink -f "$out") (0600) - scp it, import, then delete it." >&2
+    else
+        echo "Added '$name' as ${ip} (live + persisted)." >&2
+        echo >&2
+        echo "$cfg"                                                          # stdout: clean config
+        echo >&2
+        echo "=== scan into the AmneziaWG app (App Store id6478942365 / Play Store) ===" >&2
+        qrencode -t ANSIUTF8 <<<"$cfg" >&2                                   # QR to stderr
+    fi
 }
 
 do_del() {
@@ -146,7 +170,7 @@ do_list() {
 }
 
 case "${1:-}" in
-    add)  [[ $# -eq 2 ]] || die "usage: awg-client add <name>"; do_add "$2" ;;
+    add)  shift; do_add "$@" ;;
     del)  [[ $# -eq 2 ]] || die "usage: awg-client del <name>"; do_del "$2" ;;
     list) do_list ;;
     *)    die "usage: awg-client add <name> | list | del <name>" ;;

@@ -403,25 +403,44 @@ hand-edit the peer block, reload, write the client config, make a QR. `awg-clien
 the whole thing:
 
 ```
-sudo awg-client add <name>    # keys + next free IP + live add, prints config & QR
-sudo awg-client list          # every peer, its IP, and last handshake age
-sudo awg-client del <name>    # removes it live and from the config
+sudo awg-client add <name>          # keys + next free IP + live add, prints config & QR
+sudo awg-client add <name> --file   # ...and writes <name>.conf (0600) beside you instead
+sudo awg-client list                # every peer, its IP, and last handshake age
+sudo awg-client del <name>          # removes it live and from the config
 ```
 
-`add` scans the QR straight into the AmneziaWG app (App Store `id6478942365`, or
-Play Store), and bakes in the `H1-H4`/`Jc=S1=S2=0` params every client needs to
-clear the UDP/123 filter. Two deliberate safety choices:
+`add` bakes in the `H1-H4`/`Jc=S1=S2=0` params every client needs to clear the
+UDP/123 filter. Two deliberate safety choices:
 
 - The peer is added with **`awg set <if> peer …`, not `syncconf`/`addconf`** -
   that touches only the one peer and never re-applies the interface obfuscation
-  params, so an `add` can't knock the other family members offline.
-- The generated config holds the client **private key** and is printed to the
-  terminal only, **never written to disk** - so there is nothing to shred after.
-  Scan it and it's gone; nothing lingers server-side.
+  params, so an `add` can't knock the other peers offline.
+- The generated config holds the client **private key**. By default it goes to
+  **stdout alone** (all chatter and the QR go to stderr) and is never written to
+  disk server-side, so there is nothing to shred.
+
+Getting the config onto each platform:
+
+- **iOS / Android**: install the dedicated **AmneziaWG** app (App Store
+  `id6478942365`, or Play Store - the stock WireGuard app can't speak it), then
+  **+ → Scan QR** at the terminal. Import and toggle on.
+- **Windows**: use **AmneziaWG for Windows**
+  (`github.com/amnezia-vpn/amneziawg-windows` - the Amnezia fork of the WireGuard
+  GUI; the stock WireGuard app can't speak it either). It imports a native
+  `.conf`, so grab a clean one and scp it over:
+  ```
+  ssh oci "sudo awg-client add sophias-laptop" > sophias-laptop.conf
+  ```
+  Because the config is the *only* thing on stdout, that redirect captures it
+  with no QR or log noise. Then **Import tunnel(s) from file → Activate**, and
+  delete the loose `.conf` (the app has copied the key into its own store).
+  `--file` does the same server-side when you're on the box directly.
 
 Verified end to end: adding a throwaway peer allocated the lowest free IP, went
 in live (`awg show` +1 peer) and persisted; deleting it restored the config
-byte-for-byte, with the other five peers untouched throughout.
+byte-for-byte, with the other peers untouched throughout. Both the clean-stdout
+redirect and `--file` were checked to produce a config starting at `[Interface]`
+with no noise.
 
 ### WireGuard over TCP/443 (N4L / school wifi)
 
