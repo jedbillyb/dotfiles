@@ -409,6 +409,7 @@ the whole thing:
 
 ```
 sudo awg-client add <name>            # keys + next free IP + live add, prints config & QR
+sudo awg-client add <name> --split    # ...with Microsoft 365 routed outside the tunnel
 sudo awg-client add <name> --file     # ...and writes <name>.conf (0600) beside you instead
 sudo awg-client add <name> --ip A.B.C.D  # pick the address instead of taking the lowest free
 sudo awg-client add <name> --json     # one machine-readable object, for the dashboard
@@ -465,21 +466,26 @@ sudo awg-split-update --force      # rebuild regardless
 sudo awg-split-update --dry-run    # print the list and stats, write nothing
 ```
 
-It writes `/etc/awg-dash/split-allowedips.txt`; `awg-client` reads that file, and
-falls back to a plain `0.0.0.0/0` full tunnel when it is missing or unreadable.
-A failed update therefore degrades to the old behaviour instead of breaking
-provisioning. A weekly `awg-split-update.timer` (in
+It writes `/etc/awg-dash/split-allowedips.txt`; `awg-client add --split` reads
+that file. **The split is opt-in per peer.** Plain `add` issues a full tunnel, as
+it always has, and a `--split` that cannot find a usable list falls back to a
+full tunnel with a warning on stderr. A failed update therefore degrades to the
+old behaviour instead of breaking provisioning, and peers you would rather keep
+fully tunnelled simply never ask for it. [`awg-dashboard`](../awg-dashboard)
+exposes the same choice as a per-peer checkbox. A weekly `awg-split-update.timer` (in
 [`awg-dashboard`](../awg-dashboard)'s `deploy/`) keeps it current; Microsoft
 revises the list roughly monthly.
 
 Two things constrain this far more than they look:
 
 - **Routing is decided client-side.** `AllowedIPs` lives in the client's own
-  config file, fixed at the moment the config is generated. This can only ever
-  affect *newly issued* configs, and since `awg-client` keeps no copy of a
-  client's private key, retrofitting an existing peer means deleting it,
-  re-adding it, and having them re-import a new keypair. **Land this before a
-  rollout, not after.**
+  config file, fixed at the moment the config is generated. Nothing on the
+  server knows or cares which mode a client is in, so switching a peer costs no
+  server-side change at all - but the config *on the device* has to change. Two
+  ways: hand-edit the `AllowedIPs` line in the config the device already holds
+  (same keypair, fine on a desktop, miserable on a phone at 1600 bytes), or
+  re-issue the peer, which mints a fresh keypair and needs a re-import. **Land
+  this before a rollout** and you skip the round of re-imports.
 - **The QR code sets a hard size budget.** Phones onboard by scanning, and
   `qrencode --level=M` tops out near 2331 bytes. A full tunnel is 9 bytes of
   `AllowedIPs`; a split is 120 CIDRs. Microsoft's *complete* published list

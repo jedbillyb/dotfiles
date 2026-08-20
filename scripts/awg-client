@@ -3,7 +3,7 @@
 # peers untouched. Runs ON THE OCI SERVER (152.69.172.139) as root; deployed to
 # /usr/local/bin/awg-client. This copy is the source of truth in dotfiles.
 #
-#   awg-client add <name> [--ip A.B.C.D] [--json|--file]
+#   awg-client add <name> [--ip A.B.C.D] [--split] [--json|--file]
 #                           generate keys, allocate an IP (lowest free, or the
 #                           one named by --ip), add the peer live, and print the
 #                           config + a scannable QR. Config goes to stdout,
@@ -12,6 +12,10 @@
 #                           a clean config. --file drops NAME.conf (0600) beside
 #                           you instead - handy for scp to a Windows box.
 #                           --json emits one machine-readable object instead.
+#                           --split routes Microsoft 365 outside the tunnel (see
+#                           awg-split-update). Off by default: a full tunnel is
+#                           the safe assumption, and the dashboard always says
+#                           which it wants explicitly.
 #   awg-client list [--json]  show configured peers, IPs, handshake, transfer
 #   awg-client del <name>     remove the peer live and from the config file
 #   awg-client egress ...     per-client public IP: list/alloc/release/apply.
@@ -68,14 +72,21 @@ valid_name() { [[ "$1" =~ ^[a-zA-Z0-9._-]+$ ]]; }
 # of a client's private key, so existing peers cannot be re-issued without a
 # new keypair.
 client_allowed_ips() {
+    [[ "${1:-full}" == "split" ]] || { echo "0.0.0.0/0"; return; }
     local list=""
     if [[ -s "$SPLIT_FILE" ]]; then
         list=$(grep -vE '^[[:space:]]*(#|$)' "$SPLIT_FILE" | paste -sd, -)
     fi
     # A file holding only comments is non-empty but yields nothing, and an empty
     # AllowedIPs would route the client nowhere at all. Fall back rather than
-    # hand out a config that cannot carry traffic.
-    [[ -n "$list" ]] && echo "$list" || echo "0.0.0.0/0"
+    # hand out a config that cannot carry traffic. Warn, because the caller
+    # asked for a split and is not getting one.
+    if [[ -z "$list" ]]; then
+        echo "awg-client: no split list at $SPLIT_FILE, issuing a full tunnel" >&2
+        echo "0.0.0.0/0"
+    else
+        echo "$list"
+    fi
 }
 
 # Escape a blob for embedding in a JSON string. Peer names are already
@@ -114,11 +125,13 @@ peer_rows() {
 }
 
 do_add() {
-    local name="" tofile=0 asjson=0 want_ip="" priv pub ip used n
+    local name="" tofile=0 asjson=0 want_ip="" mode=full priv pub ip used n
     while [[ $# -gt 0 ]]; do
         case "$1" in
             --file) tofile=1 ;;
             --json) asjson=1 ;;
+            --split) mode=split ;;
+            --full)  mode=full ;;
             --ip)   [[ $# -ge 2 ]] || die "--ip needs an address"
                     want_ip="$2"; shift ;;
             --ip=*) want_ip="${1#--ip=}" ;;
@@ -177,7 +190,7 @@ do_add() {
     fi
 
     local cfg allowed
-    allowed=$(client_allowed_ips)
+    allowed=$(client_allowed_ips "$mode")
     cfg=$(cat <<EOF
 [Interface]
 PrivateKey = ${priv}
@@ -204,8 +217,13 @@ EOF
     # caller never has to parse human text. It carries the private key, exactly
     # like the stdout config does, and is likewise never written to disk here.
     if [[ $asjson -eq 1 ]]; then
-        printf '{"name":"%s","ip":"%s","pubkey":"%s","config":"%s"}\n' \
-            "$name" "$ip" "$pub" "$(printf '%s\n' "$cfg" | json_escape)"
+        # `split` reports what was ACTUALLY issued, which is not always what was
+        # asked for: a missing list downgrades to a full tunnel. The dashboard
+        # records this value, so its display can never drift from the config.
+        local issued=false
+        [[ "$allowed" != "0.0.0.0/0" ]] && issued=true
+        printf '{"name":"%s","ip":"%s","pubkey":"%s","split":%s,"config":"%s"}\n' \
+            "$name" "$ip" "$pub" "$issued" "$(printf '%s\n' "$cfg" | json_escape)"
         return
     fi
     # --file writes the config beside you (root 0600) for scp to a desktop.
