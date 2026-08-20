@@ -1,101 +1,192 @@
-#!/bin/bash
-# Live view of which traffic is riding the VPN and which is going out direct.
-#
-#   vpn-split-watch [interval]      default 2s, Ctrl-C to quit
-#
-# Two panels, because they answer different questions:
-#
-#   RATES   how many bytes per second are taking each path. awg0's counters are
-#           the decrypted inner traffic; the direct figure is wlp2s0 minus awg0,
-#           so it is approximate - the tunnel's own encrypted packets and their
-#           overhead also cross wlp2s0. Treat it as "is anything material going
-#           out in the clear", not as an exact byte count.
-#
-#   FLOWS   every established connection, with the path the kernel will actually
-#           use for it. This is the authoritative half: it asks the routing
-#           table the same question the kernel asks, per destination.
-#
-# With the Microsoft 365 split in place, Teams/Outlook/SharePoint/Office and
-# Entra sign-in should show DIRECT and everything else VPN. See awg-split-update.
-set -uo pipefail
+#!/usr/bin/env python3
+"""Live view of which traffic is riding the VPN and which is going out direct.
 
-IF_VPN=awg0
-INTERVAL="${1:-2}"
+    vpn-split-watch [interval]      default 2s, Ctrl-C to quit
 
-# Physical interface = whatever currently carries the default route.
-phys() { ip route show default | grep -oP 'dev \K\S+' | head -1; }
+Two panels, answering different questions:
 
-counter() { cat "/sys/class/net/$1/statistics/$2" 2>/dev/null || echo 0; }
+  RATES   bytes/sec down each path. awg0's counters are the decrypted inner
+          traffic; the direct figure is the physical interface minus awg0, so
+          the tunnel's own encrypted packets land in the same subtraction.
+          Read it as "is anything material leaving in the clear", not as an
+          exact count - it never reads zero.
 
-human() {
-    local b=$1
-    if   (( b >= 1048576 )); then printf '%6.1f MB/s' "$(bc -l <<<"$b/1048576")"
-    elif (( b >= 1024    )); then printf '%6.1f kB/s' "$(bc -l <<<"$b/1024")"
-    else                          printf '%6d  B/s' "$b"
-    fi
-}
+  FLOWS   every established connection, with the path the kernel will actually
+          use, asked of the routing table per destination. This is the
+          authoritative half. DIRECT rows sort first.
 
-# Cache route decisions: ss can list the same peer many times and `ip route get`
-# is a syscall each time.
-declare -A ROUTE_CACHE
-path_for() {
-    local ip=$1
-    [[ -n "${ROUTE_CACHE[$ip]:-}" ]] && { echo "${ROUTE_CACHE[$ip]}"; return; }
-    local dev
-    dev=$(ip route get "$ip" 2>/dev/null | grep -oP 'dev \K\S+' | head -1)
-    local verdict="DIRECT"
-    [[ "$dev" == "$IF_VPN" ]] && verdict="VPN"
-    ROUTE_CACHE[$ip]=$verdict
-    echo "$verdict"
-}
+The HOST column is a best-effort identification, NOT the real SNI: reading that
+needs packet capture. It is a reverse-DNS lookup, overridden by the label table
+below when the address falls in a known range - because PTR is exactly useless
+for the addresses that matter here (most Microsoft service IPs have no PTR at
+all, and Google's all say 1e100.net).
 
-trap 'printf "\e[?25h\n"; exit 0' INT TERM
-printf '\e[?25l'    # hide cursor; the trap puts it back
+With the Microsoft 365 split in place, Teams/Outlook/SharePoint/Office and Entra
+sign-in should read DIRECT and everything else VPN. See awg-split-update.
+"""
+import ipaddress, os, socket, subprocess, sys, time
+from concurrent.futures import ThreadPoolExecutor
 
-PHYS=$(phys)
-[[ -z "$PHYS" ]] && { echo "no default route; is the network up?" >&2; exit 1; }
+VPN_IF = "awg0"
 
-prev_v=$(( $(counter "$IF_VPN" rx_bytes) + $(counter "$IF_VPN" tx_bytes) ))
-prev_p=$(( $(counter "$PHYS"   rx_bytes) + $(counter "$PHYS"   tx_bytes) ))
+# Display labels only. These do NOT drive routing - the kernel does, and the
+# PATH column asks it directly. They exist so a screen full of bare 52.x
+# addresses is readable. Ranges match awg-split-update's exclusion set.
+LABELS = [
+    ("52.112.0.0/14",   "Microsoft Teams"),
+    ("52.122.0.0/15",   "Microsoft Teams"),
+    ("52.96.0.0/14",    "Outlook/Exchange"),
+    ("40.96.0.0/13",    "Outlook/Exchange"),
+    ("40.104.0.0/15",   "Outlook/Exchange"),
+    ("132.245.0.0/16",  "Outlook/Exchange"),
+    ("23.103.160.0/20", "Outlook/Exchange"),
+    ("52.104.0.0/14",   "SharePoint/OneDrive"),
+    ("40.108.128.0/17", "SharePoint/OneDrive"),
+    ("104.146.128.0/17","SharePoint/OneDrive"),
+    ("52.108.0.0/14",   "Office web apps"),
+    ("20.190.128.0/18", "Microsoft sign-in"),
+    ("40.126.0.0/18",   "Microsoft sign-in"),
+    ("20.20.32.0/19",   "Microsoft sign-in"),
+    ("20.231.128.0/19", "Microsoft sign-in"),
+    ("13.107.0.0/16",   "Microsoft (Front Door)"),
+    ("150.171.0.0/16",  "Microsoft (Front Door)"),
+    ("152.69.172.0/24", "your OCI server"),
+    ("10.0.2.0/24",     "VPN internal"),
+]
+LABELS = [(ipaddress.ip_network(n), t) for n, t in LABELS]
 
-while :; do
-    sleep "$INTERVAL"
+route_cache, host_cache = {}, {}
+pool = ThreadPoolExecutor(max_workers=16)
 
-    if ! ip link show "$IF_VPN" &>/dev/null; then
-        clear; echo "  $IF_VPN is DOWN - everything is going out direct."
-        continue
-    fi
 
-    now_v=$(( $(counter "$IF_VPN" rx_bytes) + $(counter "$IF_VPN" tx_bytes) ))
-    now_p=$(( $(counter "$PHYS"   rx_bytes) + $(counter "$PHYS"   tx_bytes) ))
-    # Inner (decrypted) traffic, and what crossed the wire beyond it.
-    rate_v=$(( (now_v - prev_v) / INTERVAL ))
-    rate_d=$(( (now_p - prev_p - (now_v - prev_v)) / INTERVAL ))
-    (( rate_d < 0 )) && rate_d=0          # tunnel overhead can outrun the delta
-    prev_v=$now_v; prev_p=$now_p
+def phys_iface():
+    out = run(["ip", "route", "show", "default"])
+    for tok in out.split():
+        if tok == "dev":
+            return out.split()[out.split().index("dev") + 1]
+    return None
 
-    clear
-    hs=$(sudo awg show "$IF_VPN" latest-handshakes 2>/dev/null | awk '{print $2}' | head -1)
-    if [[ -n "$hs" && "$hs" != 0 ]]; then
-        age=$(( $(date +%s) - hs )); state="up, handshake ${age}s ago"
-    else
-        state="up, NO HANDSHAKE"
-    fi
-    printf '  VPN %s (%s)   direct via %s\n\n' "$IF_VPN" "$state" "$PHYS"
-    printf '  RATES   through VPN: %s      direct: %s\n\n' \
-        "$(human "$rate_v")" "$(human "$rate_d")"
 
-    printf '  %-7s %-22s %-6s %s\n' PATH REMOTE PORT PROCESS
-    printf '  %-7s %-22s %-6s %s\n' ------- ---------------------- ------ ---------------
-    # -n keeps ss from resolving names (slow, and it would resolve through the
-    # tunnel anyway); the peer column is addr:port, IPv6 in brackets.
-    sudo ss -tunpH state established 2>/dev/null \
-      | awk '{print $5, $6}' \
-      | while read -r peer proc; do
-            addr=${peer%:*}; port=${peer##*:}
-            addr=${addr#[}; addr=${addr%]}
-            [[ -z "$addr" || "$addr" == "*" ]] && continue
-            name=$(sed -n 's/.*(("\([^"]*\)".*/\1/p' <<<"$proc")
-            printf '  %-7s %-22s %-6s %s\n' "$(path_for "$addr")" "$addr" "$port" "${name:-?}"
-        done | sort | head -30
-done
+def run(cmd):
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True, timeout=5).stdout
+    except Exception:
+        return ""
+
+
+def counter(iface, which):
+    try:
+        with open(f"/sys/class/net/{iface}/statistics/{which}") as f:
+            return int(f.read())
+    except OSError:
+        return 0
+
+
+def human(b):
+    for unit, div in (("MB/s", 1 << 20), ("kB/s", 1 << 10)):
+        if b >= div:
+            return "%7.1f %s" % (b / div, unit)
+    return "%7d  B/s" % b
+
+
+def path_for(ip):
+    """Which interface the kernel will use. Cached; ip route get is a syscall."""
+    if ip not in route_cache:
+        out = run(["ip", "route", "get", ip]).split()
+        dev = out[out.index("dev") + 1] if "dev" in out else ""
+        route_cache[ip] = "VPN" if dev == VPN_IF else "DIRECT"
+    return route_cache[ip]
+
+
+def label_for(ip):
+    addr = ipaddress.ip_address(ip)
+    for net, text in LABELS:
+        if addr in net:
+            return text
+    return None
+
+
+def host_for(ip):
+    """Label if known, else PTR. Looked up off-thread so a slow or missing PTR
+    never stalls the display; the row shows blank until the answer lands."""
+    if ip in host_cache:
+        return host_cache[ip]
+    known = label_for(ip)
+    if known:
+        host_cache[ip] = known
+        return known
+    host_cache[ip] = ""                       # placeholder while it resolves
+    def resolve():
+        try:
+            host_cache[ip] = socket.gethostbyaddr(ip)[0]
+        except Exception:
+            host_cache[ip] = "-"
+    pool.submit(resolve)
+    return ""
+
+
+def flows():
+    out = run(["sudo", "ss", "-tunpH", "state", "established"])
+    seen = []
+    for line in out.splitlines():
+        f = line.split()
+        if len(f) < 5:
+            continue
+        peer = f[4]
+        proc = f[5] if len(f) > 5 else ""
+        addr, _, port = peer.rpartition(":")
+        addr = addr.strip("[]")
+        if not addr or addr == "*":
+            continue
+        name = ""
+        if '"' in proc:
+            name = proc.split('"')[1]
+        seen.append((path_for(addr), addr, port, name))
+    # DIRECT first: those are the rows worth looking at.
+    return sorted(set(seen), key=lambda r: (r[0] != "DIRECT", r[1]))
+
+
+def main():
+    interval = float(sys.argv[1]) if len(sys.argv) > 1 else 2.0
+    ph = phys_iface()
+    if not ph:
+        sys.exit("no default route; is the network up?")
+
+    prev_v = counter(VPN_IF, "rx_bytes") + counter(VPN_IF, "tx_bytes")
+    prev_p = counter(ph, "rx_bytes") + counter(ph, "tx_bytes")
+    print("\033[?25l", end="")
+    try:
+        while True:
+            time.sleep(interval)
+            if not os.path.exists(f"/sys/class/net/{VPN_IF}"):
+                print("\033[H\033[2J  %s is DOWN - everything is going out direct." % VPN_IF)
+                continue
+
+            now_v = counter(VPN_IF, "rx_bytes") + counter(VPN_IF, "tx_bytes")
+            now_p = counter(ph, "rx_bytes") + counter(ph, "tx_bytes")
+            rate_v = int((now_v - prev_v) / interval)
+            rate_d = max(0, int((now_p - prev_p - (now_v - prev_v)) / interval))
+            prev_v, prev_p = now_v, now_p
+
+            hs = run(["sudo", "awg", "show", VPN_IF, "latest-handshakes"]).split()
+            age = int(time.time()) - int(hs[1]) if len(hs) > 1 and hs[1] != "0" else None
+            state = f"handshake {age}s ago" if age is not None else "NO HANDSHAKE"
+
+            rows = flows()
+            out = ["\033[H\033[2J",
+                   f"  VPN {VPN_IF} ({state})   direct via {ph}\n",
+                   f"  RATES   through VPN: {human(rate_v)}      direct: {human(rate_d)}\n",
+                   "  %-7s %-16s %-6s %-16s %s" % ("PATH", "REMOTE", "PORT", "PROCESS", "HOST / SERVICE"),
+                   "  %-7s %-16s %-6s %-16s %s" % ("-" * 7, "-" * 16, "-" * 6, "-" * 16, "-" * 30)]
+            for path, addr, port, proc in rows[:30]:
+                out.append("  %-7s %-16s %-6s %-16s %s"
+                           % (path, addr, port, proc or "?", host_for(addr)))
+            print("\n".join(out))
+    except KeyboardInterrupt:
+        pass
+    finally:
+        print("\033[?25h", end="")
+
+
+if __name__ == "__main__":
+    main()

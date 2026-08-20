@@ -533,12 +533,31 @@ Two things constrain this far more than they look:
   Two panels. **RATES** is bytes/sec down each path; `awg0`'s counters are the
   decrypted inner traffic and the direct figure is the physical interface minus
   that, so it is approximate (the tunnel's own encrypted packets cross the same
-  wire) - read it as "is anything material leaving in the clear". **FLOWS** is
-  the authoritative half: every established connection with the path the kernel
-  will actually use, asked of the routing table per destination, DIRECT rows
-  first. Teams, Outlook, SharePoint, Office and Entra sign-in should read
-  DIRECT; everything else, including the dashboard at `10.0.2.1`, should read
-  VPN.
+  wire) - read it as "is anything material leaving in the clear", and note it
+  never reads zero. **FLOWS** is the authoritative half: every established
+  connection with process, host and the path the kernel will actually use,
+  asked of the routing table per destination, DIRECT rows first.
+
+  ```
+  PATH    REMOTE           PORT   PROCESS          HOST / SERVICE
+  DIRECT  52.123.176.73    443    chrome           Microsoft Teams
+  DIRECT  52.108.8.12      443    chrome           Office web apps
+  DIRECT  152.69.172.139   443    claude           your OCI server
+  VPN     10.0.2.1         443    firefox          VPN internal
+  VPN     140.82.113.25    443    firefox          lb-...-iad.github.com
+  ```
+
+  Teams, Outlook, SharePoint, Office and Entra sign-in should read DIRECT;
+  everything else, including the dashboard at `10.0.2.1`, should read VPN.
+
+  `HOST / SERVICE` is a best-effort identification and **not the real SNI** -
+  reading that needs packet capture. It is reverse DNS, overridden by a small
+  built-in label table when the address falls in a known range, because PTR is
+  useless for exactly the addresses that matter here (most Microsoft service IPs
+  have no PTR at all, and every Google address answers `1e100.net`). PTR is
+  resolved off-thread, so a slow lookup never stalls the display and a row can
+  be blank for a frame or two before its name lands. The label table is display
+  only; the PATH column always asks the kernel.
 
   Consequence worth knowing: reaching the server's *public* address no longer
   goes through the tunnel, because the endpoint hole covers it. `ssh oci` still
