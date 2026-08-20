@@ -53,6 +53,20 @@ MIN_PREFIX = 24
 # and 104.47/17 together are what push a full list past the QR limit).
 MAIL_ONLY = ('protection.outlook.com', 'mx.microsoft')
 
+# Policy 4: punch the VPN endpoint OUT of the tunnel. This is not an
+# optimisation, it is what makes a split config work at all on wg-quick.
+#
+# With AllowedIPs = 0.0.0.0/0, wg-quick routes via fwmark plus a
+# suppress_prefixlength rule, and the tunnel's own packets to the endpoint
+# escape through that. A split list contains no /0, so wg-quick falls back to
+# adding one plain route per CIDR and sets no fwmark - and the endpoint sits
+# inside 152.0.0.0/5, so its route points into awg0. WireGuard then tries to
+# reach its own endpoint through itself and nothing moves.
+#
+# A /24 rather than the bare /32: a lone address costs ~32 CIDRs of the QR
+# budget and a /24 costs 24, and the surrounding block is the same OCI range.
+ENDPOINT_HOLE = ipaddress.ip_network('152.69.172.0/24')
+
 # Must keep working no matter what Microsoft publishes.
 TUNNEL_SUBNET = ipaddress.ip_network('10.0.2.0/24')
 SERVER_ENDPOINT = ipaddress.ip_network('152.69.172.139/32')
@@ -86,6 +100,7 @@ def wanted_networks(feed):
                 continue                                # policy 2
             else:
                 out.add(net)
+    out.add(ENDPOINT_HOLE)                                  # policy 4
     return list(ipaddress.collapse_addresses(out))
 
 
@@ -153,10 +168,14 @@ def main():
         sys.exit(f'awg-split-update: only {len(excludes)} ranges, refusing')
 
     allowed = complement(excludes)
-    # The tunnel would eat itself if either of these stopped being routed.
-    for critical in (TUNNEL_SUBNET, SERVER_ENDPOINT):
-        if not any(critical.subnet_of(n) for n in allowed):
-            sys.exit(f'awg-split-update: {critical} would leave the tunnel, refusing')
+    # The tunnel subnet must stay inside the tunnel, or clients lose the server
+    # and the dashboard with it.
+    if not any(TUNNEL_SUBNET.subnet_of(n) for n in allowed):
+        sys.exit(f'awg-split-update: {TUNNEL_SUBNET} would leave the tunnel, refusing')
+    # And the endpoint must stay OUT of it, or wg-quick routes WireGuard's own
+    # packets back into the interface they came from. See ENDPOINT_HOLE.
+    if any(SERVER_ENDPOINT.subnet_of(n) for n in allowed):
+        sys.exit(f'awg-split-update: {SERVER_ENDPOINT} would route into the tunnel, refusing')
 
     line = ','.join(str(n) for n in allowed)
     if not check_qr(line):

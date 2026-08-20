@@ -490,8 +490,8 @@ Two things constrain this far more than they look:
   `qrencode --level=M` tops out near 2331 bytes. A full tunnel is 9 bytes of
   `AllowedIPs`; a split is 120 CIDRs. Microsoft's *complete* published list
   comes to 193 CIDRs / 2975 bytes and does not fit a QR at any error-correction
-  level, so three measured policies trim it back to 120 CIDRs / 1600 bytes
-  (a 1912-byte config, a version 37 QR):
+  level, so four measured policies bring it to 138 CIDRs / 1861 bytes
+  (a 2172-byte config, still inside a level-M QR):
 
   1. **Snap to parent blocks** `13.107.0.0/16`, `150.171.0.0/16`, `52.96.0.0/11`.
      The first two are Front Door anycast, so snapping them also catches the CDN
@@ -504,11 +504,27 @@ Two things constrain this far more than they look:
      lone `/32`s as extra addresses for hostnames whose main ranges are already
      excluded. Each one punches a deep hole in the complement and costs 14-21
      CIDRs of the budget to catch a single address.
-  3. **Drop inbound mail-flow ranges** (`*.protection.outlook.com`,
+  3. **Punch the VPN endpoint out of the tunnel** (`152.69.172.0/24`). This one
+     is not about size, it is what makes a split work on `wg-quick` at all.
+     With `AllowedIPs = 0.0.0.0/0`, wg-quick routes via `fwmark` plus a
+     `suppress_prefixlength` rule and the tunnel's own packets escape through
+     that. A split list contains no `/0`, so wg-quick instead adds one plain
+     route per CIDR and sets no fwmark - and `152.69.172.139` sits inside
+     `152.0.0.0/5`, so its route points into `awg0` and WireGuard tries to reach
+     its own endpoint through itself. Nothing moves. A `/24` rather than the
+     bare `/32` because a lone address costs ~32 CIDRs of the QR budget against
+     24 for a `/24`, in the same OCI range either way. `awg-split-update`
+     asserts the endpoint is **outside** the list and the `10.0.2.0/24` tunnel
+     subnet is **inside** it, refusing to write otherwise.
+  4. **Drop inbound mail-flow ranges** (`*.protection.outlook.com`,
      `*.mx.microsoft`). These are what a *sending mail server* talks to, never
      user traffic, so they do nothing for geolocation - and `40.92.0.0/15`,
      `40.107.0.0/16` and `104.47.0.0/17` together are precisely what pushes a
      full list past the QR limit.
+
+  Consequence worth knowing: reaching the server's *public* address no longer
+  goes through the tunnel, because the endpoint hole covers it. `ssh oci` still
+  works directly, and `10.0.2.1` remains available over the tunnel.
 
   `awg-split-update` **enforces the budget itself**: it runs the candidate list
   through `qrencode` and refuses to write if it would not fit, keeping the
