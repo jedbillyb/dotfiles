@@ -171,6 +171,9 @@ bindsym $mod+p      exec Thunar
 
 bindsym $mod+Shift+v exec $HOME/.local/bin/vpn-toggle.sh
 bindsym $mod+Shift+c exec $HOME/.local/bin/caffeine-toggle.sh
+# Screen mirroring to a Miracast TV (the Win+K equivalent). Wi-Fi Direct,
+# so it needs no route to the TV - it works even on a captive/guest network.
+bindsym $mod+Shift+m exec gnome-network-displays
 bindsym $mod+Shift+i exec /home/jed/.local/bin/sway-lock.sh
 bindsym $mod+Shift+o exec swaymsg exit
 bindsym $mod+Shift+p exec loginctl poweroff

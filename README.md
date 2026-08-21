@@ -20,6 +20,11 @@ My personal configuration files.
 - `wofi/config`, `wofi/style.css` - Wofi app launcher config and theme
 - `foot/foot.ini` - foot terminal config (sway runs `footclient` against a foot server)
 - `xdg-desktop-portal/` - Portal backend selection so Flatpak apps get a working file picker on sway (`*-portals.conf`)
+- `xdg-desktop-portal-wlr/config` - Which output the wlroots portal screencasts.
+  `chooser_type` otherwise defaults to a chooser and slurp is installed, so every
+  screen share - Miracast, a browser share, OBS - would open a drag-to-select
+  region prompt first. `output_name` is per-machine; `swaymsg -t get_outputs`
+  lists the valid names
 - `airdrop/config` - Per-machine settings for
   [airdrop-mt7921](https://github.com/jedbillyb/airdrop-mt7921), sourced by both
   `airdrop.sh` and `airdropd`. Sets `RECV_DIR=/mnt/shared/airdrop` so received
@@ -1264,6 +1269,51 @@ sudo visudo -c
 Without the rule the keybinding still works - the privileged layers no-op
 silently (there is no TTY to prompt on) and only the `nmcli` layer runs.
 
+### Screen mirroring to a TV (Miracast)
+
+`$mod+Shift+m` launches **gnome-network-displays**, which casts this screen to a
+Miracast sink - the same thing Win+K does on the Windows partition.
+
+It is Wi-Fi Direct (Wi-Fi P2P), *not* a network protocol: the laptop talks to
+the TV radio-to-radio, so it works on a guest/captive network where the TV and
+laptop cannot route to each other, and client isolation doesn't matter. The
+MT7921 advertises `P2P-client`, `P2P-GO` and `P2P-device`, and NetworkManager
+exposes the radio as a separate `p2p-dev-wlp2s0` device, so nothing special is
+needed to enable it. On a Samsung set the receiver is the tile named
+**Link to Windows** (or "Screen Mirroring" in the source list) - the name is
+Samsung's branding, the protocol underneath is plain Miracast and a Linux
+sender is fine.
+
+The packages, none of which are pulled in automatically:
+
+```sh
+sudo xbps-install -S gnome-network-displays \
+    gstreamer1-pipewire gst-plugins-good1 gst-plugins-ugly1 gst-libav
+```
+
+The two that actually bite:
+
+- **`gstreamer1-pipewire`** provides `pipewiresrc`, which is how the app gets
+  the screen out of the portal. Without it the sink is discovered and the
+  connection is made, then nothing is ever sent.
+- **`gst-plugins-good1`** provides `rtpmp2tpay` and `udpsink`. The rest of the
+  pipeline (`mpegtsmux`, `openh264enc`) lives in `gst-plugins-bad1`, which was
+  already installed, so the failure looks like a half-working install.
+
+`vah264enc` is available on this machine, so encoding is done on the GPU rather
+than by `openh264enc` on the CPU.
+
+Discovery takes about five seconds after the window opens. If the TV never
+appears, check that the P2P device exists and is idle rather than blaming the
+app:
+
+```sh
+nmcli device | grep wifi-p2p    # expect: p2p-dev-wlp2s0  wifi-p2p  disconnected
+```
+
+NetworkManager's P2P support requires the **wpa_supplicant** backend; it does
+not exist under iwd, so switching the backend silently removes Miracast.
+
 ### Fingerprint / lock screen
 
 `sway-idle.sh` runs swayidle and locks with **swaylock-fprintd**, a fork of
@@ -1833,6 +1883,7 @@ Two other fixes are baked into that entry:
 | --- | --- |
 | `$mod+Shift+v` | Toggle WireGuard VPN (status in bar, green when on) |
 | `$mod+Shift+c` | Toggle caffeine / stay-awake (blocks idle lock + lid suspend; status in bar) |
+| `$mod+Shift+m` | Mirror the screen to a Miracast TV (the Win+K equivalent) |
 | `$mod+Shift+i` | Lock screen (swaylock-fprintd, auto fingerprint) |
 | `$mod+Shift+o` | Exit sway, back to TTY |
 | `$mod+Shift+p` | Power off |

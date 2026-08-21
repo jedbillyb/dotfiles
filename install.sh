@@ -56,6 +56,7 @@ link wofi/style.css "$CONFIG/wofi/style.css"
 link foot/foot.ini "$CONFIG/foot/foot.ini"
 link xdg-desktop-portal/sway-portals.conf "$CONFIG/xdg-desktop-portal/sway-portals.conf"
 link xdg-desktop-portal/portals.conf      "$CONFIG/xdg-desktop-portal/portals.conf"
+link xdg-desktop-portal-wlr/config        "$CONFIG/xdg-desktop-portal-wlr/config"
 link airdrop/config "$CONFIG/airdrop/config"
 # Bluetooth sink roles off: the iPhone is paired for notifications, not audio.
 link wireplumber/wireplumber.conf.d "$CONFIG/wireplumber/wireplumber.conf.d"

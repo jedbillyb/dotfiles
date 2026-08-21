@@ -1,0 +1,13 @@
+# Screencast source for xdg-desktop-portal-wlr (sway/wlroots).
+#
+# chooser_type defaults to "default", which uses the first hardcoded chooser it
+# can find - slurp is installed, so without this every screencast (Miracast via
+# gnome-network-displays, a browser screen share, OBS) opens a drag-to-select
+# region prompt before it will start. This machine has a single output, so
+# there is nothing to choose: pin it and skip the prompt entirely.
+#
+# output_name is per-machine. `swaymsg -t get_outputs` lists the valid names.
+[screencast]
+output_name=eDP-1
+chooser_type=none
+max_fps=30
