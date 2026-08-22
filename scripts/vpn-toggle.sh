@@ -89,6 +89,7 @@ connected() {
 if wg_is_up || "$AMNEZIA" status >/dev/null 2>&1 || "$WSTUNNEL" status >/dev/null 2>&1 || "$PROXY" status >/dev/null 2>&1; then
     set_state "disconnecting"
     wg_is_up && sudo /usr/bin/wg-quick down wg0 >/dev/null 2>&1
+    rm -f "${XDG_RUNTIME_DIR:-/tmp}/vpn-facts/wg0.facts"
     "$AMNEZIA" down >/dev/null 2>&1
     "$WSTUNNEL" down >/dev/null 2>&1
     "$PROXY" down >/dev/null 2>&1
@@ -101,10 +102,21 @@ fi
 set_state "connecting"
 NET="$(current_net)"
 
+# Leave the endpoint we actually dialled where the waybar module can read it:
+# `wg show` needs root and waybar has none. Removed on teardown so a stale file
+# can never be presented as live. See waybar/vpn-status.sh.
+FACTS_DIR="${XDG_RUNTIME_DIR:-/tmp}/vpn-facts"
+
+record_facts() {
+    mkdir -p "$FACTS_DIR"
+    sudo "$2" show "$1" endpoints 2>/dev/null \
+        | awk 'NF > 1 { print "endpoint=" $2; exit }' > "$FACTS_DIR/$1.facts"
+}
+
 try_wg() {
     sudo /usr/bin/wg-quick up wg0 >/dev/null 2>&1 || return 1
     for _ in $(seq 1 $((HANDSHAKE_TIMEOUT * 2))); do
-        wg_handshaked && return 0
+        wg_handshaked && { record_facts wg0 /usr/bin/wg; return 0; }
         sleep 0.5
     done
     # No handshake means UDP is blocked here; don't leave the interface

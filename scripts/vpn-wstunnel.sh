@@ -23,6 +23,11 @@ WG_IF="wg-tcp"
 RUNDIR="/tmp/vpn-wstunnel"
 WST_PID="${RUNDIR}/wstunnel.pid"
 WST_LOG="${RUNDIR}/wstunnel.log"
+# For the waybar module, which runs unprivileged. The wireguard peer here is
+# only 127.0.0.1 - the interesting remote is the wstunnel server, so that is
+# what gets recorded. See waybar/vpn-status.sh.
+FACTS_DIR="${XDG_RUNTIME_DIR:-/tmp}/vpn-facts"
+FACTS="${FACTS_DIR}/${WG_IF}.facts"
 DIAG_LOG="${RUNDIR}/diagnostics.log"
 OK_FLAG="${RUNDIR}/confirmed"
 WD_PID="${RUNDIR}/watchdog.pid"
@@ -121,6 +126,7 @@ down() {
     load_env || return 1
     stop_watchdog
     wg_up && sudo /usr/bin/wg-quick down "$WG_IF" >/dev/null 2>&1
+    rm -f "$FACTS"
     if [[ -f "$WST_PID" ]]; then
         kill "$(cat "$WST_PID")" 2>/dev/null
         rm -f "$WST_PID"
@@ -176,6 +182,10 @@ up() {
         handshaked && { got=yes; break; }
         sleep 0.5
     done
+
+    mkdir -p "$FACTS_DIR"
+    printf 'endpoint=%s:443\n' "$WST_HOST" > "$FACTS"
+
     if [[ $got != yes ]]; then
         echo "no handshake over wstunnel; see $WST_LOG" >&2
         capture_diag

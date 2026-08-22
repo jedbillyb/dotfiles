@@ -34,6 +34,11 @@ RUNDIR="/tmp/vpn-amnezia"
 DIAG_LOG="${RUNDIR}/diagnostics.log"
 OK_FLAG="${RUNDIR}/confirmed"
 WD_PID="${RUNDIR}/watchdog.pid"
+# What we actually dialled, left where the unprivileged waybar module can read
+# it. `awg show` needs root and waybar has none, so the tooltip would otherwise
+# have to hardcode an endpoint and quietly go stale the day it changes.
+FACTS_DIR="${XDG_RUNTIME_DIR:-/tmp}/vpn-facts"
+FACTS="${FACTS_DIR}/${AWG_IF}.facts"
 
 HANDSHAKE_TIMEOUT=15
 WATCHDOG_TIMEOUT=45
@@ -99,7 +104,7 @@ stop_watchdog() {
 down() {
     stop_watchdog
     awg_up && sudo "$AWG_QUICK" down "$AWG_IF" >/dev/null 2>&1
-    rm -f "$OK_FLAG"
+    rm -f "$OK_FLAG" "$FACTS"
 }
 
 up() {
@@ -121,6 +126,12 @@ up() {
         handshaked && { got=yes; break; }
         sleep 0.5
     done
+
+    # Written after the handshake, so it records an endpoint that is known to
+    # answer rather than one that was merely configured.
+    mkdir -p "$FACTS_DIR"
+    sudo "$AWG" show "$AWG_IF" endpoints 2>/dev/null \
+        | awk 'NF > 1 { print "endpoint=" $2; exit }' > "$FACTS"
     if [[ $got != yes ]]; then
         echo "no handshake on UDP/123" >&2
         capture_diag

@@ -1,0 +1,139 @@
+#!/usr/bin/env python3
+"""Answer "is this peer's Microsoft 365 split actually working?" from the server.
+
+Runs ON THE OCI SERVER as root, deployed to /usr/local/bin/awg-flows and reached
+only through `awg-client flows`, which is the awg-dashboard's single sudo entry
+point. Source of truth is this copy in dotfiles.
+
+The trick is that AllowedIPs is pure client-side routing policy - the server is
+never told what a client decided to tunnel. But it does see the consequence: a
+split client sends Microsoft 365 traffic straight out its local link, so those
+flows never appear in the server's conntrack table. So:
+
+    Microsoft flows seen arriving on awg0 == 0   ->  the split is working
+    Microsoft flows seen arriving on awg0  > 0   ->  that device is full-tunnel
+
+The "is it Microsoft" test is not a second, drifting copy of the range list: a
+destination counts as Microsoft exactly when it is NOT covered by
+split-allowedips.txt, which is the same file baked into the client's config. If
+the generator's idea of Microsoft changes, both sides move together.
+
+    awg-flows [--json]        one object covering every tunnel IP with flows
+
+conntrack's first src=/dst= pair is the original direction (pre-NAT), which is
+what we want - the post-NAT pair has the server's own address in it.
+"""
+import ipaddress
+import json
+import re
+import subprocess
+import sys
+from datetime import datetime, timezone
+
+SPLIT_FILE = '/etc/awg-dash/split-allowedips.txt'
+TUNNEL_SUBNET = ipaddress.ip_network('10.0.2.0/24')
+
+# Only used to give a destination a human name in the UI. Nothing branches on
+# these - the split decision above is made purely by the range list.
+LABELS = [
+    (ipaddress.ip_network('13.107.0.0/16'),    'Microsoft 365'),
+    (ipaddress.ip_network('150.171.0.0/16'),   'Microsoft Teams'),
+    (ipaddress.ip_network('52.96.0.0/11'),     'Exchange / Outlook'),
+    (ipaddress.ip_network('152.69.172.0/24'),  'this VPN server'),
+    (ipaddress.ip_network('20.0.0.0/8'),       'Azure'),
+    (ipaddress.ip_network('40.0.0.0/8'),       'Azure'),
+]
+
+LINE = re.compile(
+    r'^(?P<proto>\w+)\s+\d+\s+\d+\s+(?P<state>[A-Z_]+\s+)?'
+    r'src=(?P<src>\S+)\s+dst=(?P<dst>\S+)\s+sport=(?P<sport>\d+)\s+dport=(?P<dport>\d+)\s+'
+    r'packets=(?P<opkts>\d+)\s+bytes=(?P<obytes>\d+)')
+REPLY = re.compile(r'packets=(\d+)\s+bytes=(\d+)')
+
+
+def load_split():
+    """The CIDRs a split client routes INTO the tunnel. Empty list == no file."""
+    nets = []
+    try:
+        with open(SPLIT_FILE) as fh:
+            for line in fh:
+                line = line.split('#', 1)[0].strip()
+                if line:
+                    nets.append(ipaddress.ip_network(line))
+    except FileNotFoundError:
+        return []
+    return nets
+
+
+def label_for(addr):
+    for net, name in LABELS:
+        if addr in net:
+            return name
+    return None
+
+
+def main():
+    split = load_split()
+    out = subprocess.run(['conntrack', '-L', '-s', str(TUNNEL_SUBNET)],
+                         capture_output=True, text=True, timeout=20)
+    peers = {}
+
+    for line in out.stdout.splitlines():
+        m = LINE.match(line)
+        if not m:
+            continue
+        try:
+            src = ipaddress.ip_address(m.group('src'))
+            dst = ipaddress.ip_address(m.group('dst'))
+        except ValueError:
+            continue
+        if src not in TUNNEL_SUBNET:
+            continue
+        # Traffic to the server itself over the tunnel (the dashboard, DNS on
+        # 10.0.2.1) is not evidence either way, so it is left out entirely.
+        if dst in TUNNEL_SUBNET:
+            continue
+
+        reply = REPLY.findall(line)
+        obytes = int(m.group('obytes'))
+        rbytes = int(reply[1][1]) if len(reply) > 1 else 0
+        total = obytes + rbytes
+
+        p = peers.setdefault(str(src), {
+            'flows': 0, 'bytes': 0,
+            'offsplit': {'flows': 0, 'bytes': 0, 'samples': []},
+        })
+        p['flows'] += 1
+        p['bytes'] += total
+
+        # Covered by the split list == the client was meant to tunnel it, and
+        # did. Not covered == a split client should have sent this out its own
+        # link, so seeing it here means this device is NOT running the split.
+        if split and not any(dst in net for net in split):
+            off = p['offsplit']
+            off['flows'] += 1
+            off['bytes'] += total
+            if len(off['samples']) < 12:
+                off['samples'].append({
+                    'dst': str(dst), 'proto': m.group('proto'),
+                    'dport': int(m.group('dport')),
+                    'bytes': total, 'label': label_for(dst),
+                })
+
+    for p in peers.values():
+        p['offsplit']['samples'].sort(key=lambda s: -s['bytes'])
+
+    print(json.dumps({
+        'generated': datetime.now(timezone.utc).isoformat(timespec='seconds'),
+        # A missing range list means every destination would look "off split",
+        # so the dashboard must refuse to draw a verdict rather than shout.
+        'split_list': {'present': bool(split), 'cidrs': len(split)},
+        'peers': peers,
+    }))
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except subprocess.TimeoutExpired:
+        sys.exit('awg-flows: conntrack timed out')

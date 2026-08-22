@@ -30,7 +30,7 @@ table below, then to PTR, so a row is never blank forever.
 With the Microsoft 365 split in place, Teams/Outlook/SharePoint/Office and Entra
 sign-in should read DIRECT and everything else VPN. See awg-split-update.
 """
-import ipaddress, os, socket, struct, subprocess, sys, threading, time
+import ipaddress, os, shutil, socket, struct, subprocess, sys, threading, time
 from concurrent.futures import ThreadPoolExecutor
 
 VPN_IF = "awg0"
@@ -79,7 +79,13 @@ def plausible_hostname(name):
         return False
     if name[0] in ".-" or name[-1] in ".-":
         return False
-    return all(c.isalnum() or c in ".-" for c in name)
+    if not all(c.isalnum() or c in ".-" for c in name):
+        return False
+    # A real name ends in a TLD. This is what rejects a ClientHello that was cut
+    # in half by the segment boundary: "upload.offi" parses fine and has a dot,
+    # but "offi" is not a TLD, so the prefix does not survive.
+    labels = name.split(".")
+    return len(labels) >= 2 and len(labels[-1]) >= 2 and labels[-1].isalpha()
 
 
 def sni_from_tls(payload):
@@ -107,6 +113,11 @@ def sni_from_tls(payload):
                 if payload[i + 2] != 0:                     # name_type: host_name
                     return None
                 n = struct.unpack(">H", payload[i + 3:i + 5])[0]
+                # A big ClientHello can span two segments, and slicing past the
+                # end yields a silent PREFIX of the real hostname - which is
+                # where "uploa" came from. Demand the whole name or nothing.
+                if i + 5 + n > len(payload):
+                    return None
                 name = payload[i + 5:i + 5 + n].decode("ascii", "replace")
                 return name if plausible_hostname(name) else None
             i += elen
@@ -282,14 +293,36 @@ def main():
             state = f"handshake {age}s ago" if age is not None else "NO HANDSHAKE"
 
             rows = flows()
+            direct = [r for r in rows if r[0] == "DIRECT"]
+            tunnel = [r for r in rows if r[0] != "DIRECT"]
+
+            # Both halves have to stay visible. Sorting DIRECT first and then
+            # cutting at a fixed 30 meant a busy Office session pushed every
+            # tunnelled row off the bottom, so the panel silently stopped
+            # answering the only question it exists to answer.
+            budget = max(10, shutil.get_terminal_size((100, 40)).lines - 10)
+            keep_t = min(len(tunnel), max(4, budget // 3))
+            keep_d = min(len(direct), budget - keep_t)
+            keep_t = min(len(tunnel), budget - keep_d)
+
             out = ["\033[H\033[2J",
                    f"  VPN {VPN_IF} ({state})   direct via {ph}\n",
                    f"  RATES   through VPN: {human(rate_v)}      direct: {human(rate_d)}\n",
+                   f"  FLOWS   {len(direct)} direct (outside the VPN)"
+                   f"      {len(tunnel)} through the tunnel\n",
                    "  %-7s %-16s %-6s %-14s %s" % ("PATH", "REMOTE", "PORT", "PROCESS", "HOST / SERVICE"),
                    "  %-7s %-16s %-6s %-14s %s" % ("-" * 7, "-" * 16, "-" * 6, "-" * 14, "-" * 30)]
-            for path, addr, port, proc in rows[:30]:
-                out.append("  %-7s %-16s %-6s %-14s %s"
-                           % (path, addr, port, proc or "?", host_for(addr)))
+
+            def block(rs, keep, total):
+                for path, addr, port, proc in rs[:keep]:
+                    out.append("  %-7s %-16s %-6s %-14s %s"
+                               % (path, addr, port, proc or "?", host_for(addr)))
+                if total > keep:
+                    out.append("  %-7s ... %d more not shown" % ("", total - keep))
+
+            block(direct, keep_d, len(direct))
+            out.append("")
+            block(tunnel, keep_t, len(tunnel))
             print("\n".join(out))
     except KeyboardInterrupt:
         pass

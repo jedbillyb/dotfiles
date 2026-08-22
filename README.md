@@ -16,7 +16,10 @@ My personal configuration files.
   USB WiFi, AirDrop, AirPods, calendar, heat pump, and Claude indicators). The calendar
   module styles two failure states, `auth` (Google OAuth token expired or
   revoked) and `stale` (fetching is failing and the cache has aged out), so a
-  broken backend is visible instead of collapsing to an empty module
+  broken backend is visible instead of collapsing to an empty module. Clicking
+  the module forces an immediate re-fetch; clicking it while it shows `cal auth`
+  opens the Google OAuth consent flow in a terminal, so the 7-day token expiry is
+  fixed from the bar instead of by hand
 - `wofi/config`, `wofi/style.css` - Wofi app launcher config and theme
 - `foot/foot.ini` - foot terminal config (sway runs `footclient` against a foot server)
 - `xdg-desktop-portal/` - Portal backend selection so Flatpak apps get a working file picker on sway (`*-portals.conf`)

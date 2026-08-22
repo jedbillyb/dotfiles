@@ -18,6 +18,11 @@
 #                           which it wants explicitly.
 #   awg-client list [--json]  show configured peers, IPs, handshake, transfer
 #   awg-client del <name>     remove the peer live and from the config file
+#   awg-client flows          read-only split-tunnel audit: for every tunnel
+#                           IP with live conntrack entries, how many of its
+#                           flows are headed outside the split list. Zero on a
+#                           split client is the proof the split is working -
+#                           see awg-flows for the reasoning.
 #   awg-client egress ...     per-client public IP: list/alloc/release/apply.
 #                           Hands straight off to the root helper at
 #                           /usr/local/lib/awg-dash/egress.py, which owns the
@@ -46,6 +51,7 @@ set -euo pipefail
 CONF=/etc/amnezia/amneziawg/awg0.conf
 IFACE=awg0
 EGRESS_HELPER=/usr/local/lib/awg-dash/egress.py
+FLOWS_HELPER=/usr/local/bin/awg-flows
 # The OCI SDK only exists inside the CLI's virtualenv, so the helper is run with
 # that interpreter when it is present and the system one otherwise - the helper
 # degrades to "no new allocations" rather than failing outright.
@@ -309,6 +315,14 @@ do_list() {
     done
 }
 
+# Read-only: parses the kernel's conntrack table and reports, per tunnel IP,
+# how many live flows are headed somewhere the split list does NOT cover. See
+# the header of awg-flows for why that is the whole test.
+do_flows() {
+    [[ -x "$FLOWS_HELPER" ]] || die "flows helper not installed at $FLOWS_HELPER"
+    exec "$FLOWS_HELPER" "$@"
+}
+
 do_egress() {
     [[ -x "$EGRESS_HELPER" ]] || die "egress helper not installed at $EGRESS_HELPER"
     local py=$EGRESS_PYTHON
@@ -321,5 +335,6 @@ case "${1:-}" in
     del)    [[ $# -eq 2 ]] || die "usage: awg-client del <name>"; do_del "$2" ;;
     list)   shift; do_list "${1:-}" ;;
     egress) shift; do_egress "$@" ;;
-    *)      die "usage: awg-client add <name> [--ip A.B.C.D] [--json|--file] | list [--json] | del <name> | egress list|alloc|release|apply" ;;
+    flows)  shift; do_flows "$@" ;;
+    *)      die "usage: awg-client add <name> [--ip A.B.C.D] [--json|--file] | list [--json] | del <name> | egress list|alloc|release|apply | flows" ;;
 esac
