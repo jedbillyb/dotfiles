@@ -52,7 +52,8 @@ window#waybar {
 #custom-vpn,
 #custom-caffeine,
 #custom-network,
-#custom-usbwifi,
+#custom-wifiband,
+#custom-bluetooth,
 #custom-airdrop,
 #custom-airpods,
 #custom-heatpump,
@@ -130,11 +131,31 @@ window#waybar {
     color: #e0af68;
 }
 
-#custom-usbwifi.on {
-    color: #7aa2f7;
+/* Colour carries the band, the text carries auto vs lock. 2.4 GHz shares the
+   mt7921 radio with Bluetooth and measured 0.00 Mbit/s against 80 Mbit/s on
+   5 GHz, so being on it is the thing worth flagging - amber, like the other
+   caution states in this bar. Deliberately no blue: 5 GHz pinned is the normal
+   resting state here, and it should look as calm as everything else. */
+#custom-wifiband.band5 {
+    color: #9ece6a;
 }
 
-#custom-usbwifi.off {
+#custom-wifiband.band24 {
+    color: #e0af68;
+}
+
+#custom-wifiband.disconnected {
+    color: #aaaaaa;
+}
+
+/* Plain on/off, same language as the caffeine and vpn toggles beside it. */
+#custom-bluetooth.on,
+#custom-bluetooth.connected {
+    color: #9ece6a;
+}
+
+#custom-bluetooth.off,
+#custom-bluetooth.missing {
     color: #aaaaaa;
 }
 

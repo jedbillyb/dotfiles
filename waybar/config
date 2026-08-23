@@ -5,7 +5,7 @@
     "exclusive": true,
     "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/airpods", "custom/heatpump", "custom/airdrop", "custom/caffeine", "custom/vpn", "custom/notifications", "custom/usbwifi", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
+    "modules-right": ["custom/airpods", "custom/heatpump", "custom/airdrop", "custom/caffeine", "custom/vpn", "custom/notifications", "custom/bluetooth", "custom/wifiband", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
 
     "sway/workspaces": {
         "disable-scroll": true,
@@ -86,11 +86,22 @@
         "tooltip": true
     },
 
-    "custom/usbwifi": {
-        "exec": "~/.config/waybar/usbwifi-status.sh",
+    "custom/wifiband": {
+        "exec": "~/.config/waybar/wifi-band.sh",
         "return-type": "json",
         "interval": 5,
-        "tooltip": false
+        "signal": 13,
+        "on-click": "~/.config/waybar/wifi-band.sh toggle",
+        "tooltip": true
+    },
+
+    "custom/bluetooth": {
+        "exec": "~/.config/waybar/bluetooth-status.sh",
+        "return-type": "json",
+        "interval": 10,
+        "signal": 14,
+        "on-click": "~/.config/waybar/bluetooth-status.sh toggle",
+        "tooltip": true
     },
 
     "custom/airdrop": {

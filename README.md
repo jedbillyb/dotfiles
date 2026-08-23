@@ -13,7 +13,7 @@ My personal configuration files.
   `udevadm trigger --subsystem-match=backlight --action=add` once to pick it up
 - `i3/config` - i3 window manager config (legacy)
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
-  USB WiFi, AirDrop, AirPods, calendar, heat pump, and Claude indicators). The calendar
+  WiFi band, Bluetooth, AirDrop, AirPods, calendar, heat pump, and Claude indicators). The calendar
   module styles two failure states, `auth` (Google OAuth token expired or
   revoked) and `stale` (fetching is failing and the cache has aged out), so a
   broken backend is visible instead of collapsing to an empty module. Clicking
@@ -72,6 +72,12 @@ My personal configuration files.
 - `scripts/sway-lock.sh` - Lock screen launcher (swaylock-fprintd, bound to mod+Shift+i)
 - `scripts/touchpad-resume-fix.sh` - Unsticks the touchpad after resume (elogind hook + mod+Shift+r)
 - `scripts/waybar-toggle.sh`, `scripts/waybar-run.sh` - Show/hide waybar (mod+b) and launch it
+- `waybar/wifi-band.sh` - Bar module showing which band WiFi is actually on, and
+  whether it is pinned there; click cycles auto / 5 GHz / 2.4 GHz. See "2.4 GHz,
+  Bluetooth and the mt7921 combo chip" below for why the band is the thing worth
+  watching on this machine
+- `waybar/bluetooth-status.sh` - Bar module showing Bluetooth power state and
+  connected device count, click toggles the controller
 - `scripts/wifi-compare.sh` - Compares onboard vs USB WiFi adapter throughput
 - `scripts/wifi-recover.sh` - Forces WiFi back to a known-good state after
   suspend or AWDL/AirDrop testing (bound alongside the touchpad fix on
@@ -1208,6 +1214,43 @@ busctl --user call org.blueman.Applet /org/blueman/Applet \
 which should print `0`. Note the setting **replaces** the plugin list, so add
 any other `!Plugin` entries to the same array rather than running the command
 again with a different one.
+
+### 2.4 GHz, Bluetooth and the mt7921 combo chip
+
+The onboard `mt7921e` is a combined WiFi + Bluetooth part, and both radios share
+the 2.4 GHz front end. `ancs4linux` keeps a BLE link to the iPhone up permanently
+for notifications, so on this laptop 2.4 GHz WiFi is essentially always competing
+with Bluetooth.
+
+Measured 2026-08-23, same room, minutes apart, nothing else changed:
+
+| | 2.4 GHz | 5 GHz |
+|---|---|---|
+| throughput | **0.00 Mbit/s** | **80.98 Mbit/s** |
+| ping 1.1.1.1 | 143 ms avg, 20% loss | 21.7 ms avg, 0% loss |
+| arping the router | 452 ms median | 5.1 ms median |
+| link | re-associating every ~60 s | stable |
+
+The home AP publishes one SSID on both bands, so band steering hands the client
+back to 2.4 GHz whenever 5 GHz gets weak - which happens just by walking around,
+since 5 GHz measured -32 dBm near the router and -75 dBm further away. The result
+looks exactly like an ISP fault: the connection dies, comes back, and dies again,
+with excellent signal the whole time.
+
+`waybar/wifi-band.sh` makes the band visible (amber on 2.4 GHz, green on 5 GHz)
+and clicking it cycles the NetworkManager `802-11-wireless.band` preference
+through auto -> `a` (5 GHz) -> `bg` (2.4 GHz). Pinning to 5 GHz is the fix. If the
+pinned band has no usable AP the script reverts to the previous setting and
+reconnects rather than leaving the machine offline.
+
+The other half of the fix is `waybar/bluetooth-status.sh`, which toggles the
+controller. Turning Bluetooth off frees the radio, at the cost of iPhone
+notifications and any headset audio - hence a deliberate click, not automatic.
+
+**Diagnostic trap worth remembering:** `arping` to the router was 3.1 ms on
+2.4 GHz while throughput was 0.22 Mbit/s. Low latency on tiny frames does *not*
+prove a link can carry throughput under coexistence. Always measure throughput
+per band before blaming the ISP.
 
 ### WiFi recovery after AirDrop/AWDL testing
 
