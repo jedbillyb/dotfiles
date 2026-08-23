@@ -1247,6 +1247,24 @@ The other half of the fix is `waybar/bluetooth-status.sh`, which toggles the
 controller. Turning Bluetooth off frees the radio, at the cost of iPhone
 notifications and any headset audio - hence a deliberate click, not automatic.
 
+**It toggles rfkill, not `bluetoothctl power off`, and that is not incidental.**
+Power-off does not stick here: three things race to switch the adapter back on
+within a minute.
+
+- `ancs4linux-watchdog` re-arms the BLE advert every 30s, and its
+  `bluetoothctl discoverable on` powers the controller as a side effect
+- `ancs4linux-reconnect` runs `bluetoothctl connect` on the bonded iPhone
+  every 60s
+- `/etc/bluetooth/main.conf` sets `AutoEnable=true`
+
+A soft rfkill block sits underneath all three - BlueZ cannot power up a blocked
+controller - so the toggle holds. Verified off for 100s across three watchdog
+cycles, where a plain power-off came back inside a minute.
+
+While blocked, `ancs4linux-watchdog` logs a failed re-arm every 30s to
+`/var/log/ancs4linux-watchdog`. That is expected, and is not evidence of a fault
+when Bluetooth is deliberately off.
+
 **Diagnostic trap worth remembering:** `arping` to the router was 3.1 ms on
 2.4 GHz while throughput was 0.22 Mbit/s. Low latency on tiny frames does *not*
 prove a link can carry throughput under coexistence. Always measure throughput
