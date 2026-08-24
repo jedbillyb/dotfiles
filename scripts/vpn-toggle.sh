@@ -20,8 +20,15 @@
 # that worked is remembered per network and tried first next time. Everything
 # else still falls back in the normal order, and a remembered transport that
 # stops working just falls through the rest of the ladder as usual.
+#
+# But falling *back* is one-way: nothing ever re-checks the faster transports,
+# so a single bad connect pins the slowest thing that happened to work. That is
+# not hypothetical - Karamu Devices sat on `ws` (4.3 Mbit/s) for days while
+# `awg` (72 Mbit/s) worked the entire time. The hint therefore expires, and one
+# connect per CACHE_TTL pays for walking the ladder from the top again.
 
 HANDSHAKE_TIMEOUT=12
+CACHE_TTL=21600  # 6h
 SCRIPT_DIR="$(dirname "$(readlink -f "$0")")"
 PROXY="$SCRIPT_DIR/vpn-proxy.sh"
 WSTUNNEL="$SCRIPT_DIR/vpn-wstunnel.sh"
@@ -64,7 +71,12 @@ current_net() {
 
 recall_transport() {
     [[ -f "$CACHE_FILE" ]] || return 0
-    awk -F'\t' -v n="$1" '$1==n {print $2; exit}' "$CACHE_FILE"
+    awk -F'\t' -v n="$1" -v now="$(date +%s)" -v ttl="$CACHE_TTL" '
+        $1 == n {
+            # Two-field lines predate the timestamp and count as expired.
+            if (NF >= 3 && $3 + ttl > now) print $2
+            exit
+        }' "$CACHE_FILE"
 }
 
 remember_transport() {
@@ -73,7 +85,7 @@ remember_transport() {
     mkdir -p "$(dirname "$CACHE_FILE")"
     tmp=$(mktemp) || return 0
     [[ -f "$CACHE_FILE" ]] && awk -F'\t' -v n="$net" '$1!=n' "$CACHE_FILE" > "$tmp"
-    printf '%s\t%s\n' "$net" "$t" >> "$tmp"
+    printf '%s\t%s\t%s\n' "$net" "$t" "$(date +%s)" >> "$tmp"
     mv "$tmp" "$CACHE_FILE"
 }
 

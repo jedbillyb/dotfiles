@@ -115,8 +115,12 @@ up() {
     # below - including an unexpected hang - still gets undone.
     start_watchdog
 
-    if ! sudo "$AWG_QUICK" up "$AWG_IF" >/dev/null 2>&1; then
-        echo "awg-quick up $AWG_IF failed" >&2
+    echo "===== $(date -Is) awg-quick up =====" >>"$DIAG_LOG"
+    # Keep awg-quick's own words. Without them a tier-2 failure inside
+    # vpn-toggle.sh is invisible - the ladder just moves on to the slow
+    # transport and nothing anywhere records why.
+    if ! sudo "$AWG_QUICK" up "$AWG_IF" >>"$DIAG_LOG" 2>&1; then
+        echo "awg-quick up $AWG_IF failed (see $DIAG_LOG)" >&2
         down
         return 1
     fi

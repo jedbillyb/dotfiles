@@ -387,11 +387,28 @@ and rewrites its own entry. Verified by poisoning the cache with `wg` on a
 network where `wg` cannot work: it failed, fell through to `awg`, and corrected
 the entry itself. Unrecognised values are ignored. Delete the file to reset.
 
+**The hint expires after 6h** (`CACHE_TTL`), and this matters more than it
+sounds. Falling back is one-way: the ladder only ever moves *down* it, so
+nothing re-checks the faster transports and one bad connect pins the slowest
+one that happened to work. On 2026-08-25 `Karamu Devices` was found sitting on
+`ws` at **4.3 Mbit/s** while `awg` was doing **72 Mbit/s** on the same wifi -
+tier 2 had failed once, days earlier, and was never tried again. Each cache line
+is `SSID<TAB>transport<TAB>epoch`; past the TTL the entry is ignored and the
+ladder is walked from the top, which costs one slow connect per 6h at worst.
+Two-field lines from before this change read as expired.
+
+A tier-2 failure used to be invisible for the same reason - `vpn-toggle.sh`
+discards each attempt's output, so `awg-quick up` could fail for any reason at
+all and the only trace was the bar quietly reading `vpn tcp`. `vpn-amnezia.sh`
+now appends `awg-quick`'s own stderr to `/tmp/vpn-amnezia/diagnostics.log`
+(`vpn-amnezia.sh diag`) on every `up`, failed or not.
+
 #### Reading the waybar module
 
 `vpn-status.sh` names the transport rather than just on/off, because
 `vpn-toggle.sh` silently falls back through four of them and they are not
-equivalent - measured on the school wifi, `awg` is ~3x faster than `ws`:
+equivalent - measured on the school wifi, `awg` beats `ws` by 3x on a good
+day and by **17x** on a bad one (72 vs 4.3 Mbit/s, 2026-08-25):
 
 | Bar text | Transport | Colour |
 |---|---|---|
