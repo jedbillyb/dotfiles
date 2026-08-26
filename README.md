@@ -50,6 +50,9 @@ My personal configuration files.
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
 - `scripts/vpn-amnezia.sh` - Full-tunnel AmneziaWG over UDP/123, for networks
   that fingerprint the WireGuard handshake (`up|down|status|diag`)
+- `scripts/vpn-autoconnect.sh` - Brings AmneziaWG up by itself on the networks
+  in `AUTO_NETS`, from a NetworkManager dispatcher hook and an elogind resume
+  hook (installed as a root-owned copy at `/usr/local/bin/vpn-autoconnect`)
 - `scripts/awg-client` - Server-side client provisioning and per-client egress
   addressing, deployed to the OCI box as `/usr/local/bin/awg-client`
 - `scripts/awg-split-update` - Regenerates the Microsoft 365 split-tunnel range
@@ -402,6 +405,55 @@ discards each attempt's output, so `awg-quick up` could fail for any reason at
 all and the only trace was the bar quietly reading `vpn tcp`. `vpn-amnezia.sh`
 now appends `awg-quick`'s own stderr to `/tmp/vpn-amnezia/diagnostics.log`
 (`vpn-amnezia.sh diag`) on every `up`, failed or not.
+
+#### Auto-connecting on the networks that need it
+
+On `Karamu Devices` the VPN is not optional - it is the only way out that is not
+filtered - so having to press `mod+Shift+v` after every boot, wake and reconnect
+was a standing tax, and forgetting it meant browsing the school network in the
+clear without noticing. `scripts/vpn-autoconnect.sh` connects on its own, but
+only on the SSIDs listed in its `AUTO_NETS`; everywhere else the VPN stays a
+deliberate keypress.
+
+It runs from two hooks, both pointing at the same root-owned copy at
+`/usr/local/bin/vpn-autoconnect`, both created by `install.sh`:
+
+| Hook | Covers |
+| --- | --- |
+| `/etc/NetworkManager/dispatcher.d/50-vpn-autoconnect` | boot, and every reconnect or network switch |
+| `/usr/libexec/elogind/system-sleep/vpn-autoconnect` | waking on a network the laptop never left, where NetworkManager may raise no activation at all |
+
+A copy rather than a symlink into this repo, for the same reason as
+`wifi-recover-root` - both hooks run as root, and NetworkManager refuses to run
+a dispatcher script it does not see as root-owned, so the symlink shape does not
+work anyway. Re-run `install.sh` after editing the script.
+
+It goes straight to `vpn-amnezia.sh` rather than through `vpn-toggle.sh`'s
+ladder: on these networks plain WireGuard provably cannot handshake, so the
+ladder would only spend 12s failing at the top of it and hand the DPI exactly
+the fingerprint it watches for. Everything else is guards:
+
+- **Only `up` events.** NetworkManager fires dispatcher scripts for the whole
+  `dhcp4-change` / `connectivity-change` churn that follows a connect, and
+  acting on those would re-raise a tunnel the user had just switched off. Only
+  wireless interfaces count, so `awg0` coming up cannot feed back into here.
+- **A manual disconnect wins for an hour.** `vpn-toggle.sh` stamps
+  `$XDG_RUNTIME_DIR/vpn-autoconnect-off` when it tears a tunnel down by hand;
+  auto-connect refuses to act while that stamp is fresh. Without it, turning the
+  VPN off to reach the school printers (`10.1.1.12`, unreachable through the
+  full tunnel) would be silently undone by the next resume. It expires rather
+  than latching, so a laptop slept with the VPN off still wakes up protected the
+  next day.
+- **It waits up to 30s for the SSID.** After resume the radio is usually still
+  reassociating, so asking `nmcli` once would read an empty SSID and conclude
+  the network was uninteresting.
+- **`flock`, and it detaches.** One connect at a time regardless of how many
+  events arrive, and the hook returns immediately - NetworkManager kills a
+  dispatcher script that runs long, and a connect takes tens of seconds.
+
+There is no syslog daemon on this machine, so it logs to
+`/tmp/vpn-amnezia/autoconnect.log`, next to `vpn-amnezia.sh diag`. Read the two
+together: a failed auto-connect is invisible by definition.
 
 #### Reading the waybar module
 

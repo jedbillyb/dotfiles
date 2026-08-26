@@ -35,6 +35,11 @@ WSTUNNEL="$SCRIPT_DIR/vpn-wstunnel.sh"
 AMNEZIA="$SCRIPT_DIR/vpn-amnezia.sh"
 STATE_FILE="${XDG_RUNTIME_DIR:-/tmp}/vpn-toggle-state"
 CACHE_FILE="${XDG_CACHE_HOME:-$HOME/.cache}/vpn-toggle-transports"
+# Turning the VPN off by hand has to mean something, or vpn-autoconnect.sh
+# would put it straight back up on the next resume - and the school printers
+# are only reachable with the tunnel down. Stamped here, honoured (and expired)
+# there.
+INHIBIT="${XDG_RUNTIME_DIR:-/tmp}/vpn-autoconnect-off"
 
 notify() {
     notify-send -t 3000 "VPN" "$1" 2>/dev/null
@@ -91,6 +96,7 @@ remember_transport() {
 
 connected() {
     remember_transport "$NET" "$1"
+    rm -f "$INHIBIT"
     notify "$2"
     rm -f "$STATE_FILE"
     refresh_waybar
@@ -105,6 +111,7 @@ if wg_is_up || "$AMNEZIA" status >/dev/null 2>&1 || "$WSTUNNEL" status >/dev/nul
     "$AMNEZIA" down >/dev/null 2>&1
     "$WSTUNNEL" down >/dev/null 2>&1
     "$PROXY" down >/dev/null 2>&1
+    date +%s > "$INHIBIT"
     notify "Disconnected"
     rm -f "$STATE_FILE"
     refresh_waybar
@@ -112,6 +119,7 @@ if wg_is_up || "$AMNEZIA" status >/dev/null 2>&1 || "$WSTUNNEL" status >/dev/nul
 fi
 
 set_state "connecting"
+rm -f "$INHIBIT"
 NET="$(current_net)"
 
 # Leave the endpoint we actually dialled where the waybar module can read it:

@@ -76,7 +76,7 @@ mkdir -p "$BIN"
 # Everything in scripts/ that belongs in $BIN. touchpad-resume-fix.sh and
 # wifi-recover-root.sh are deliberately absent: they are installed elsewhere
 # below, into the elogind hook directory and /usr/local/bin respectively.
-for s in vpn-toggle.sh vpn-proxy.sh vpn-wstunnel.sh caffeine-toggle.sh show-desktop.sh sway-idle.sh sway-lock.sh waybar-run.sh waybar-toggle.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py workspace-step.py wofi-dismiss.py wofi-backdrop.py touch-shield.py zed-wrapper; do
+for s in vpn-toggle.sh vpn-proxy.sh vpn-wstunnel.sh vpn-amnezia.sh vpn-autoconnect.sh caffeine-toggle.sh show-desktop.sh sway-idle.sh sway-lock.sh waybar-run.sh waybar-toggle.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py workspace-step.py wofi-dismiss.py wofi-backdrop.py touch-shield.py zed-wrapper; do
 	chmod +x "$REPO/scripts/$s"
 	link "scripts/$s" "$BIN/$s"
 done
@@ -98,6 +98,33 @@ echo "Privileged Wi-Fi recovery helper:"
 WIFI_ROOT="/usr/local/bin/wifi-recover-root"
 sudo install -o root -g root -m 755 "$REPO/scripts/wifi-recover-root.sh" "$WIFI_ROOT"
 info "copy  $WIFI_ROOT"
+
+echo "VPN auto-connect (dispatcher + resume hook):"
+# Same reasoning as the Wi-Fi helper: a root-owned COPY, because both hooks run
+# as root and a symlink into this repo would turn repo write access into root
+# execution. NetworkManager enforces this itself - it refuses to run a
+# dispatcher script that is not root-owned - so the copy is the only shape that
+# works anyway. The hooks are symlinks to the copy, not further copies, so
+# there is one file to keep in step.
+VPN_AUTO="/usr/local/bin/vpn-autoconnect"
+chmod +x "$REPO/scripts/vpn-autoconnect.sh"
+sudo install -o root -g root -m 755 "$REPO/scripts/vpn-autoconnect.sh" "$VPN_AUTO"
+info "copy  $VPN_AUTO"
+
+# NetworkManager: covers boot and every reconnect, including the one that
+# follows a resume.
+NM_HOOK="/etc/NetworkManager/dispatcher.d/50-vpn-autoconnect"
+sudo mkdir -p "$(dirname "$NM_HOOK")"
+sudo ln -sfn "$VPN_AUTO" "$NM_HOOK"
+info "link  $NM_HOOK"
+
+# elogind: the belt to that braces. Waking on a network the laptop never left
+# does not always produce a NetworkManager activation, and the tunnel's own
+# handshake can be stale by then.
+VPN_SLEEP_HOOK="/usr/libexec/elogind/system-sleep/vpn-autoconnect"
+sudo mkdir -p "$(dirname "$VPN_SLEEP_HOOK")"
+sudo ln -sfn "$VPN_AUTO" "$VPN_SLEEP_HOOK"
+info "link  $VPN_SLEEP_HOOK"
 
 echo "Touchscreen gestures (udev + input group):"
 # Copy, not symlink: udev reads its rules very early and before /mnt is
