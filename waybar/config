@@ -5,7 +5,7 @@
     "exclusive": true,
     "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude"],
     "modules-center": ["clock"],
-    "modules-right": ["custom/airpods", "custom/heatpump", "custom/airdrop", "custom/caffeine", "custom/vpn", "custom/pr", "custom/notifications", "custom/bluetooth", "custom/wifiband", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
+    "modules-right": ["custom/airpods", "custom/heatpump", "custom/airdrop", "custom/caffeine", "custom/vpn", "custom/github", "custom/notifications", "custom/bluetooth", "custom/wifiband", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
 
     "sway/workspaces": {
         "disable-scroll": true,
@@ -17,12 +17,12 @@
         "tooltip": false
     },
 
-    "custom/pr": {
-        "exec": "~/.config/waybar/pr-status.sh",
+    "custom/github": {
+        "exec": "~/.config/waybar/gh-status.sh",
         "return-type": "json",
         "interval": 120,
         "signal": 8,
-        "on-click": "~/.config/waybar/pr-status.sh click"
+        "on-click": "~/.config/waybar/gh-status.sh click"
     },
 
     "custom/notifications": {

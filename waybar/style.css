@@ -55,7 +55,7 @@ window#waybar {
 #custom-wifiband,
 #custom-bluetooth,
 #custom-airdrop,
-#custom-pr,
+#custom-github,
 #custom-airpods,
 #custom-heatpump,
 #custom-claude,
@@ -194,23 +194,23 @@ window#waybar {
 }
 
 /* Nothing waiting is the normal state, so the module collapses entirely rather
-   than sitting there reading "pr 0". Amber once something is waiting, red once
+   than sitting there reading "gh 0". Amber once something is waiting, red once
    it has been waiting a week, which is the case this module exists to catch. */
-#custom-pr.none {
+#custom-github.none {
     padding: 0;
     margin: 0;
 }
 
-#custom-pr.review {
+#custom-github.review {
     color: #e0af68;
 }
 
-#custom-pr.stale {
+#custom-github.stale {
     color: #f7768e;
 }
 
 /* The module itself cannot tell: offline, or gh is not authenticated. */
-#custom-pr.error {
+#custom-github.error {
     color: #c07a5a;
 }
 

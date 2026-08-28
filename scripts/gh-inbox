@@ -1,0 +1,340 @@
+#!/usr/bin/env python3
+"""Every open pull request and issue across your own GitHub repos, in one place.
+
+GitHub has no single view of "things sitting in repos I own". The notifications
+inbox goes quiet once you have read a thing, /pulls and /issues only show what
+you opened or were explicitly asked about, and a repo you have not touched in
+months never surfaces at all. That is how two PRs on linux-fingerprint-drivers
+sat for four days and three days.
+
+Six searches, run in parallel and merged by URL:
+
+  owned       open PRs and issues in any repo you own, from anyone
+  authored    open PRs and issues you opened, anywhere
+  requested   open PRs where you are on the reviewer list, anywhere
+  assigned    open issues assigned to you, anywhere
+
+"Repos you own" means every repo under your account, forks included, because
+that is what the GitHub search `user:` qualifier covers.
+
+Usage:
+  gh-inbox                 grouped listing (default)
+  gh-inbox --all           include your own open items and drafts
+  gh-inbox --prs           pull requests only
+  gh-inbox --issues        issues only
+  gh-inbox --count         number waiting on you, for scripts
+  gh-inbox --waybar        one JSON object for a waybar custom module
+  gh-inbox --json          the merged, annotated list
+  gh-inbox --web           open the equivalent GitHub search in a browser
+  gh-inbox --refresh       bypass the cache
+
+Results are cached for 5 minutes in $XDG_CACHE_HOME/gh-inbox so the waybar
+module and the terminal command share one set of API calls.
+"""
+
+import argparse
+import calendar
+import json
+import os
+import shutil
+import subprocess
+import sys
+import time
+import webbrowser
+from concurrent.futures import ThreadPoolExecutor
+from pathlib import Path
+
+TTL = 300
+TIMEOUT = 25
+FIELDS = "number,title,repository,author,createdAt,updatedAt,url,isDraft,labels,commentsCount"
+ISSUE_FIELDS = "number,title,repository,author,createdAt,updatedAt,url,labels,commentsCount,assignees"
+
+CACHE_DIR = Path(os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache") / "gh-inbox"
+CACHE_FILE = CACHE_DIR / "items.json"
+
+# Each entry is (kind, gh search subcommand, tag, extra flags). The tag is what
+# decides whether something is waiting on you, further down.
+SEARCHES = [
+    ("pr", "prs", "owned", ["--owner", "{me}"]),
+    ("pr", "prs", "authored", ["--author", "{me}"]),
+    ("pr", "prs", "requested", ["--review-requested", "@me"]),
+    ("issue", "issues", "owned", ["--owner", "{me}"]),
+    ("issue", "issues", "authored", ["--author", "{me}"]),
+    ("issue", "issues", "assigned", ["--assignee", "@me"]),
+]
+
+
+class GhError(RuntimeError):
+    pass
+
+
+def gh(*args):
+    """Run gh and return stdout. Raises GhError with a usable message."""
+    try:
+        p = subprocess.run(("gh",) + args, capture_output=True, text=True, timeout=TIMEOUT)
+    except FileNotFoundError:
+        raise GhError("gh is not installed")
+    except subprocess.TimeoutExpired:
+        raise GhError("gh timed out")
+    if p.returncode != 0:
+        err = (p.stderr or "").strip().splitlines()
+        msg = err[-1] if err else f"gh exited {p.returncode}"
+        if "auth" in msg.lower() or "logged" in msg.lower():
+            raise GhError("gh is not authenticated (run: gh auth login)")
+        raise GhError(msg)
+    return p.stdout
+
+
+def whoami():
+    return os.environ.get("GH_INBOX_OWNER") or gh("api", "user", "--jq", ".login").strip()
+
+
+def fetch(me):
+    """The six searches, merged into one annotated list keyed by URL.
+
+    Run together: serially this is about ten seconds of search latency, which is
+    long enough that the cache would be doing all the work and a --refresh would
+    feel broken.
+    """
+    def one(spec):
+        kind, sub, tag, flags = spec
+        fields = FIELDS if kind == "pr" else ISSUE_FIELDS
+        flags = [f.replace("{me}", me) for f in flags]
+        try:
+            out = gh("search", sub, "--state", "open", "--limit", "100",
+                     "--json", fields, *flags)
+        except GhError:
+            # One failing search must not lose the other five. No review
+            # requests and no assignments at all is the common case.
+            return kind, tag, []
+        return kind, tag, json.loads(out or "[]")
+
+    with ThreadPoolExecutor(max_workers=len(SEARCHES)) as pool:
+        results = list(pool.map(one, SEARCHES))
+
+    merged = {}
+    for kind, tag, rows in results:
+        for row in rows:
+            entry = merged.setdefault(row["url"], dict(row, kind=kind, tags=[]))
+            entry["tags"].append(tag)
+
+    items = []
+    for it in merged.values():
+        repo = it.get("repository") or {}
+        author = (it.get("author") or {}).get("login") or "?"
+        it["repo"] = repo.get("nameWithOwner") or repo.get("name") or "?"
+        it["repo_short"] = repo.get("name") or it["repo"]
+        it["login"] = author
+        it["mine"] = author.lower() == me.lower()
+        it["in_my_repo"] = it["repo"].split("/")[0].lower() == me.lower()
+        it["draft"] = bool(it.get("isDraft"))
+        # Waiting on you: somebody else's PR or issue in a repo you own, or
+        # anything anywhere that was explicitly put in front of you. Your own
+        # items are your backlog, not your queue, and a draft is not waiting
+        # on anyone yet.
+        it["waiting"] = (not it["draft"]) and (not it["mine"]) and (
+            it["in_my_repo"]
+            or "requested" in it["tags"]
+            or "assigned" in it["tags"]
+        )
+        items.append(it)
+
+    items.sort(key=lambda x: x.get("createdAt") or "")
+    return items
+
+
+def load(refresh=False):
+    """Cached fetch. Returns (items, age_seconds, error_or_None)."""
+    cached, age = None, None
+    if CACHE_FILE.exists():
+        try:
+            blob = json.loads(CACHE_FILE.read_text())
+            cached = blob.get("items")
+            age = time.time() - blob.get("ts", 0)
+        except (OSError, ValueError):
+            cached = None
+
+    if cached is not None and not refresh and age is not None and age < TTL:
+        return cached, age, None
+
+    try:
+        items = fetch(whoami())
+    except GhError as exc:
+        # Offline or unauthenticated: show the stale list rather than nothing,
+        # and let the caller colour it as stale.
+        if cached is not None:
+            return cached, age, str(exc)
+        return [], None, str(exc)
+
+    try:
+        CACHE_DIR.mkdir(parents=True, exist_ok=True)
+        tmp = CACHE_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps({"ts": time.time(), "items": items}))
+        tmp.replace(CACHE_FILE)
+    except OSError:
+        pass
+    return items, 0, None
+
+
+def short(seconds):
+    seconds = int(seconds)
+    for size, suffix in ((86400, "d"), (3600, "h"), (60, "m")):
+        if seconds >= size:
+            return f"{seconds // size}{suffix}"
+    return f"{seconds}s"
+
+
+def age_of(iso):
+    if not iso:
+        return None
+    try:
+        return time.time() - calendar.timegm(time.strptime(iso, "%Y-%m-%dT%H:%M:%SZ"))
+    except ValueError:
+        return None
+
+
+def ago(iso):
+    seconds = age_of(iso)
+    return "?" if seconds is None else short(seconds)
+
+
+C = {"reset": "\033[0m", "dim": "\033[90m", "bold": "\033[1m",
+     "amber": "\033[33m", "blue": "\033[34m"}
+
+
+def paint(text, *names):
+    if not sys.stdout.isatty():
+        return text
+    return "".join(C[n] for n in names) + text + C["reset"]
+
+
+def clip(text, width):
+    return text if len(text) <= width else text[: max(0, width - 1)] + "…"
+
+
+def render(items, show_all, age, error):
+    waiting = [i for i in items if i["waiting"]]
+    mine = [i for i in items if i["mine"] and not i["draft"]]
+    drafts = [i for i in items if i["draft"]]
+
+    groups = [("waiting on you", waiting, "amber")]
+    if show_all:
+        groups += [("opened by you", mine, "blue"), ("drafts", drafts, "dim")]
+
+    if not any(rows for _, rows, _ in groups):
+        print(paint("nothing waiting on you", "dim"))
+        if not show_all and (mine or drafts):
+            print(paint(f"{len(mine) + len(drafts)} of your own open (gh-inbox --all)", "dim"))
+        return
+
+    cols = shutil.get_terminal_size((100, 24)).columns
+    for title, rows, colour in groups:
+        if not rows:
+            continue
+        print()
+        print(paint(f"{title} ({len(rows)})", "bold", colour))
+        print()
+        heads = {i["url"]: f"{i['repo_short']} {'#' if i['kind'] == 'issue' else '!'}{i['number']}"
+                 for i in rows}
+        rw = max(len(h) for h in heads.values())
+        aw = max(len(i["login"]) for i in rows)
+        # One title column per group, so the author and age columns line up and
+        # the eye can run straight down them.
+        room = max(20, min(cols - rw - aw - 14, max(len(i["title"]) for i in rows)))
+        for i in rows:
+            print(
+                f"  {paint(heads[i['url']].ljust(rw), 'bold')}  {clip(i['title'], room).ljust(room)}"
+                f"  {paint(i['login'].ljust(aw), 'dim')} {paint(ago(i.get('createdAt')).rjust(4), 'dim')}"
+            )
+    print()
+    print(paint("! is a pull request, # is an issue", "dim"))
+    if error:
+        print(paint(f"showing cached results: {error}", "dim"))
+    elif age and age > 60:
+        print(paint(f"cached {short(age)} ago", "dim"))
+
+
+def waybar(items, error):
+    """One JSON object for a waybar custom module.
+
+    Silent when nothing is waiting: an empty text plus the "none" class lets the
+    stylesheet collapse the module, the same trick the calendar and claude
+    modules use, so the bar does not carry a permanent "gh 0".
+    """
+    if error and not items:
+        return {"text": "gh ?", "class": "error", "tooltip": error}
+
+    waiting = [i for i in items if i["waiting"]]
+    if not waiting:
+        return {"text": "", "class": "none"}
+
+    lines = [
+        f"{'pr' if i['kind'] == 'pr' else 'issue':<5} {i['repo_short']} #{i['number']}"
+        f"  {clip(i['title'], 54)}  ({i['login']}, {ago(i.get('createdAt'))})"
+        for i in waiting
+    ]
+    # A week untouched is the failure this module exists to stop, so it gets its
+    # own colour rather than blending in with something opened this morning.
+    week = 7 * 86400
+    oldest = max((age_of(i.get("createdAt")) or 0) for i in waiting)
+    cls = "stale" if oldest >= week else "review"
+    if error:
+        cls = "error"
+        lines += ["", f"stale: {error}"]
+    return {"text": f"gh {len(waiting)}", "class": cls, "tooltip": "\n".join(lines)}
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__.split("\n")[0])
+    ap.add_argument("--count", action="store_true", help="print the waiting count only")
+    ap.add_argument("--waybar", action="store_true", help="emit waybar JSON")
+    ap.add_argument("--json", action="store_true", dest="as_json", help="emit the list")
+    ap.add_argument("--web", action="store_true", help="open the GitHub search instead")
+    ap.add_argument("--refresh", action="store_true", help="ignore the cache")
+    ap.add_argument("--all", action="store_true", help="include your own items and drafts")
+    ap.add_argument("--prs", action="store_true", help="pull requests only")
+    ap.add_argument("--issues", action="store_true", help="issues only")
+    args = ap.parse_args()
+
+    if args.web:
+        try:
+            me = whoami()
+        except GhError as exc:
+            print(exc, file=sys.stderr)
+            return 1
+        kind = ""
+        if args.prs:
+            kind = "+is%3Apr"
+        elif args.issues:
+            kind = "+is%3Aissue"
+        webbrowser.open(f"https://github.com/search?q=is%3Aopen+user%3A{me}{kind}&type=issues")
+        return 0
+
+    items, age, error = load(refresh=args.refresh)
+    if args.prs:
+        items = [i for i in items if i["kind"] == "pr"]
+    elif args.issues:
+        items = [i for i in items if i["kind"] == "issue"]
+
+    if args.waybar:
+        print(json.dumps(waybar(items, error)))
+        return 0
+    if args.count:
+        print(sum(1 for i in items if i["waiting"]))
+        return 0
+    if args.as_json:
+        print(json.dumps(items, indent=2))
+        return 0
+
+    if error and not items:
+        print(error, file=sys.stderr)
+        return 1
+    render(items, args.all, age, error)
+    return 0
+
+
+if __name__ == "__main__":
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        sys.exit(130)
