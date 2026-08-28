@@ -848,6 +848,7 @@ gh-inbox --prs      # pull requests only
 gh-inbox --issues   # issues only
 gh-inbox --count    # just the number
 gh-inbox --web      # the same set on github.com
+gh-inbox --refresh  # ignore the cache and re-query
 ```
 
 In the listing, `!` marks a pull request and `#` marks an issue.
