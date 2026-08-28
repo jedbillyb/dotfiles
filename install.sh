@@ -76,7 +76,7 @@ mkdir -p "$BIN"
 # Everything in scripts/ that belongs in $BIN. touchpad-resume-fix.sh and
 # wifi-recover-root.sh are deliberately absent: they are installed elsewhere
 # below, into the elogind hook directory and /usr/local/bin respectively.
-for s in vpn-toggle.sh vpn-proxy.sh vpn-wstunnel.sh vpn-amnezia.sh vpn-autoconnect.sh caffeine-toggle.sh show-desktop.sh sway-idle.sh sway-lock.sh waybar-run.sh waybar-toggle.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py workspace-step.py wofi-dismiss.py wofi-backdrop.py touch-shield.py zed-wrapper; do
+for s in vpn-toggle.sh vpn-proxy.sh vpn-wstunnel.sh vpn-amnezia.sh vpn-autoconnect.sh caffeine-toggle.sh show-desktop.sh sway-idle.sh sway-lock.sh waybar-run.sh waybar-toggle.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py workspace-step.py wofi-dismiss.py wofi-backdrop.py touch-shield.py zed-wrapper gh-prs; do
 	chmod +x "$REPO/scripts/$s"
 	link "scripts/$s" "$BIN/$s"
 done

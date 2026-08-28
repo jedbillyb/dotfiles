@@ -13,7 +13,8 @@ My personal configuration files.
   `udevadm trigger --subsystem-match=backlight --action=add` once to pick it up
 - `i3/config` - i3 window manager config (legacy)
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
-  WiFi band, Bluetooth, AirDrop, AirPods, calendar, heat pump, and Claude indicators). The calendar
+  WiFi band, Bluetooth, AirDrop, AirPods, calendar, heat pump, pull request,
+  and Claude indicators). The calendar
   module styles two failure states, `auth` (Google OAuth token expired or
   revoked) and `stale` (fetching is failing and the cache has aged out), so a
   broken backend is visible instead of collapsing to an empty module. Clicking
@@ -47,6 +48,9 @@ My personal configuration files.
   the touchscreen (see "Touchscreen gestures" below)
 - `scripts/wofi-backdrop.py` - Closes it on a *click* outside the box, via a
   transparent full-screen layer-shell surface underneath it
+- `scripts/gh-prs` - Every open pull request across your own GitHub repos, in
+  one listing (see "Pull request module" below). Also backs the `custom/pr`
+  waybar indicator
 - `scripts/vpn-toggle.sh` - WireGuard VPN toggle (bound to mod+Shift+v)
 - `scripts/vpn-amnezia.sh` - Full-tunnel AmneziaWG over UDP/123, for networks
   that fingerprint the WireGuard handshake (`up|down|status|diag`)
@@ -813,6 +817,51 @@ two modules apart.
 
 The AirPods module sits immediately to its left in `modules-right`, so the heat
 pump module is no longer the leftmost item in the right-hand group.
+
+### Pull request module
+
+`scripts/gh-prs` lists every open pull request across the repos you own, and
+`waybar/pr-status.sh` puts the count on the bar. Unlike the other module
+scripts here, `gh-prs` is a normal command in its own right and is symlinked
+into `~/.local/bin`; the waybar file is a thin shim over it.
+
+It exists because GitHub has no view of "PRs sitting in things I own". The
+notifications inbox goes quiet as soon as you have read a thing, `/pulls` only
+covers PRs you opened or were explicitly asked to review, and a repo you have
+not touched in months never surfaces anywhere. Two PRs on
+linux-fingerprint-drivers sat for four and three days for exactly that reason.
+
+Three `gh search prs` queries are merged and de-duplicated by URL: repos you
+own (from anyone), PRs you opened (anywhere), and PRs where your review was
+requested (anywhere). A PR counts as *waiting on you* when it is not a draft
+and is either somebody else's PR in a repo you own, or one where your review
+was requested. That definition is what the bar counts.
+
+```sh
+gh-prs              # what is waiting on you
+gh-prs --all        # plus your own open PRs and drafts
+gh-prs --count      # just the number
+gh-prs --web        # the same set on github.com
+```
+
+Results are cached for five minutes in `$XDG_CACHE_HOME/gh-prs`, so the bar
+polling every two minutes and the terminal command share one set of API calls
+rather than each paying about five seconds of search latency. `--refresh`
+bypasses it.
+
+The module is silent when nothing is waiting: empty text plus a `none` class,
+which the stylesheet collapses to zero padding, the same trick the calendar and
+Claude modules use. It turns amber when something is waiting and red once
+anything has been waiting a week, which is the case the whole thing exists to
+catch. A muted brown `error` class covers the module not being able to tell,
+which in practice means offline or `gh` not authenticated. Clicking opens the
+equivalent GitHub search, then refreshes the cache and signals waybar
+(`RTMIN+8`) a few seconds later, so the count settles without waiting out the
+poll interval.
+
+Pairs with the `CODEOWNERS` files across the repos (`* @jedbillyb`), which make
+GitHub request your review on every incoming PR. The bar is the fallback for
+when that notification gets missed anyway.
 
 ### Laptop battery colour
 
