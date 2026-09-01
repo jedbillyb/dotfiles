@@ -81,7 +81,8 @@ My personal configuration files.
 - `scripts/sway-idle.sh` - swayidle launcher (idle lock / screen-off), restartable by the caffeine toggle
 - `scripts/sway-lock.sh` - Lock screen launcher (swaylock-fprintd, bound to mod+Shift+i)
 - `scripts/touchpad-resume-fix.sh` - Unsticks the touchpad after resume (elogind hook + mod+Shift+r)
-- `scripts/waybar-toggle.sh`, `scripts/waybar-run.sh` - Show/hide waybar (mod+b) and launch it
+- `scripts/waybar-toggle.sh`, `scripts/waybar-run.sh` - Show/hide waybar (mod+b) and launch it;
+  the runner also decides which bar to run, macOS under Hyprland and compact under sway
 - `waybar/wifi-band.sh` - Bar module showing which band WiFi is actually on, and
   whether it is pinned there; click cycles auto / 5 GHz / 2.4 GHz. See "2.4 GHz,
   Bluetooth and the mt7921 combo chip" below for why the band is the thing worth
@@ -2183,6 +2184,13 @@ terminals show it straight through. This is the same hazard the bar has, where
 is why the two sessions must not be treated as isolated just because only one
 runs at a time.
 
+**The bar is on `exec`, not `exec-once`.** Hyprland's `exec-once` fires only at
+login, so the bar would not come back on `hyprctl reload` ($mod+Shift+r) after
+a config edit; `exec` is the direct equivalent of sway's `exec_always` and
+fires on every reload, which is what `waybar-run.sh`'s reload handover was
+written for. Everything else in this config is `exec-once` because nothing else
+here has a reason to re-run.
+
 ### Status bar
 
 Waybar runs the **compact original bar**: 16px, monospace, workspaces and the
@@ -2191,11 +2199,22 @@ short words with colour carrying state (`vpn awg`, `bt 1`, `wifi 82%`,
 `bat 33%`).
 
 This is deliberate. The sway session is the plain rectangular one, so it keeps
-the plain bar. A macOS-styled version of this same bar lives parked in
-`waybar/macos/` for the separate Hyprland session to point at; nothing
-symlinks it today, and `install.sh` links `waybar/config` and
-`waybar/style.css` only. `waybar/macos/README.md` covers what differs and the
-two font traps that shaped it.
+the plain bar. The macOS-styled version of the same bar lives in
+`waybar/macos/` and belongs to the Hyprland session, which runs it instead.
+`waybar/macos/README.md` covers what differs and the two font traps that
+shaped it.
+
+**Which bar comes up is decided by `waybar-run.sh`, not by the compositor
+config.** The supervisor picks `waybar/macos/{config,style.css}` when
+`HYPRLAND_INSTANCE_SIGNATURE` is set and otherwise lets waybar find its own
+defaults in `waybar/`, then passes the choice through as `-c`/`-s`.
+`WAYBAR_CONFIG`/`WAYBAR_STYLE` override it for trying a bar by hand.
+
+Putting the choice there rather than in an env prefix on Hyprland's `exec`
+matters, because `waybar-run.sh` has a second caller: `waybar-toggle.sh` runs
+it from `$mod+b` when it finds no bar to toggle, and a keybind carries none of
+the session's exec environment. With the choice made at the exec line, a
+`$mod+b` revival under Hyprland would silently come back as the sway bar.
 
 Note that `~/.config/waybar` is a symlink to the whole `waybar/` directory, not
 per-file symlinks, so edits in the repo are live immediately and only a waybar

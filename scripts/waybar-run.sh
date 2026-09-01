@@ -15,6 +15,27 @@ set -u
 
 WAYBAR=${WAYBAR:-waybar}
 
+# Which bar to run. The two sessions deliberately look different: sway keeps
+# the plain rectangular bar in waybar/, and the macOS-styled one in
+# waybar/macos belongs to Hyprland (see waybar/macos/README.md). Detection is
+# by compositor rather than by an env var set at the exec-once, because
+# waybar-toggle.sh also starts this script -- from a keybind, with none of that
+# env -- and a Mod+b revival must not silently come back as the wrong bar.
+# WAYBAR_CONFIG/WAYBAR_STYLE still override, for trying a bar by hand.
+WAYBAR_DIR=${XDG_CONFIG_HOME:-$HOME/.config}/waybar
+if [ -n "${HYPRLAND_INSTANCE_SIGNATURE:-}" ]; then
+	WAYBAR_CONFIG=${WAYBAR_CONFIG:-$WAYBAR_DIR/macos/config}
+	WAYBAR_STYLE=${WAYBAR_STYLE:-$WAYBAR_DIR/macos/style.css}
+else
+	WAYBAR_CONFIG=${WAYBAR_CONFIG:-}
+	WAYBAR_STYLE=${WAYBAR_STYLE:-}
+fi
+# Only pass -c/-s when we actually have a choice to make; with neither set,
+# waybar finds its own defaults exactly as before.
+set --
+[ -n "$WAYBAR_CONFIG" ] && set -- "$@" -c "$WAYBAR_CONFIG"
+[ -n "$WAYBAR_STYLE" ] && set -- "$@" -s "$WAYBAR_STYLE"
+
 # Everything below is scoped per Wayland display. More than one sway session
 # can be running (a second compositor on another tty is easy to end up with),
 # and a shared lock plus a machine-wide `pkill -x waybar` makes them fight:
@@ -171,11 +192,11 @@ delay=$MIN_DELAY
 while :; do
 	kicked=0
 	start=$(date +%s)
-	log "starting waybar"
+	log "starting waybar${1:+ with $* }"
 	# 9>&- keeps the lock fd out of the bar and, more to the point, out of the
 	# module scripts it spawns: one of those outliving its bar while still
 	# holding the lock is what used to strand the bar with no way back.
-	"$WAYBAR" >/dev/null 2>&1 9>&- &
+	"$WAYBAR" "$@" >/dev/null 2>&1 9>&- &
 	bar=$!
 	printf '%s\n' "$bar" >"$PIDFILE" 2>/dev/null || true
 	wait "$bar"

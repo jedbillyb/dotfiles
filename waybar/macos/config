@@ -5,8 +5,8 @@
     "exclusive": true,
     "modules-left": [
         "custom/apple",
-        "sway/window",
-        "sway/workspaces",
+        "hyprland/window",
+        "hyprland/workspaces",
         "custom/calendar",
         "custom/claude"
     ],
@@ -30,7 +30,7 @@
         "custom/spotlight",
         "custom/clock"
     ],
-    "sway/workspaces": {
+    "hyprland/workspaces": {
         "disable-scroll": true,
         "format": "{name}"
     },
@@ -176,8 +176,9 @@
         "tooltip": false,
         "on-click": "wofi --show drun"
     },
-    "sway/window": {
-        "format": "{app_id}",
+    "hyprland/window": {
+        "format": "{class}",
+        "separate-outputs": true,
         "max-length": 22,
         "rewrite": {
             "footclient": "Terminal",
@@ -185,10 +186,9 @@
             "dev.zed.Zed": "Zed",
             "google-chrome": "Chrome",
             "chromium": "Chromium",
-            "Firefox": "Firefox",
+            "[Ff]irefox": "Firefox",
             "vesktop": "Discord",
-            "thunar": "Files",
-            "Thunar": "Files",
+            "[Tt]hunar": "Files",
             "org.pwmt.zathura": "Zathura",
             "": "Finder"
         },
