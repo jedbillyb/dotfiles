@@ -2006,6 +2006,66 @@ amount.
 existing windows keep their old setting until you re-run
 `swaymsg '[app_id=".*"] border pixel 5'` or restart them.
 
+### Compositor (SwayFX)
+
+The compositor is **SwayFX**, not sway: rounded corners, window blur and drop
+shadows are the whole macOS window look and stock sway can do none of them.
+It is built from `/mnt/shared/projects/swayfx-lockbar` and installed to
+`/usr/local`, so the packaged sway at `/usr/bin/sway` is left completely
+untouched and is always there to fall back to.
+
+```sh
+cd /mnt/shared/projects/swayfx-lockbar
+meson setup build --prefix=/usr/local -Dwerror=false
+ninja -C build && sudo ninja -C build install
+```
+
+Needs `scenefx-devel` and `wlroots0.19-devel` on top of the usual sway build
+dependencies.
+
+**Why a fork and not the package.** Void ships `swayfx`, but that package
+writes `/usr/bin/sway` and would overwrite the patched sway this machine
+already ran, losing `lock_visible_namespace` (waybar above the lock screen).
+The `lockbar` branch of `swayfx-lockbar` carries that patch on top of SwayFX
+0.5.3 instead. Both are based on sway 1.11, but the three commits do not apply
+as patches: SwayFX rewrote `layer_shell.c` and the render path for scenefx, so
+the hunks land nowhere and it has to be ported by hand.
+
+One trap in that port, and it costs a full rebuild to find: `handlers[]`,
+`command_handlers[]` and `config_handlers[]` in `sway/commands.c` are all
+**bsearched**, so they must stay alphabetically sorted. SwayFX adds
+`layer_effects` right after `input`, which is exactly where upstream's patch
+inserts `lock_visible_namespace`. Getting that order wrong does not fail to
+compile and does not warn: the command simply comes back as
+`Unknown/invalid command` at config time.
+
+**Switching between the two.** `emptty/emptty` names `/usr/local/bin/sway` by
+absolute path, because emptty's PATH has no `/usr/local/bin`. To go back to
+the packaged sway, from another TTY:
+
+```sh
+rm ~/.config/emptty        # falls back to the stock sway.desktop
+rm ~/.config/sway/effects  # or every SwayFX directive nags on start
+```
+
+**The effects themselves** live in `sway/effects`, included from the main
+config, in their own file precisely so that the fallback above is two `rm`s
+rather than an edit. The values aim at macOS rather than at maximum effect:
+a 10px corner, a soft wide shadow, two blur passes. macOS is conservative
+here, and overshooting any of them is what makes a Linux desktop read as
+"themed" rather than as macOS.
+
+Two settings that are deliberately not the default:
+
+* `smart_corner_radius disable` - SwayFX drops the rounding when a window is
+  alone on screen. A lone maximised macOS window still has rounded corners.
+* `blur_xray disable` - xray blurs only the wallpaper and ignores windows
+  underneath. macOS blurs whatever is actually behind the window.
+
+`layer_effects "waybar" blur enable` is what turns the translucent menu bar
+into a frosted one; layer-shell surfaces do not pick up the global blur
+setting and have to be named.
+
 ### Menu bar
 
 Waybar is styled against Apple's own menu bar diagram rather than from memory,

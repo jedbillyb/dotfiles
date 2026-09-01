@@ -11,10 +11,18 @@
 # DesktopNames mirrors the stock sway.desktop and lands in XDG_CURRENT_DESKTOP,
 # which xdg-desktop-portal uses to pick sway-portals.conf.
 #
+# Exec is the absolute path because the compositor is SwayFX built from
+# /mnt/shared/projects/swayfx-lockbar and installed to /usr/local, and emptty's
+# PATH does not include /usr/local/bin. Naming it here rather than reordering
+# PATH keeps the switch visible in one line.
+#
 # Recovery: if the session ever fails to start, switch to another TTY and
-# `rm ~/.config/emptty` to fall back to the stock sway.desktop entry.
+# `rm ~/.config/emptty` to fall back to the stock sway.desktop entry, which
+# runs the packaged sway at /usr/bin/sway. That build is untouched by any of
+# this, so it is always there. Also `rm ~/.config/sway/effects`, or the
+# SwayFX-only directives in it will nag on every start under stock sway.
 Name=Sway
-Exec=sway
+Exec=/usr/local/bin/sway
 Environment=wayland
 DesktopNames=sway;wlroots
 LoginShell=/bin/bash --login
