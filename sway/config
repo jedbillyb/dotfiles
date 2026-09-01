@@ -41,11 +41,6 @@ client.focused          #00000000 #00000000  #ffffff #00000000 #00000000
 client.focused_inactive #00000000 #00000000  #888888 #00000000 #00000000
 client.unfocused        #00000000 #00000000  #888888 #00000000 #00000000
 
-# Rounded corners, blur and shadows. SwayFX-only, so it lives in its own file:
-# see the header of sway/effects for why, and emptty/emptty for how to fall
-# back to the packaged sway.
-include $HOME/.config/sway/effects
-
 # ── Output / Wallpaper ────────────────────────────────────────────────────────
 
 output * bg /mnt/shared/wallpapers/landscape-mountains-black-white.jpg fill

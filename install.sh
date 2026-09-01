@@ -49,7 +49,6 @@ fi
 
 echo "Configs:"
 link sway/config   "$CONFIG/sway/config"
-link sway/effects  "$CONFIG/sway/effects"
 link i3/config     "$CONFIG/i3/config"
 link waybar        "$CONFIG/waybar"
 link wofi/config    "$CONFIG/wofi/config"

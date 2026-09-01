@@ -2006,93 +2006,47 @@ amount.
 existing windows keep their old setting until you re-run
 `swaymsg '[app_id=".*"] border pixel 5'` or restart them.
 
-### Compositor (SwayFX)
+### Compositor (sway, and the SwayFX detour)
 
-The compositor is **SwayFX**, not sway: rounded corners, window blur and drop
-shadows are the whole macOS window look and stock sway can do none of them.
-It is built from `/mnt/shared/projects/swayfx-lockbar` and installed to
-`/usr/local`, so the packaged sway at `/usr/bin/sway` is left completely
-untouched and is always there to fall back to.
+The compositor is **sway**, at `/usr/bin/sway`. Despite the path that is not
+the packaged binary: it is the locally patched sway 1.11 carrying
+`lock_visible_namespace`, which keeps waybar drawn above the lock screen (see
+`/mnt/shared/projects/sway-lockbar`). xbps still records the file as owned by
+`sway-1.11_2`, so `xbps-query -o` is misleading here; check
+`strings /usr/bin/sway | grep lock_visible_namespace` instead.
 
-```sh
-cd /mnt/shared/projects/swayfx-lockbar
-PKG_CONFIG_PATH=/usr/local/lib/pkgconfig meson setup build --prefix=/usr/local
-ninja -C build && sudo ninja -C build install
-```
+This session is deliberately the **plain rectangular one**. No rounded
+corners, no blur, no shadows. The macOS look lives in a separate Hyprland
+session instead, so the two can be picked between at login without either
+compromising the other.
 
-**Dependencies are the awkward part.** SwayFX 0.6 wants wlroots 0.20 and
-scenefx 0.5. Void packages `wlroots0.20-devel` (install it; it coexists with
-the 0.19 packages, nothing is removed) but its `scenefx` is still 0.4.1, so
-scenefx has to be built from source:
+**The SwayFX detour, and why it was set aside.** SwayFX 0.5.3 then 0.6 was
+built to `/usr/local` (branch `lockbar-0.6` of
+`/mnt/shared/projects/swayfx-lockbar`, with `lock_visible_namespace` ported
+across by hand) to get rounded corners, blur and shadows. It worked, but it
+painted a **fixed rendering artifact at the top-left corner of every window**:
+three near-white pixels at window-relative offset `(6,7)`, `(7,7)`, `(6,8)`,
+with byte-identical values under footclient, Chrome and Firefox. Three
+unrelated applications cannot coincidentally paint the same pixel, so it is
+the compositor. It also survives `blur disable`, `shadows disable` and
+`corner_radius 0`, which is the damning part: the artifact outlives every
+feature that could be drawing it. 0.6 does not fix it, despite upstream
+`ef6d169c` looking like exactly the right fix.
 
-```sh
-git clone https://github.com/wlrfx/scenefx /mnt/shared/projects/scenefx-build
-cd /mnt/shared/projects/scenefx-build && git checkout 0.5
-meson setup build --prefix=/usr/local --buildtype=release -Dexamples=false
-ninja -C build && sudo ninja -C build install
-sudo ldconfig
-```
+Two things worth keeping from that detour:
 
-That `ldconfig` is not optional and its absence is confusing: `/usr/local/lib`
-is already in `/etc/ld.so.conf.d/usr_local.conf`, but the cache is not
-regenerated on install, so sway dies with `libscenefx-0.5.so: cannot open
-shared object file` and the obvious fix (adding a path that is already there)
-does nothing.
+* SwayFX 0.6 is the first release with **animations** of any kind. 0.5.3 has
+  no `animation_duration_ms` and no `animation_manager.c`.
+* `handlers[]`, `command_handlers[]` and `config_handlers[]` in
+  `sway/commands.c` are all **bsearched** and must stay alphabetically
+  sorted. SwayFX inserts `layer_effects` at exactly the slot upstream's
+  `lock_visible_namespace` patch uses. Getting that order wrong does not fail
+  to compile and does not warn: the command simply comes back as
+  `Unknown/invalid command` at config time. This applies to the plain sway
+  patch too.
 
-**Why a fork and not the package.** Void ships `swayfx`, but that package
-writes `/usr/bin/sway` and would overwrite the patched sway this machine
-already ran, losing `lock_visible_namespace` (waybar above the lock screen).
-The `lockbar-0.6` branch of `swayfx-lockbar` carries that patch on top of
-SwayFX 0.6 instead. The three commits do not apply as patches: SwayFX rewrote
-`layer_shell.c` and the render path for scenefx, so the hunks land nowhere and
-it had to be ported by hand once, onto 0.5.3. Moving that port to 0.6 is a
-plain `git cherry-pick` of the resulting commit, which auto-merges cleanly.
-
-**Why 0.6 and not 0.5.3.** Two reasons, both of which were the reason for the
-upgrade rather than side benefits. 0.5.3 painted three near-white pixels at
-the **top-left corner of every window**, always at the same offset and
-independent of window content, which made the corner read as chamfered rather
-than curved; upstream `ef6d169c` (blur corner radius vs buffer) fixes it.
-And 0.6 is the first release with **animations**, which 0.5.3 has no support
-for at all: no `animation_duration_ms`, no `animation_manager.c`.
-
-One trap in that port, and it costs a full rebuild to find: `handlers[]`,
-`command_handlers[]` and `config_handlers[]` in `sway/commands.c` are all
-**bsearched**, so they must stay alphabetically sorted. SwayFX adds
-`layer_effects` right after `input`, which is exactly where upstream's patch
-inserts `lock_visible_namespace`. Getting that order wrong does not fail to
-compile and does not warn: the command simply comes back as
-`Unknown/invalid command` at config time.
-
-**Switching between the two.** `emptty/emptty` names `/usr/local/bin/sway` by
-absolute path, because emptty's PATH has no `/usr/local/bin`. To go back to
-the packaged sway, from another TTY:
-
-```sh
-rm ~/.config/emptty        # falls back to the stock sway.desktop
-rm ~/.config/sway/effects  # or every SwayFX directive nags on start
-```
-
-**The effects themselves** live in `sway/effects`, included from the main
-config, in their own file precisely so that the fallback above is two `rm`s
-rather than an edit. The values aim at macOS rather than at maximum effect:
-a 10px corner, a soft wide shadow, two blur passes. macOS is conservative
-here, and overshooting any of them is what makes a Linux desktop read as
-"themed" rather than as macOS.
-
-Three settings that are deliberately not the default:
-
-* `smart_corner_radius disable` - SwayFX drops the rounding when a window is
-  alone on screen. A lone maximised macOS window still has rounded corners.
-* `blur_xray disable` - xray blurs only the wallpaper and ignores windows
-  underneath. macOS blurs whatever is actually behind the window.
-* `animation_duration_ms 200` - below SwayFX's own 250ms default, because
-  macOS window animations sit around 200ms. One number drives all of them:
-  open, close, resize, move and workspace change.
-
-`layer_effects "waybar" blur enable` is what turns the translucent menu bar
-into a frosted one; layer-shell surfaces do not pick up the global blur
-setting and have to be named.
+Nothing from SwayFX is wired up any more. The build is still at
+`/usr/local/bin/sway` and is inert; `emptty/emptty` names `/usr/bin/sway`.
 
 ### Menu bar
 
