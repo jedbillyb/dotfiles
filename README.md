@@ -2048,56 +2048,23 @@ Two things worth keeping from that detour:
 Nothing from SwayFX is wired up any more. The build is still at
 `/usr/local/bin/sway` and is inert; `emptty/emptty` names `/usr/bin/sway`.
 
-### Menu bar
+### Status bar
 
-Waybar is styled against Apple's own menu bar diagram rather than from memory,
-because the two things that decide whether a bar reads as macOS are both easy
-to get wrong from a description:
+Waybar runs the **compact original bar**: 16px, monospace, workspaces and the
+calendar on the left, clock centred, and the status modules on the right as
+short words with colour carrying state (`vpn awg`, `bt 1`, `wifi 82%`,
+`bat 33%`).
 
-**It is monochrome.** Every status menu is the same white. The only colour in
-Apple's screenshot is the orange privacy indicator, and it is coloured
-precisely because it is the one thing you are meant to notice. A bar with a
-green `bt on` beside an amber `hp 24C` is unmistakably not macOS however good
-the font is, so state here changes brightness, not hue: on is white, off is
-white at 34%, and colour is spent only on genuinely interrupting states
-(amber for 2.4GHz, DND, battery warning; red for a failed tunnel or a fault).
+This is deliberate. The sway session is the plain rectangular one, so it keeps
+the plain bar. A macOS-styled version of this same bar lives parked in
+`waybar/macos/` for the separate Hyprland session to point at; nothing
+symlinks it today, and `install.sh` links `waybar/config` and
+`waybar/style.css` only. `waybar/macos/README.md` covers what differs and the
+two font traps that shaped it.
 
-**Status menus are symbols, not words**, spaced roughly a bar-height apart
-rather than crammed. None of the ten status scripts were touched to do this.
-Waybar's `format` on a custom module ignores the script's `text` and draws
-whatever you put there, while `class` and `tooltip` still come from the
-script, so a fixed glyph in `format` converts a module without disturbing its
-logic. The number each script used to print now lives only in its tooltip.
-
-Other details taken from the reference:
-
-* **Apple mark, then the frontmost app in semibold**, then evenly spaced
-  items. `sway/window` reports `app_id` rather than the window title, through
-  a `rewrite` map that turns `footclient` into Terminal and `dev.zed.Zed`
-  into Zed. It is the only bold text in the bar.
-* **Spotlight and the clock at the far right.** Spotlight is bound to
-  `bin/spotlight`; the Apple mark is a menu on macOS and no longer opens the
-  launcher.
-* **Inter at 12px** stands in for SF Pro Text. It is not a clone, but the
-  metrics are close enough that spacing tuned for one holds on the other, and
-  it is the only face of that shape that is freely redistributable. From
-  `font-inter`; the symbols come from `nerd-fonts-symbols-ttf`.
-
-Two traps worth knowing:
-
-The clock is a `custom/` module running `date`, not waybar's built-in `clock`.
-Waybar formats that one with fmt's chrono formatter rather than `strftime`, so
-the glibc-only padding modifiers are rejected with `clock: chrono format
-error: invalid specifier in chrono-specs` and the module then renders as
-nothing at all, with only a log line to say why. `Tue 1 Sep  8:41 PM` needs
-`%-d` and `%-l`, so it has to come from `date(1)`.
-
-The fixed-width slots that `#workspaces`, `#custom-calendar` and
-`#custom-claude` used to carry are gone. They existed to stop the *centred*
-clock jittering as the text either side of it changed length. The clock now
-sits at the far right where nothing to its left can move it, so all the fixed
-widths still did was centre short text inside a wide box and open 70px holes
-in the middle of the app-menu strip.
+Note that `~/.config/waybar` is a symlink to the whole `waybar/` directory, not
+per-file symlinks, so edits in the repo are live immediately and only a waybar
+restart is needed to see them.
 
 ### GTK theming
 

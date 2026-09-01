@@ -1,0 +1,628 @@
+/* Menu bar.
+
+   Modelled on the macOS menu bar rather than on a tiling-WM status bar: a
+   proportional UI face instead of the terminal's monospace, a translucent
+   slab that lets the wallpaper through, and the clock parked at the far right
+   where macOS puts it.
+
+   Inter is the stand-in for SF Pro Text. It is not a clone, but the metrics
+   are close enough that spacing tuned for one does not fall apart on the
+   other, and it is the only face of that shape that is freely
+   redistributable. */
+* {
+    font-family: "Inter", "DejaVu Sans", sans-serif;
+    font-size: 12px;
+    font-weight: 400;
+    min-height: 0;
+    border: none;
+    padding: 0;
+    margin: 0;
+}
+
+window#waybar {
+    /* macOS tints the menu bar rather than painting it: dark, but thin enough
+       that the wallpaper reads through it. */
+    background: rgba(28, 28, 30, 0.68);
+    color: rgba(255, 255, 255, 0.88);
+}
+
+/* The Apple menu. Nerd Font carries the mark at U+F179; nothing else
+   installed here does, so the family is named explicitly rather than left to
+   the fallback chain. */
+#custom-apple {
+    font-family: "Symbols Nerd Font", sans-serif;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.95);
+    padding: 0 12px 0 14px;
+}
+
+#custom-apple:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+/* The app-name slot, which macOS sets in semibold and which is the only bold
+   thing in the bar. Fixed width so the modules after it do not slide about as
+   focus moves between a "Zed" and a "Chromium". */
+#window {
+    font-weight: 600;
+    color: #ffffff;
+    padding: 0 10px;
+}
+
+/* Nothing focused: sway sends an empty title, and an empty bold slot next to
+   the Apple mark just looks like a gap. */
+window#waybar.empty #window {
+    color: rgba(255, 255, 255, 0.55);
+}
+
+/* Reserve a fixed width for the workspaces area so adding/removing windows
+   doesn't shift the calendar + claude modules that follow it. Holds ~6-7
+   workspace buttons before it would grow. */
+#workspaces {
+    min-width: 150px;
+}
+
+#workspaces button {
+    color: #666666;
+    padding: 0 6px;
+    background: transparent;
+}
+
+#workspaces button.focused {
+    color: #ffffff;
+}
+
+/* Kill GTK's default button hover styling (background + inset box-shadow)
+   that makes the workspace numbers look like they change shape on hover. */
+#workspaces button:hover {
+    background: transparent;
+    box-shadow: none;
+    text-shadow: none;
+    border: none;
+}
+
+#pulseaudio,
+#memory,
+#cpu,
+#temperature,
+#battery,
+#custom-vpn,
+#custom-caffeine,
+#custom-network,
+#custom-wifiband,
+#custom-bluetooth,
+#custom-airdrop,
+#custom-github,
+#custom-airpods,
+#custom-heatpump,
+#custom-claude,
+#custom-notifications,
+#custom-calendar {
+    color: rgba(255, 255, 255, 0.72);
+    padding: 0 7px;
+}
+
+/* Kill GTK's default hover styling (background + inset box-shadow), same as
+   the workspace buttons above. */
+#custom-calendar:hover {
+    background: transparent;
+    box-shadow: none;
+    text-shadow: none;
+    border: none;
+}
+
+/* Left-of-clock modules use fixed-width slots wide enough to hold their
+   longest content, so their positions never move as workspaces come and go
+   or as the text length changes. No hardcoded margins: each slot's width is
+   its own, and the default 10px padding provides the gap between them. */
+#custom-calendar {
+    min-width: 275px;
+    margin-left: 40px;
+}
+
+#custom-claude {
+    min-width: 185px;
+    margin-left: 95px;
+}
+
+#custom-calendar.none {
+    padding: 0;
+    margin: 0;
+}
+
+#custom-calendar.today {
+    color: #7aa2f7;
+}
+
+#custom-calendar.upcoming {
+    color: #888888;
+}
+
+#custom-calendar.soon {
+    color: #e0af68;
+}
+
+/* Backend is broken, not quiet: the OAuth token needs re-authorising. */
+#custom-calendar.auth {
+    color: #f7768e;
+}
+
+/* Fetching is failing and the cache has aged out. */
+#custom-calendar.stale {
+    color: #c07a5a;
+}
+
+#custom-claude.none {
+    padding: 0;
+    margin: 0;
+}
+
+#custom-claude.idle {
+    color: #7f849c;
+}
+
+#custom-claude.working {
+    color: #9ece6a;
+}
+
+#custom-claude.waiting {
+    color: #e0af68;
+}
+
+/* Colour carries the band, the text carries auto vs lock. 2.4 GHz shares the
+   mt7921 radio with Bluetooth and measured 0.00 Mbit/s against 80 Mbit/s on
+   5 GHz, so being on it is the thing worth flagging - amber, like the other
+   caution states in this bar. Deliberately no blue: 5 GHz pinned is the normal
+   resting state here, and it should look as calm as everything else. */
+#custom-wifiband.band5 {
+    color: #9ece6a;
+}
+
+#custom-wifiband.band24 {
+    color: #e0af68;
+}
+
+#custom-wifiband.disconnected {
+    color: #aaaaaa;
+}
+
+/* Plain on/off, same language as the caffeine and vpn toggles beside it. */
+#custom-bluetooth.on,
+#custom-bluetooth.connected {
+    color: #9ece6a;
+}
+
+#custom-bluetooth.off,
+#custom-bluetooth.missing {
+    color: #aaaaaa;
+}
+
+#custom-caffeine.on {
+    color: #e0af68;
+}
+
+#custom-caffeine.off {
+    color: #aaaaaa;
+}
+
+#custom-vpn.on {
+    color: #9ece6a;
+}
+
+#custom-vpn.proxy {
+    color: #e0af68;
+}
+
+/* A working tunnel, but on a slow fallback transport - worth seeing at a glance. */
+#custom-vpn.degraded {
+    color: #e0af68;
+}
+
+#custom-vpn.off {
+    color: #aaaaaa;
+}
+
+#custom-vpn.connecting {
+    color: #e0af68;
+}
+
+#custom-vpn.failed {
+    color: #f7768e;
+}
+
+/* Nothing waiting is the normal state, so the module collapses entirely rather
+   than sitting there reading "gh 0". Amber once something is waiting, red once
+   it has been waiting a week, which is the case this module exists to catch. */
+#custom-github.none {
+    padding: 0;
+    margin: 0;
+}
+
+#custom-github.review {
+    color: #e0af68;
+}
+
+#custom-github.stale {
+    color: #f7768e;
+}
+
+/* The module itself cannot tell: offline, or gh is not authenticated. */
+#custom-github.error {
+    color: #c07a5a;
+}
+
+#custom-airdrop.off {
+    color: #aaaaaa;
+}
+
+#custom-airdrop.idle,
+#custom-airdrop.waking,
+#custom-airdrop.armed {
+    color: #7aa2f7;
+}
+
+/* Moving the Wi-Fi to the SSID's 5GHz BSS so a GO can coexist with it. The
+   switch is on and this clears itself in seconds, but the association is
+   bouncing while it happens, so it gets its own colour rather than looking
+   like a normal bring-up. */
+#custom-airdrop.switching {
+    color: #e0af68;
+}
+
+#custom-airdrop.error {
+    color: #f7768e;
+}
+
+/* Battery colour shifts with state: default grey, amber under 30%, red
+   under 15%, green whenever charging (overrides the level colour). */
+#battery.warning {
+    color: #e5c07b;
+}
+
+#battery.critical {
+    color: #e06c75;
+}
+
+#battery.charging {
+    color: #98c379;
+}
+
+/* Under 5%, unplugged: flash hard instead of just recolouring. GTK3's CSS
+   engine (what waybar actually renders with) has no :has()/parent selector,
+   so we can't reach up and paint window#waybar from here - this is the
+   loudest we can make just the battery pill itself. */
+@keyframes battery-urgent-flash {
+    0% {
+        background-color: #ff0000;
+        color: #1e1e1e;
+    }
+    50% {
+        background-color: transparent;
+        color: #ff0000;
+    }
+    100% {
+        background-color: #ff0000;
+        color: #1e1e1e;
+    }
+}
+
+#battery.urgent {
+    font-weight: bold;
+    animation: battery-urgent-flash 0.6s steps(2, end) infinite;
+}
+
+/* Charging overrides the flash - no point panicking once it's plugged in. */
+#battery.urgent.charging {
+    animation: none;
+    color: #98c379;
+}
+
+/* AirPods battery. Unlike the other modules this stays on the bar when
+   disconnected, dimmed, because it doubles as the connect switch - AirPods
+   hand themselves back to a phone constantly. */
+#custom-airpods.off,
+#custom-airpods.dead {
+    color: #666666;
+}
+
+#custom-airpods.connecting {
+    color: #e0af68;
+}
+
+#custom-airpods.ok {
+    color: #aaaaaa;
+}
+
+#custom-airpods.charging {
+    color: #9ece6a;
+}
+
+#custom-airpods.warning {
+    color: #e0af68;
+}
+
+#custom-airpods.critical {
+    color: #f7768e;
+}
+
+#temperature.critical {
+    color: #f7768e;
+}
+
+/* Heat pump. Coloured by what it's actually doing, so a glance at the bar
+   tells you whether it's burning power heating or just sitting there. */
+#custom-heatpump.off,
+#custom-heatpump.unreachable {
+    color: #666666;
+}
+
+#custom-heatpump.heat {
+    color: #e0af68;
+}
+
+#custom-heatpump.cool {
+    color: #7dcfff;
+}
+
+#custom-heatpump.dry,
+#custom-heatpump.fan,
+#custom-heatpump.auto,
+#custom-heatpump.on {
+    color: #aaaaaa;
+}
+
+#custom-heatpump.fault {
+    color: #f7768e;
+}
+
+/* Notification mode toggle: click cycles all -> iPhone only -> dnd. "full" is
+   the resting state so it keeps the shared #aaaaaa; amber and red match the
+   caffeine/vpn modules rather than inventing a second palette. */
+#custom-notifications.full {
+    color: #aaaaaa;
+}
+
+#custom-notifications.iphone {
+    color: #e0af68;
+}
+
+#custom-notifications.dnd {
+    color: #f7768e;
+}
+
+/* Clock: last module in the bar, as on macOS, and the only one with no
+   trailing neighbour to space against. */
+#clock {
+    color: #ffffff;
+    font-weight: 500;
+    padding: 0 14px 0 10px;
+}
+
+/* Glyph-bearing built-in modules. The Nerd Font symbols live outside Inter's
+   coverage, so the family is named ahead of it and Inter still sets the digits
+   that follow. */
+#pulseaudio,
+#memory,
+#cpu,
+#temperature,
+#battery {
+    font-family: "Symbols Nerd Font", "Inter", sans-serif;
+    padding: 0 7px;
+}
+
+/* ---------------------------------------------------------------------------
+   macOS menu bar pass
+
+   Measured against Apple's own menu bar diagram rather than from memory. The
+   two things that decide whether a bar reads as macOS or not:
+
+   1. It is monochrome. Every status menu is the same white. The only colour
+      in Apple's screenshot is the orange privacy indicator, which is there
+      precisely because it is the one thing you are meant to notice. A bar
+      with a green "bt on" and an amber "hp 24C" next to each other is
+      unmistakably not macOS, however good the font is.
+
+   2. Status menus are symbols, not words, and they are spaced apart at
+      roughly the height of the bar rather than crammed.
+
+   So: everything white, an off state is dimmed rather than recoloured, and
+   colour is reserved for the states that genuinely want interrupting for.
+   These rules come last in the file on purpose - they override the per-module
+   state colours above at equal specificity.
+   --------------------------------------------------------------------------- */
+
+#custom-airpods,
+#custom-heatpump,
+#custom-airdrop,
+#custom-caffeine,
+#custom-vpn,
+#custom-github,
+#custom-notifications,
+#custom-bluetooth,
+#custom-wifiband,
+#custom-network,
+#custom-spotlight,
+#pulseaudio,
+#memory,
+#cpu,
+#temperature,
+#battery {
+    font-family: "Symbols Nerd Font", "Inter", sans-serif;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.92);
+    padding: 0 9px;
+    margin: 0;
+}
+
+/* The numeric modules keep their digits, so they set those in Inter at the
+   text size while the glyph in front of them stays at symbol size. */
+#pulseaudio,
+#memory,
+#cpu,
+#temperature,
+#battery {
+    font-size: 12px;
+}
+
+/* Off, muted, disconnected, nothing-to-report: dimmed, never recoloured.
+   macOS does the same - a disabled status menu goes grey, it does not go a
+   different hue. */
+#custom-airpods.off,
+#custom-airpods.dead,
+#custom-airpods.disconnected,
+#custom-heatpump.off,
+#custom-heatpump.hidden,
+#custom-heatpump.unreachable,
+#custom-airdrop.off,
+#custom-caffeine.off,
+#custom-vpn.off,
+#custom-github.none,
+#custom-bluetooth.off,
+#custom-bluetooth.missing,
+#custom-wifiband.disconnected,
+#custom-network.disconnected {
+    color: rgba(255, 255, 255, 0.34);
+}
+
+/* On and healthy is just white. Being connected is the resting state, and the
+   resting state should be quiet. */
+#custom-vpn.on,
+#custom-bluetooth.on,
+#custom-bluetooth.connected,
+#custom-caffeine.on,
+#custom-wifiband.band5,
+#custom-network.connected,
+#custom-airdrop.idle,
+#custom-airdrop.armed,
+#custom-airpods.ok,
+#custom-airpods.charging,
+#custom-airpods.connecting,
+#custom-github.review,
+#custom-github.stale,
+#custom-heatpump.heat,
+#custom-heatpump.cool,
+#custom-heatpump.dry,
+#custom-heatpump.fan,
+#custom-heatpump.auto,
+#custom-heatpump.on,
+#custom-notifications.full,
+#battery.charging {
+    color: rgba(255, 255, 255, 0.92);
+}
+
+/* The equivalent of Apple's orange privacy dot: reserved for states that are
+   actually worth interrupting a monochrome bar for. */
+#custom-vpn.degraded,
+#custom-vpn.proxy,
+#custom-wifiband.band24,
+#custom-notifications.dnd,
+#custom-notifications.iphone,
+#custom-airpods.warning,
+#temperature.critical,
+#battery.warning {
+    color: #e5a33c;
+}
+
+#custom-vpn.failed,
+#custom-github.error,
+#custom-airdrop.error,
+#custom-airpods.critical,
+#custom-heatpump.fault,
+#battery.critical,
+#battery.urgent {
+    color: #e5544c;
+}
+
+/* Clock: last in the bar, and the one place macOS spends real text. */
+#custom-clock {
+    font-family: "Inter", sans-serif;
+    font-size: 12px;
+    font-weight: 500;
+    color: #ffffff;
+    padding: 0 14px 0 8px;
+}
+
+/* The left half is the app-menu strip: an Apple mark, the frontmost app in
+   semibold, then evenly spaced items. The large margins that used to hold the
+   calendar and Claude slots away from the workspaces were pushing them into
+   the middle of the bar, where macOS has nothing at all. */
+/* The fixed-width slots these three modules used to carry are gone. They
+   existed to stop the *centred* clock jittering as the text either side of it
+   changed length; the clock is now at the far right, where nothing to its left
+   can move it, so the only thing the fixed widths still did was centre short
+   text inside a wide box and open 70px holes in the middle of the app-menu
+   strip. macOS spaces menu items about one text-height apart, and so does
+   this now. */
+#workspaces {
+    min-width: 0;
+    margin: 0;
+}
+
+#workspaces button {
+    padding: 0 9px;
+    color: rgba(255, 255, 255, 0.42);
+}
+
+#workspaces button.focused {
+    color: #ffffff;
+}
+
+#custom-calendar,
+#custom-claude {
+    min-width: 0;
+    margin: 0;
+    color: rgba(255, 255, 255, 0.82);
+    padding: 0 10px;
+}
+
+/* Both of these hide themselves by emitting empty text. Without this they
+   still claim their horizontal padding and leave a visible gap in the strip. */
+#custom-calendar.none,
+#custom-claude.none {
+    padding: 0;
+    margin: 0;
+}
+
+/* Same monochrome rule as the right-hand side: state changes brightness, not
+   hue, except where it genuinely needs to interrupt. */
+#custom-calendar.upcoming,
+#custom-claude.idle {
+    color: rgba(255, 255, 255, 0.45);
+}
+
+#custom-calendar.today,
+#custom-claude.working {
+    color: rgba(255, 255, 255, 0.92);
+}
+
+#custom-calendar.soon,
+#custom-claude.waiting {
+    color: #e5a33c;
+}
+
+#custom-calendar.auth,
+#custom-calendar.stale {
+    color: #e5544c;
+}
+
+/* Hover on a status menu: macOS fills the whole item height. */
+#custom-airpods:hover,
+#custom-heatpump:hover,
+#custom-airdrop:hover,
+#custom-caffeine:hover,
+#custom-vpn:hover,
+#custom-github:hover,
+#custom-notifications:hover,
+#custom-bluetooth:hover,
+#custom-wifiband:hover,
+#custom-network:hover,
+#custom-spotlight:hover,
+#custom-clock:hover,
+#pulseaudio:hover {
+    background: rgba(255, 255, 255, 0.16);
+}
+
+#custom-airdrop,
+#custom-github {
+    font-size: 16px;
+}
