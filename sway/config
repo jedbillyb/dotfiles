@@ -43,7 +43,7 @@ client.unfocused        #00000000 #00000000  #888888 #00000000 #00000000
 
 # ── Output / Wallpaper ────────────────────────────────────────────────────────
 
-output * bg /mnt/shared/wallpapers/garrett-parker-unsplash.jpg fill
+output * bg /mnt/shared/wallpapers/landscape-mountains-black-white.jpg fill
 
 # ── Idle / Lock ───────────────────────────────────────────────────────────────
 

@@ -2006,6 +2006,28 @@ amount.
 existing windows keep their old setting until you re-run
 `swaymsg '[app_id=".*"] border pixel 5'` or restart them.
 
+### Wallpaper
+
+`output * bg` in `sway/config` points at `/mnt/shared/wallpapers/`, which is
+outside this repo — the images are multi-megabyte stock photos with their own
+licences, so only the path is tracked, not the file. A fresh checkout on a
+machine without that directory falls back to sway's default grey until an image
+is dropped in.
+
+Files are kept at native resolution rather than pre-scaled to the panel.
+`landscape-mountains-black-white.jpg` is 5467x3645 against a 1920x1200 eDP-1, so
+`fill` downscales it at composite time; that costs nothing at runtime (swaybg
+scales once, at startup) and keeps the image usable if the display ever changes.
+Note that `fill` covers and crops: a 3:2 source on a 16:10 panel loses ~40px off
+the top and bottom.
+
+To try one without committing to it, set it at runtime — this doesn't touch the
+config, so `$mod+Shift+c` or a sway restart reverts it:
+
+```sh
+swaymsg output '*' bg /mnt/shared/wallpapers/some-image.jpg fill
+```
+
 ### Zed and the local Claude shim
 
 Zed's commit-message button is pointed at `zed-claude-shim`
