@@ -2016,20 +2016,45 @@ untouched and is always there to fall back to.
 
 ```sh
 cd /mnt/shared/projects/swayfx-lockbar
-meson setup build --prefix=/usr/local -Dwerror=false
+PKG_CONFIG_PATH=/usr/local/lib/pkgconfig meson setup build --prefix=/usr/local
 ninja -C build && sudo ninja -C build install
 ```
 
-Needs `scenefx-devel` and `wlroots0.19-devel` on top of the usual sway build
-dependencies.
+**Dependencies are the awkward part.** SwayFX 0.6 wants wlroots 0.20 and
+scenefx 0.5. Void packages `wlroots0.20-devel` (install it; it coexists with
+the 0.19 packages, nothing is removed) but its `scenefx` is still 0.4.1, so
+scenefx has to be built from source:
+
+```sh
+git clone https://github.com/wlrfx/scenefx /mnt/shared/projects/scenefx-build
+cd /mnt/shared/projects/scenefx-build && git checkout 0.5
+meson setup build --prefix=/usr/local --buildtype=release -Dexamples=false
+ninja -C build && sudo ninja -C build install
+sudo ldconfig
+```
+
+That `ldconfig` is not optional and its absence is confusing: `/usr/local/lib`
+is already in `/etc/ld.so.conf.d/usr_local.conf`, but the cache is not
+regenerated on install, so sway dies with `libscenefx-0.5.so: cannot open
+shared object file` and the obvious fix (adding a path that is already there)
+does nothing.
 
 **Why a fork and not the package.** Void ships `swayfx`, but that package
 writes `/usr/bin/sway` and would overwrite the patched sway this machine
 already ran, losing `lock_visible_namespace` (waybar above the lock screen).
-The `lockbar` branch of `swayfx-lockbar` carries that patch on top of SwayFX
-0.5.3 instead. Both are based on sway 1.11, but the three commits do not apply
-as patches: SwayFX rewrote `layer_shell.c` and the render path for scenefx, so
-the hunks land nowhere and it has to be ported by hand.
+The `lockbar-0.6` branch of `swayfx-lockbar` carries that patch on top of
+SwayFX 0.6 instead. The three commits do not apply as patches: SwayFX rewrote
+`layer_shell.c` and the render path for scenefx, so the hunks land nowhere and
+it had to be ported by hand once, onto 0.5.3. Moving that port to 0.6 is a
+plain `git cherry-pick` of the resulting commit, which auto-merges cleanly.
+
+**Why 0.6 and not 0.5.3.** Two reasons, both of which were the reason for the
+upgrade rather than side benefits. 0.5.3 painted three near-white pixels at
+the **top-left corner of every window**, always at the same offset and
+independent of window content, which made the corner read as chamfered rather
+than curved; upstream `ef6d169c` (blur corner radius vs buffer) fixes it.
+And 0.6 is the first release with **animations**, which 0.5.3 has no support
+for at all: no `animation_duration_ms`, no `animation_manager.c`.
 
 One trap in that port, and it costs a full rebuild to find: `handlers[]`,
 `command_handlers[]` and `config_handlers[]` in `sway/commands.c` are all
@@ -2055,12 +2080,15 @@ a 10px corner, a soft wide shadow, two blur passes. macOS is conservative
 here, and overshooting any of them is what makes a Linux desktop read as
 "themed" rather than as macOS.
 
-Two settings that are deliberately not the default:
+Three settings that are deliberately not the default:
 
 * `smart_corner_radius disable` - SwayFX drops the rounding when a window is
   alone on screen. A lone maximised macOS window still has rounded corners.
 * `blur_xray disable` - xray blurs only the wallpaper and ignores windows
   underneath. macOS blurs whatever is actually behind the window.
+* `animation_duration_ms 200` - below SwayFX's own 250ms default, because
+  macOS window animations sit around 200ms. One number drives all of them:
+  open, close, resize, move and workspace change.
 
 `layer_effects "waybar" blur enable` is what turns the translucent menu bar
 into a frosted one; layer-shell surfaces do not pick up the global blur

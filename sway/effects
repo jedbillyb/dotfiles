@@ -8,6 +8,12 @@
 # things that are actually translucent - and overshooting any of them is what
 # makes a Linux desktop read as "themed" rather than as macOS.
 
+# Animations. SwayFX 0.6 animates window open, close, resize, move and
+# workspace change off this single duration. macOS window animations sit around
+# 200ms - long enough to read as motion, short enough that it never feels like
+# waiting - so this is deliberately below SwayFX's own 250ms default.
+animation_duration_ms 200
+
 # macOS window corners are 10px at 1x. smart_corner_radius drops the rounding
 # when a window is the only one on screen, which is wrong here: a lone maximised
 # macOS window still has rounded corners.
