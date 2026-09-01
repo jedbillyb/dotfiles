@@ -27,29 +27,28 @@
         "cpu",
         "temperature",
         "battery",
-        "clock"
+        "custom/spotlight",
+        "custom/clock"
     ],
     "sway/workspaces": {
         "disable-scroll": true,
         "format": "{name}"
-    },
-    "clock": {
-        "format": "{:%a %d %b  %H:%M}",
-        "tooltip": false
     },
     "custom/github": {
         "exec": "~/.config/waybar/gh-status.sh",
         "return-type": "json",
         "interval": 120,
         "signal": 8,
-        "on-click": "~/.config/waybar/gh-status.sh click"
+        "on-click": "~/.config/waybar/gh-status.sh click",
+        "format": ""
     },
     "custom/notifications": {
         "exec": "/mnt/shared/projects/dotfiles/waybar/notification-status.sh status",
         "return-type": "json",
         "interval": 30,
         "signal": 7,
-        "on-click": "/mnt/shared/projects/dotfiles/waybar/notification-status.sh toggle"
+        "on-click": "/mnt/shared/projects/dotfiles/waybar/notification-status.sh toggle",
+        "format": "󰂚"
     },
     "pulseaudio": {
         "format": "󰕾 {volume}%",
@@ -94,7 +93,8 @@
         "exec": "~/.config/waybar/network-status.sh",
         "return-type": "json",
         "interval": 2,
-        "tooltip": false
+        "tooltip": false,
+        "format": "󰖩"
     },
     "custom/vpn": {
         "exec": "~/.config/waybar/vpn-status.sh",
@@ -102,7 +102,8 @@
         "interval": 5,
         "signal": 8,
         "on-click": "~/.local/bin/vpn-toggle.sh",
-        "tooltip": true
+        "tooltip": true,
+        "format": "󰦝"
     },
     "custom/wifiband": {
         "exec": "~/.config/waybar/wifi-band.sh",
@@ -110,7 +111,8 @@
         "interval": 5,
         "signal": 13,
         "on-click": "~/.config/waybar/wifi-band.sh toggle",
-        "tooltip": true
+        "tooltip": true,
+        "format": "󰕰"
     },
     "custom/bluetooth": {
         "exec": "~/.config/waybar/bluetooth-status.sh",
@@ -118,14 +120,16 @@
         "interval": 10,
         "signal": 14,
         "on-click": "~/.config/waybar/bluetooth-status.sh toggle",
-        "tooltip": true
+        "tooltip": true,
+        "format": "󰂯"
     },
     "custom/airdrop": {
         "exec": "~/.config/waybar/airdrop-status.sh",
         "return-type": "json",
         "interval": 2,
         "on-click": "~/.config/waybar/airdrop-status.sh toggle",
-        "tooltip": false
+        "tooltip": false,
+        "format": ""
     },
     "custom/airpods": {
         "exec": "~/.config/waybar/airpods-status.sh",
@@ -133,7 +137,8 @@
         "interval": 30,
         "signal": 11,
         "on-click": "~/.config/waybar/airpods-status.sh toggle",
-        "tooltip": true
+        "tooltip": true,
+        "format": "󰋋"
     },
     "custom/heatpump": {
         "exec": "~/.config/waybar/heatpump-status.py",
@@ -142,7 +147,8 @@
         "signal": 12,
         "on-click": "~/.config/eww/heatpump-panel.sh",
         "on-click-right": "~/.config/waybar/heatpump-status.py toggle",
-        "tooltip": true
+        "tooltip": true,
+        "format": "󱍒"
     },
     "custom/caffeine": {
         "exec": "~/.config/waybar/caffeine-status.sh",
@@ -150,7 +156,8 @@
         "interval": 5,
         "signal": 9,
         "on-click": "~/.local/bin/caffeine-toggle.sh",
-        "tooltip": false
+        "tooltip": false,
+        "format": "󰅶"
     },
     "battery": {
         "format": "󰁹 {capacity}%",
@@ -185,6 +192,16 @@
             "org.pwmt.zathura": "Zathura",
             "": "Finder"
         },
+        "tooltip": false
+    },
+    "custom/spotlight": {
+        "format": "󰍉",
+        "tooltip": false,
+        "on-click": "/home/jed/.local/bin/spotlight"
+    },
+    "custom/clock": {
+        "exec": "date '+%a %-d %b  %-l:%M %p'",
+        "interval": 20,
         "tooltip": false
     }
 }

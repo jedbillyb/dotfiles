@@ -2008,35 +2008,54 @@ existing windows keep their old setting until you re-run
 
 ### Menu bar
 
-Waybar is styled as the macOS menu bar rather than as a tiling-WM status bar.
-The differences that matter:
+Waybar is styled against Apple's own menu bar diagram rather than from memory,
+because the two things that decide whether a bar reads as macOS are both easy
+to get wrong from a description:
 
-* **Proportional face, not monospace.** Inter at 12px stands in for SF Pro
-  Text. It is not a clone, but the metrics are close enough that spacing tuned
-  for one holds on the other, and it is the only face of that shape that is
-  freely redistributable. Installed from `font-inter`.
-* **Apple mark and app name on the left.** `custom/apple` is U+F179 from
-  `nerd-fonts-symbols-ttf`, and opens wofi. `sway/window` fills the slot macOS
-  gives the frontmost application, so it reports `app_id` (not the window
-  title) through a `rewrite` map that turns `footclient` into Terminal and
-  `dev.zed.Zed` into Zed. It is the only bold text in the bar.
-* **Clock at the far right**, where macOS puts it, rather than centred.
-* **Glyphs instead of words** on the built-in modules. This is partly the look
-  and partly arithmetic: sixteen right-hand modules set in a 12px proportional
-  face do not fit across 1920px while `pulseaudio` still says `vol 40%`. The
-  ten custom status scripts still use words.
+**It is monochrome.** Every status menu is the same white. The only colour in
+Apple's screenshot is the orange privacy indicator, and it is coloured
+precisely because it is the one thing you are meant to notice. A bar with a
+green `bt on` beside an amber `hp 24C` is unmistakably not macOS however good
+the font is, so state here changes brightness, not hue: on is white, off is
+white at 34%, and colour is spent only on genuinely interrupting states
+(amber for 2.4GHz, DND, battery warning; red for a failed tunnel or a fault).
 
-Two traps to know about:
+**Status menus are symbols, not words**, spaced roughly a bar-height apart
+rather than crammed. None of the ten status scripts were touched to do this.
+Waybar's `format` on a custom module ignores the script's `text` and draws
+whatever you put there, while `class` and `tooltip` still come from the
+script, so a fixed glyph in `format` converts a module without disturbing its
+logic. The number each script used to print now lives only in its tooltip.
 
-Waybar formats the clock with fmt's chrono formatter, not `strftime`, so the
-glibc-only padding modifiers (`%-d`, `%e`, `%l`) are rejected with
-`clock: chrono format error: invalid specifier in chrono-specs` and the module
-silently renders as nothing at all. Plain specifiers only.
+Other details taken from the reference:
 
-The fixed-width slots on `#workspaces`, `#custom-calendar` and `#custom-claude`
-exist so those modules hold still as their contents change. They were measured
-against 9px DejaVu Sans Mono and had to be re-measured for 12px Inter; if you
-change the face again, they need re-measuring a third time.
+* **Apple mark, then the frontmost app in semibold**, then evenly spaced
+  items. `sway/window` reports `app_id` rather than the window title, through
+  a `rewrite` map that turns `footclient` into Terminal and `dev.zed.Zed`
+  into Zed. It is the only bold text in the bar.
+* **Spotlight and the clock at the far right.** Spotlight is bound to
+  `bin/spotlight`; the Apple mark is a menu on macOS and no longer opens the
+  launcher.
+* **Inter at 12px** stands in for SF Pro Text. It is not a clone, but the
+  metrics are close enough that spacing tuned for one holds on the other, and
+  it is the only face of that shape that is freely redistributable. From
+  `font-inter`; the symbols come from `nerd-fonts-symbols-ttf`.
+
+Two traps worth knowing:
+
+The clock is a `custom/` module running `date`, not waybar's built-in `clock`.
+Waybar formats that one with fmt's chrono formatter rather than `strftime`, so
+the glibc-only padding modifiers are rejected with `clock: chrono format
+error: invalid specifier in chrono-specs` and the module then renders as
+nothing at all, with only a log line to say why. `Tue 1 Sep  8:41 PM` needs
+`%-d` and `%-l`, so it has to come from `date(1)`.
+
+The fixed-width slots that `#workspaces`, `#custom-calendar` and
+`#custom-claude` used to carry are gone. They existed to stop the *centred*
+clock jittering as the text either side of it changed length. The clock now
+sits at the far right where nothing to its left can move it, so all the fixed
+widths still did was centre short text inside a wide box and open 70px holes
+in the middle of the app-menu strip.
 
 ### GTK theming
 
