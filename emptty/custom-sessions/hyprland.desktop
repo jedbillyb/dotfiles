@@ -1,0 +1,7 @@
+[Desktop Entry]
+Name=Hyprland
+Comment=Dynamic tiling Wayland compositor - the macOS-looking session
+Exec=/home/jed/.local/bin/hyprland-session.sh
+Type=Application
+Environment=wayland
+DesktopNames=Hyprland

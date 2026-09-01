@@ -11,6 +11,9 @@ My personal configuration files.
   `/sys/class/backlight/*/brightness` — udev only applies that on an `add`
   event, so a device already attached at rule-install time needs
   `udevadm trigger --subsystem-match=backlight --action=add` once to pick it up
+- `hypr/hyprland.conf` - Hyprland config. The second session, and the
+  macOS-looking one; sway stays plain and rectangular. Picked at the emptty
+  login screen
 - `i3/config` - i3 window manager config (legacy)
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
   WiFi band, Bluetooth, AirDrop, AirPods, calendar, heat pump, GitHub, and
@@ -202,8 +205,38 @@ fine in a terminal. Zed failing to build a Rust dev extension with
 
 `emptty/emptty` (symlinked to `~/.config/emptty`) fixes it with emptty's
 `LoginShell=/bin/bash --login` key, which starts the session under a login
-shell. It replaces the stock `sway.desktop` entry and repeats its `Exec` and
-`DesktopNames`. `Environment=wayland` is mandatory: emptty defaults to `xorg`.
+shell.
+
+That key only exists on the user config, never on a `.desktop` file, so for a
+long time it cost the session picker: the file had to name one `Exec` and
+`Environment=wayland` outright, and that hard-named sway. Adding Hyprland meant
+getting both at once. `Selection=true` is what reconciles them. With it, emptty
+skips this file's own `Exec`, shows the picker, and then runs
+
+```
+<LoginShell> ~/.config/emptty <Exec of the chosen session>
+```
+
+so the file becomes a wrapper (emptty's docs call it "basically an `.xinitrc`")
+and the login shell wraps whichever session was picked. Its `key=value` lines
+are read by emptty as config and are also executed as bash, so
+`LoginShell` must be **quoted**: emptty strips the quotes, and bash needs them
+or it tries to run `--login` as a command.
+
+Two things to know about the wrapped shape:
+
+* **emptty stops starting D-Bus.** `dbus-launch` is only prefixed to sessions
+  emptty execs directly, and a wrapped one is not, so `DBUS_LAUNCH=true` in
+  `/etc/emptty/conf` goes quiet. Without a session bus dunst, the portals and
+  kdeconnect all come up broken. The wrapper ends in
+  `exec dbus-run-session -- "$@"` to put it back.
+* **The stock `sway.desktop` is now the Sway entry**, rather than being
+  replaced. Its `Exec` is a bare `sway`, which the login PATH resolves to
+  `/usr/bin/sway`, the patched binary. Hyprland gets an entry of its own at
+  `emptty/custom-sessions/hyprland.desktop` (symlinked to
+  `~/.config/emptty-custom-sessions/`), which needs no root and overwrites no
+  packaged file. `Environment=wayland` is mandatory there: emptty defaults to
+  `xorg`.
 
 Because `.bashrc` returns early for non-interactive shells, PATH entries the
 graphical session needs must go in `shell/bash_profile`, not `shell/bashrc`.
@@ -2017,8 +2050,8 @@ the packaged binary: it is the locally patched sway 1.11 carrying
 
 This session is deliberately the **plain rectangular one**. No rounded
 corners, no blur, no shadows. The macOS look lives in a separate Hyprland
-session instead, so the two can be picked between at login without either
-compromising the other.
+session instead (see "Hyprland (the macOS session)" below), so the two can be
+picked between at login without either compromising the other.
 
 **The SwayFX detour, and why it was set aside.** SwayFX 0.5.3 then 0.6 was
 built to `/usr/local` (branch `lockbar-0.6` of
@@ -2047,6 +2080,63 @@ Two things worth keeping from that detour:
 
 Nothing from SwayFX is wired up any more. The build is still at
 `/usr/local/bin/sway` and is inert; `emptty/emptty` names `/usr/bin/sway`.
+
+### Hyprland (the macOS session)
+
+Hyprland 0.56.2 at `/usr/local/bin/Hyprland`, started by
+`scripts/hyprland-session.sh` from the emptty picker. This is the session that
+gets the macOS look; sway stays plain and rectangular and nothing here belongs
+in `sway/config`.
+
+Void packages almost none of it. Only `hyprutils` and `hyprwayland-scanner`
+exist in the repos, and both are older than 0.56 needs, so the whole stack is
+built from source into `/usr/local` from
+`/mnt/shared/projects/hyprland-build` (`build-deps.sh` builds the libraries,
+`/var/tmp/hyprbuild/build-hyprland.sh` builds Hyprland itself). Void does
+already have lua55, re2, muparser, udis86, glslang, libei, SPIRV-Tools and
+`file-devel` for libmagic, which covers most of the awkward dependencies.
+`hyprwire` is an eleventh component, new in 0.56 and required by `hyprctl`.
+
+**The GCC problem.** Hyprland 0.56 is C++26 and Void ships GCC 14 only. Two
+things it needs are missing from libstdc++ 14: `std::vector::append_range`
+(which is what stops `hyprwire` compiling) and `std::ranges::starts_with`.
+clang does not help, because on Void it uses the same libstdc++. GCC 15.3.0 is
+therefore built to **`/opt/gcc15`**, deliberately *not* added to
+`/etc/ld.so.conf.d`: each artifact carries `-DCMAKE_INSTALL_RPATH=/opt/gcc15/lib64`
+instead, so the newer libstdc++ stays scoped to this stack rather than becoming
+the one every C++ program on the machine resolves to. Confirm with
+`LD_LIBRARY_PATH= ldd /usr/local/bin/Hyprland | grep libstdc++`.
+
+GCC 15 is not quite enough on its own: `std::ranges::starts_with` only arrived
+in GCC 16, and upstream now builds with `gcc16Stdenv`. It is used exactly once
+in the tree, in `truthy()` in `src/helpers/MiscFunctions.cpp`, so
+`hyprland-build/patches/0001-truthy-without-ranges-starts_with.patch` rewrites
+that one line to `std::string::starts_with` (C++20, identical behaviour here).
+Everything else 0.56 uses — `std::expected`, `std::println`,
+`ranges::contains`, `ranges::to`, `ranges::fold_left` — compiles on 15. Drop
+the patch when Void ships GCC 16.
+
+**The Lua symbol clash, which does not look like one.** Hyprland links
+liblua5.5 for its Lua config support. Void's libinput links liblua**5.4** for
+its plugin system. Both land in one process exporting the same `lua_*`
+symbols, libinput's calls bind to 5.5's incompatible ABI, and Hyprland
+segfaults at startup while loading `/usr/lib/libinput/plugins/*.lua`. The
+backtrace is misleading: it shows `Aquamarine::CSession::attempt` one frame
+above `libinput_plugin_system_load_plugins`, so it reads as a session or seat
+failure. `scripts/hyprland-session.sh` sets aquamarine's own
+`AQ_LIBINPUT_NO_PLUGINS=1` to skip the plugin system. It has to be in the
+environment *before* Hyprland starts — Hyprland's own `env` directive is
+applied too late, and a `.desktop` file cannot set a variable, which is the
+whole reason the wrapper script exists. Nothing is lost: those plugins are
+libinput's shipped examples, and wlroots does not use the plugin system, which
+is why sway never hit this.
+
+**Hyprland will not nest inside sway,** so it cannot be smoke-tested from
+inside the running session: aquamarine asks for `xdg_wm_base` version 6 and
+sway 1.11 offers 5, which fails as
+`invalid version for global xdg_wm_base (12): expected at most 5, got 6`.
+Test it by picking it at the login screen instead. That is safe — a session
+that dies drops straight back to the emptty picker with Sway still listed.
 
 ### Status bar
 

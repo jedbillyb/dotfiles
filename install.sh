@@ -49,6 +49,7 @@ fi
 
 echo "Configs:"
 link sway/config   "$CONFIG/sway/config"
+link hypr/hyprland.conf "$CONFIG/hypr/hyprland.conf"
 link i3/config     "$CONFIG/i3/config"
 link waybar        "$CONFIG/waybar"
 link wofi/config    "$CONFIG/wofi/config"
@@ -65,6 +66,10 @@ link wireplumber/wireplumber.conf.d "$CONFIG/wireplumber/wireplumber.conf.d"
 
 echo "Shell + git (-> \$HOME):"
 link emptty/emptty      "$CONFIG/emptty"
+# Session picker entries. The Sway entry is the stock packaged
+# sway.desktop; only Hyprland needs one of ours, and a user custom-session
+# is the one shape that needs no root and no packaged file overwritten.
+link emptty/custom-sessions "$CONFIG/emptty-custom-sessions"
 
 link shell/bashrc       "$HOME/.bashrc"
 link shell/zshrc        "$HOME/.zshrc"
@@ -78,7 +83,7 @@ mkdir -p "$BIN"
 # Everything in scripts/ that belongs in $BIN. touchpad-resume-fix.sh and
 # wifi-recover-root.sh are deliberately absent: they are installed elsewhere
 # below, into the elogind hook directory and /usr/local/bin respectively.
-for s in vpn-toggle.sh vpn-proxy.sh vpn-wstunnel.sh vpn-amnezia.sh vpn-autoconnect.sh caffeine-toggle.sh show-desktop.sh sway-idle.sh sway-lock.sh waybar-run.sh waybar-toggle.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py workspace-step.py wofi-dismiss.py wofi-backdrop.py touch-shield.py zed-wrapper gh-inbox; do
+for s in hyprland-session.sh vpn-toggle.sh vpn-proxy.sh vpn-wstunnel.sh vpn-amnezia.sh vpn-autoconnect.sh caffeine-toggle.sh show-desktop.sh sway-idle.sh sway-lock.sh waybar-run.sh waybar-toggle.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py workspace-step.py wofi-dismiss.py wofi-backdrop.py touch-shield.py zed-wrapper gh-inbox; do
 	chmod +x "$REPO/scripts/$s"
 	link "scripts/$s" "$BIN/$s"
 done

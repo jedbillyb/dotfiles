@@ -1,26 +1,44 @@
 # emptty user session, symlinked to ~/.config/emptty by install.sh.
 #
-# Replaces the stock /usr/share/wayland-sessions/sway.desktop entry purely to
-# get LoginShell. emptty starts the session directly from its own process, so
-# without this the session inherits emptty's bare PATH (/usr/bin:/usr/sbin) and
-# never reads ~/.bash_profile. Everything launched from sway then loses
-# ~/.local/bin, ~/.cargo/bin and the rest, which shows up as GUI apps failing
-# to find tools that work fine in a terminal.
+# Two jobs, and they pull against each other.
 #
-# Environment defaults to "xorg", so the explicit wayland line is required.
-# DesktopNames mirrors the stock sway.desktop and lands in XDG_CURRENT_DESKTOP,
-# which xdg-desktop-portal uses to pick sway-portals.conf.
+# 1. Offer a session picker, so sway and Hyprland can both be logged into.
+# 2. Keep LoginShell, because emptty starts the session directly from its own
+#    process. Without a login shell the session inherits emptty's bare PATH
+#    (/usr/bin:/usr/sbin) and never reads ~/.bash_profile, so everything
+#    launched from the compositor loses ~/.local/bin and ~/.cargo/bin. That
+#    shows up as GUI apps failing to find tools that work fine in a terminal.
 #
-# Exec is /usr/bin/sway, which despite the path is not the packaged binary but
-# the locally patched sway 1.11 carrying lock_visible_namespace (waybar stays
-# drawn above the lock screen). SwayFX at /usr/local/bin/sway was tried for the
-# macOS look and set aside; see the README. This session is deliberately the
-# plain rectangular one.
+# .desktop files under the session paths have no LoginShell key, so a plain
+# picker would drop it. Selection=true is what reconciles the two: emptty then
+# treats THIS file as a wrapper (its own .xinitrc, in emptty's words), skips
+# its Exec, and runs
 #
-# Recovery: if the session ever fails to start, switch to another TTY and
+#     <LoginShell> ~/.config/emptty <Exec of the chosen session>
+#
+# so the login shell wraps whichever session was picked. The key=value lines
+# below are read by emptty as config and are also valid bash, which is why the
+# quotes on LoginShell matter: emptty strips them, bash needs them so that
+# "--login" is not run as a command.
+#
+# Sessions offered:
+#   Sway      /usr/share/wayland-sessions/sway.desktop   (stock, packaged)
+#   Hyprland  ~/.config/emptty-custom-sessions/hyprland.desktop
+#
+# The stock sway.desktop is fine to use directly now. It could not be used
+# before because it had no way to carry LoginShell; the wrapper supplies it.
+# Its Exec is a bare "sway", which the login PATH resolves to /usr/bin/sway --
+# the locally patched sway 1.11 carrying lock_visible_namespace, not the
+# packaged binary despite the path. Do not let a package install overwrite it.
+#
+# Recovery: if a session ever fails to start, switch to another TTY and
 # `rm ~/.config/emptty` to fall back to the stock sway.desktop entry.
-Name=Sway
-Exec=/usr/bin/sway
-Environment=wayland
-DesktopNames=sway;wlroots
-LoginShell=/bin/bash --login
+
+Selection="true"
+LoginShell="/bin/bash --login"
+
+# emptty only starts dbus-launch for sessions it execs directly, and a wrapped
+# session is not one of those, so the session bus is ours to provide. The bus
+# lives exactly as long as the compositor, which is what dbus-launch's
+# --exit-with-session gives and what emptty did before.
+exec dbus-run-session -- "$@"
