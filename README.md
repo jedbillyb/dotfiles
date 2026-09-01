@@ -2028,6 +2028,25 @@ config, so `$mod+Shift+c` or a sway restart reverts it:
 swaymsg output '*' bg /mnt/shared/wallpapers/some-image.jpg fill
 ```
 
+#### Browsing the collection
+
+`scripts/wallpick` pages through every image in `/mnt/shared/wallpapers`,
+applying each one to the live output as you move. The point is that a wallpaper
+behind a translucent editor reads completely differently from a thumbnail, so
+the only honest preview is the real desktop.
+
+```sh
+scripts/wallpick          # or WALLPAPER_DIR=/some/other/dir scripts/wallpick
+```
+
+`n` / `p` step, `w` rewrites the `output * bg` line in `sway/config` in place
+(the config is a symlink into this repo, so that shows up as a normal working
+tree change to commit), `q` quits and restores whatever the config had on entry,
+and `Q` quits leaving the current image up as a runtime-only setting.
+
+It starts on whichever image the config currently names, and marks that entry so
+you can tell how far you have wandered from it.
+
 ### Zed and the local Claude shim
 
 Zed's commit-message button is pointed at `zed-claude-shim`

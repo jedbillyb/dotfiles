@@ -1,0 +1,111 @@
+#!/usr/bin/env python3
+"""wallpick - page through /mnt/shared/wallpapers on the live desktop.
+
+Each candidate is applied to the real output with swaymsg, so you judge it
+behind your actual windows rather than in a thumbnail.
+
+  n / space / right   next
+  p / left            previous
+  w                   write this one into the sway config (permanent)
+  q                   quit, restore the wallpaper that was set on entry
+  Q                   quit, leave the current one on screen (runtime only)
+"""
+import os
+import re
+import subprocess
+import sys
+import termios
+import tty
+
+WALLDIR = os.environ.get("WALLPAPER_DIR", "/mnt/shared/wallpapers")
+CONFIG = os.path.expanduser("~/.config/sway/config")
+EXTS = (".jpg", ".jpeg", ".png")
+
+
+def current_from_config():
+    try:
+        with open(CONFIG) as fh:
+            for line in fh:
+                m = re.match(r"\s*output\s+\S+\s+bg\s+(\S+)\s", line)
+                if m:
+                    return m.group(1)
+    except OSError:
+        pass
+    return None
+
+
+def setbg(path):
+    subprocess.run(["swaymsg", "output", "*", "bg", path, "fill"],
+                   stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
+def write_config(path):
+    """Rewrite the `output * bg` line in the sway config to point at path."""
+    with open(CONFIG) as fh:
+        lines = fh.readlines()
+    for i, line in enumerate(lines):
+        if re.match(r"\s*output\s+\S+\s+bg\s+", line):
+            lines[i] = re.sub(r"(output\s+\S+\s+bg\s+)\S+", r"\g<1>" + path, line)
+            break
+    else:
+        return False
+    with open(CONFIG, "w") as fh:
+        fh.writelines(lines)
+    return True
+
+
+def getkey():
+    fd = sys.stdin.fileno()
+    old = termios.tcgetattr(fd)
+    try:
+        tty.setraw(fd)
+        ch = sys.stdin.read(1)
+        if ch == "\x1b":
+            ch += sys.stdin.read(2)
+    finally:
+        termios.tcsetattr(fd, termios.TCSADRAIN, old)
+    return ch
+
+
+def main():
+    walls = sorted(f for f in os.listdir(WALLDIR) if f.lower().endswith(EXTS))
+    if not walls:
+        sys.exit("no wallpapers in " + WALLDIR)
+
+    original = current_from_config()
+    start = current_from_config() or ""
+    i = next((n for n, f in enumerate(walls) if os.path.join(WALLDIR, f) == start), 0)
+
+    print(__doc__)
+    written = None
+    while True:
+        f = walls[i % len(walls)]
+        path = os.path.join(WALLDIR, f)
+        setbg(path)
+        flag = "  <- in sway config" if path == original else ""
+        print("\r\033[K[%2d/%d] %s%s" % (i % len(walls) + 1, len(walls), f, flag),
+              end="", flush=True)
+
+        k = getkey()
+        if k in ("n", " ", "j", "\x1b[C"):
+            i += 1
+        elif k in ("p", "b", "k", "\x1b[D"):
+            i -= 1
+        elif k == "w":
+            written = path if write_config(path) else None
+            original = path
+        elif k in ("q", "\x03"):
+            if original:
+                setbg(original)
+            break
+        elif k == "Q":
+            print("\n\nleft on screen (runtime only): " + path)
+            break
+
+    if written:
+        print("\n\nwrote to %s:\n  %s\ncommit the dotfiles change to keep it." % (CONFIG, written))
+    print()
+
+
+if __name__ == "__main__":
+    main()
