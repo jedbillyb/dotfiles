@@ -2138,6 +2138,51 @@ sway 1.11 offers 5, which fails as
 Test it by picking it at the login screen instead. That is safe — a session
 that dies drops straight back to the emptty picker with Sway still listed.
 
+**The 0.56 config vocabulary is not the one the wiki and every published config
+use.** Options were renamed or removed and the rule syntax was replaced
+wholesale, so a config copied from anywhere else produces a screenful of error
+banner. What actually applies on this build, checked against
+`hyprctl getoption` and the source rather than the docs:
+
+- `misc:vfr` is gone. VFR is unconditional now.
+- `dwindle:pseudotile` is gone. Pseudotiling is the `pseudo` dispatcher and a
+  window rule.
+- `misc:new_window_takes_over_fullscreen` is gone, replaced by
+  `misc:on_focus_under_fullscreen` and `misc:exit_window_retains_fullscreen`.
+- Layer rule names take underscores: `no_anim`, `ignore_alpha`, `blur_popups`.
+  The widely-copied `noanim` and `ignorezero` are both rejected.
+- `togglesplit` is a `layoutmsg`, not a dispatcher.
+- **Rules are v3.** `windowrule = float, class:^(x)$` no longer parses. Every
+  comma-separated element is now a `<key> <value>` pair, match properties carry
+  a `match:` prefix, and effects need an explicit value:
+  `windowrule = float 1, match:class ^(x)$`. `windowrulev2` and `layerrulev2`
+  now exist only to emit a deprecation error.
+
+The failure mode is unhelpful: a bare effect name reports
+`invalid field float: missing a value`, which reads like a missing argument
+rather than a changed syntax.
+
+**Waybar above the lock screen is native here.** The sway session needs a
+patched binary carrying `lock_visible_namespace` for this; Hyprland has it as
+a layer rule, so the Hyprland session needs no patched compositor:
+
+    layerrule = above_lock 1, match:namespace waybar
+
+`above_lock 1` draws the layer above the lock screen. `above_lock 2` also lets
+it take input, which would leave bar modules clickable on a locked machine, so
+this config uses 1 deliberately.
+
+**Sway's `exec_always` guards survive sway's exit and follow you into
+Hyprland.** `noted`'s `eww-guard.sh` is orphaned to init when sway ends, and
+because both compositors take the `wayland-1` socket the guard's stale
+`WAYLAND_DISPLAY` silently becomes valid again: it respawns `eww` onto
+Hyprland a few seconds after login. It draws on the `bottom` layer, so under
+sway's opaque windows it is invisible, but the Hyprland session's translucent
+terminals show it straight through. This is the same hazard the bar has, where
+`waybar-run.sh`'s `kill_stray_bars()` kills every waybar on the display, and it
+is why the two sessions must not be treated as isolated just because only one
+runs at a time.
+
 ### Status bar
 
 Waybar runs the **compact original bar**: 16px, monospace, workspaces and the
