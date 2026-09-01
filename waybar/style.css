@@ -1,6 +1,18 @@
+/* Menu bar.
+
+   Modelled on the macOS menu bar rather than on a tiling-WM status bar: a
+   proportional UI face instead of the terminal's monospace, a translucent
+   slab that lets the wallpaper through, and the clock parked at the far right
+   where macOS puts it.
+
+   Inter is the stand-in for SF Pro Text. It is not a clone, but the metrics
+   are close enough that spacing tuned for one does not fall apart on the
+   other, and it is the only face of that shape that is freely
+   redistributable. */
 * {
-    font-family: "DejaVu Sans Mono";
-    font-size: 9px;
+    font-family: "Inter", "DejaVu Sans", sans-serif;
+    font-size: 12px;
+    font-weight: 400;
     min-height: 0;
     border: none;
     padding: 0;
@@ -8,16 +20,47 @@
 }
 
 window#waybar {
-    /* Match foot terminal: solid #242424 background at 0.85 alpha. */
-    background: rgba(36, 36, 36, 0.85);
-    color: #cccccc;
+    /* macOS tints the menu bar rather than painting it: dark, but thin enough
+       that the wallpaper reads through it. */
+    background: rgba(28, 28, 30, 0.68);
+    color: rgba(255, 255, 255, 0.88);
+}
+
+/* The Apple menu. Nerd Font carries the mark at U+F179; nothing else
+   installed here does, so the family is named explicitly rather than left to
+   the fallback chain. */
+#custom-apple {
+    font-family: "Symbols Nerd Font", sans-serif;
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.95);
+    padding: 0 12px 0 14px;
+}
+
+#custom-apple:hover {
+    background: rgba(255, 255, 255, 0.14);
+}
+
+/* The app-name slot, which macOS sets in semibold and which is the only bold
+   thing in the bar. Fixed width so the modules after it do not slide about as
+   focus moves between a "Zed" and a "Chromium". */
+#window {
+    font-weight: 600;
+    color: #ffffff;
+    min-width: 96px;
+    padding: 0 6px;
+}
+
+/* Nothing focused: sway sends an empty title, and an empty bold slot next to
+   the Apple mark just looks like a gap. */
+window#waybar.empty #window {
+    color: rgba(255, 255, 255, 0.55);
 }
 
 /* Reserve a fixed width for the workspaces area so adding/removing windows
    doesn't shift the calendar + claude modules that follow it. Holds ~6-7
    workspace buttons before it would grow. */
 #workspaces {
-    min-width: 140px;
+    min-width: 150px;
 }
 
 #workspaces button {
@@ -39,11 +82,6 @@ window#waybar {
     border: none;
 }
 
-#clock {
-    color: #ffffff;
-    padding: 0 12px;
-}
-
 #pulseaudio,
 #memory,
 #cpu,
@@ -61,8 +99,8 @@ window#waybar {
 #custom-claude,
 #custom-notifications,
 #custom-calendar {
-    color: #aaaaaa;
-    padding: 0 10px;
+    color: rgba(255, 255, 255, 0.72);
+    padding: 0 7px;
 }
 
 /* Kill GTK's default hover styling (background + inset box-shadow), same as
@@ -79,13 +117,13 @@ window#waybar {
    or as the text length changes. No hardcoded margins: each slot's width is
    its own, and the default 10px padding provides the gap between them. */
 #custom-calendar {
-    min-width: 240px;
-    margin-left: 65px;
+    min-width: 275px;
+    margin-left: 40px;
 }
 
 #custom-claude {
-    min-width: 160px;
-    margin-left: 105px;
+    min-width: 185px;
+    margin-left: 95px;
 }
 
 #custom-calendar.none {
@@ -351,4 +389,24 @@ window#waybar {
 
 #custom-notifications.dnd {
     color: #f7768e;
+}
+
+/* Clock: last module in the bar, as on macOS, and the only one with no
+   trailing neighbour to space against. */
+#clock {
+    color: #ffffff;
+    font-weight: 500;
+    padding: 0 14px 0 10px;
+}
+
+/* Glyph-bearing built-in modules. The Nerd Font symbols live outside Inter's
+   coverage, so the family is named ahead of it and Inter still sets the digits
+   that follow. */
+#pulseaudio,
+#memory,
+#cpu,
+#temperature,
+#battery {
+    font-family: "Symbols Nerd Font", "Inter", sans-serif;
+    padding: 0 7px;
 }

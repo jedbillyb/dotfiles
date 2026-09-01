@@ -2006,6 +2006,59 @@ amount.
 existing windows keep their old setting until you re-run
 `swaymsg '[app_id=".*"] border pixel 5'` or restart them.
 
+### Menu bar
+
+Waybar is styled as the macOS menu bar rather than as a tiling-WM status bar.
+The differences that matter:
+
+* **Proportional face, not monospace.** Inter at 12px stands in for SF Pro
+  Text. It is not a clone, but the metrics are close enough that spacing tuned
+  for one holds on the other, and it is the only face of that shape that is
+  freely redistributable. Installed from `font-inter`.
+* **Apple mark and app name on the left.** `custom/apple` is U+F179 from
+  `nerd-fonts-symbols-ttf`, and opens wofi. `sway/window` fills the slot macOS
+  gives the frontmost application, so it reports `app_id` (not the window
+  title) through a `rewrite` map that turns `footclient` into Terminal and
+  `dev.zed.Zed` into Zed. It is the only bold text in the bar.
+* **Clock at the far right**, where macOS puts it, rather than centred.
+* **Glyphs instead of words** on the built-in modules. This is partly the look
+  and partly arithmetic: sixteen right-hand modules set in a 12px proportional
+  face do not fit across 1920px while `pulseaudio` still says `vol 40%`. The
+  ten custom status scripts still use words.
+
+Two traps to know about:
+
+Waybar formats the clock with fmt's chrono formatter, not `strftime`, so the
+glibc-only padding modifiers (`%-d`, `%e`, `%l`) are rejected with
+`clock: chrono format error: invalid specifier in chrono-specs` and the module
+silently renders as nothing at all. Plain specifiers only.
+
+The fixed-width slots on `#workspaces`, `#custom-calendar` and `#custom-claude`
+exist so those modules hold still as their contents change. They were measured
+against 9px DejaVu Sans Mono and had to be re-measured for 12px Inter; if you
+change the face again, they need re-measuring a third time.
+
+### GTK theming
+
+`gtk/gtk-3.0/settings.ini` and the GTK 4 copy of it set a dark Adwaita with
+WhiteSur icons and Inter as the UI font. WhiteSur is the macOS-alike icon set
+from vinceliuice; it is not packaged for Void, so it is installed by hand into
+`~/.local/share/icons` and deliberately not tracked here:
+
+```sh
+git clone --depth 1 https://github.com/vinceliuice/WhiteSur-icon-theme
+cd WhiteSur-icon-theme && ./install.sh -d "$HOME/.local/share/icons"
+```
+
+Anything reading the setting from dconf rather than from the ini file needs
+telling separately:
+
+```sh
+gsettings set org.gnome.desktop.interface icon-theme WhiteSur-dark
+gsettings set org.gnome.desktop.interface font-name "Inter 11"
+gsettings set org.gnome.desktop.interface color-scheme prefer-dark
+```
+
 ### Wallpaper
 
 `output * bg` in `sway/config` points at `/mnt/shared/wallpapers/`, which is

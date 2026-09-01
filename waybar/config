@@ -1,22 +1,42 @@
 {
     "position": "top",
-    "height": 16,
+    "height": 26,
     "layer": "overlay",
     "exclusive": true,
-    "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude"],
-    "modules-center": ["clock"],
-    "modules-right": ["custom/airpods", "custom/heatpump", "custom/airdrop", "custom/caffeine", "custom/vpn", "custom/github", "custom/notifications", "custom/bluetooth", "custom/wifiband", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],
-
+    "modules-left": [
+        "custom/apple",
+        "sway/window",
+        "sway/workspaces",
+        "custom/calendar",
+        "custom/claude"
+    ],
+    "modules-center": [],
+    "modules-right": [
+        "custom/airpods",
+        "custom/heatpump",
+        "custom/airdrop",
+        "custom/caffeine",
+        "custom/vpn",
+        "custom/github",
+        "custom/notifications",
+        "custom/bluetooth",
+        "custom/wifiband",
+        "custom/network",
+        "pulseaudio",
+        "memory",
+        "cpu",
+        "temperature",
+        "battery",
+        "clock"
+    ],
     "sway/workspaces": {
         "disable-scroll": true,
         "format": "{name}"
     },
-
     "clock": {
-        "format": "{:%H:%M  %a %d %b}",
+        "format": "{:%a %d %b  %H:%M}",
         "tooltip": false
     },
-
     "custom/github": {
         "exec": "~/.config/waybar/gh-status.sh",
         "return-type": "json",
@@ -24,7 +44,6 @@
         "signal": 8,
         "on-click": "~/.config/waybar/gh-status.sh click"
     },
-
     "custom/notifications": {
         "exec": "/mnt/shared/projects/dotfiles/waybar/notification-status.sh status",
         "return-type": "json",
@@ -32,36 +51,31 @@
         "signal": 7,
         "on-click": "/mnt/shared/projects/dotfiles/waybar/notification-status.sh toggle"
     },
-
     "pulseaudio": {
-        "format": "vol {volume}%",
-        "format-muted": "muted",
+        "format": "󰕾 {volume}%",
+        "format-muted": "󰖁",
         "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
         "tooltip": false
     },
-
     "memory": {
-        "format": "ram {percentage}%",
+        "format": "󰍛 {percentage}%",
         "interval": 5,
         "tooltip": false
     },
-
     "cpu": {
-        "format": "cpu {usage}%",
+        "format": "󰘚 {usage}%",
         "interval": 5,
         "tooltip": false
     },
-
     "temperature": {
         "hwmon-path-abs": "/sys/devices/pci0000:00/0000:00:18.3/hwmon",
         "input-filename": "temp1_input",
-        "format": "temp {temperatureC}°C",
+        "format": "󰔏 {temperatureC}°",
         "critical-threshold": 90,
-        "format-critical": "temp {temperatureC}°C",
+        "format-critical": "󰔏 {temperatureC}°",
         "interval": 5,
         "tooltip": false
     },
-
     "custom/claude": {
         "exec": "~/.config/waybar/claude-status.sh",
         "return-type": "json",
@@ -69,7 +83,6 @@
         "signal": 10,
         "tooltip": true
     },
-
     "custom/calendar": {
         "exec": "CAL_GCAL_DIR=/mnt/shared/projects/waybar-gcal ~/.config/waybar/calendar-status.sh --loop",
         "on-click": "CAL_GCAL_DIR=/mnt/shared/projects/waybar-gcal ~/.config/waybar/calendar-status.sh --click",
@@ -77,14 +90,12 @@
         "restart-interval": 5,
         "tooltip": true
     },
-
     "custom/network": {
         "exec": "~/.config/waybar/network-status.sh",
         "return-type": "json",
         "interval": 2,
         "tooltip": false
     },
-
     "custom/vpn": {
         "exec": "~/.config/waybar/vpn-status.sh",
         "return-type": "json",
@@ -93,7 +104,6 @@
         "on-click": "~/.local/bin/vpn-toggle.sh",
         "tooltip": true
     },
-
     "custom/wifiband": {
         "exec": "~/.config/waybar/wifi-band.sh",
         "return-type": "json",
@@ -102,7 +112,6 @@
         "on-click": "~/.config/waybar/wifi-band.sh toggle",
         "tooltip": true
     },
-
     "custom/bluetooth": {
         "exec": "~/.config/waybar/bluetooth-status.sh",
         "return-type": "json",
@@ -111,7 +120,6 @@
         "on-click": "~/.config/waybar/bluetooth-status.sh toggle",
         "tooltip": true
     },
-
     "custom/airdrop": {
         "exec": "~/.config/waybar/airdrop-status.sh",
         "return-type": "json",
@@ -119,7 +127,6 @@
         "on-click": "~/.config/waybar/airdrop-status.sh toggle",
         "tooltip": false
     },
-
     "custom/airpods": {
         "exec": "~/.config/waybar/airpods-status.sh",
         "return-type": "json",
@@ -128,7 +135,6 @@
         "on-click": "~/.config/waybar/airpods-status.sh toggle",
         "tooltip": true
     },
-
     "custom/heatpump": {
         "exec": "~/.config/waybar/heatpump-status.py",
         "return-type": "json",
@@ -138,7 +144,6 @@
         "on-click-right": "~/.config/waybar/heatpump-status.py toggle",
         "tooltip": true
     },
-
     "custom/caffeine": {
         "exec": "~/.config/waybar/caffeine-status.sh",
         "return-type": "json",
@@ -147,16 +152,38 @@
         "on-click": "~/.local/bin/caffeine-toggle.sh",
         "tooltip": false
     },
-
     "battery": {
-        "format": "bat {capacity}%",
-        "format-charging": "bat+ {capacity}%",
-        "format-full": "bat full",
+        "format": "󰁹 {capacity}%",
+        "format-charging": "󰂄 {capacity}%",
+        "format-full": "󰁹 100%",
         "interval": 30,
         "states": {
             "warning": 30,
             "critical": 15,
             "urgent": 5
+        },
+        "tooltip": false
+    },
+    "custom/apple": {
+        "format": "",
+        "tooltip": false,
+        "on-click": "wofi --show drun"
+    },
+    "sway/window": {
+        "format": "{app_id}",
+        "max-length": 22,
+        "rewrite": {
+            "footclient": "Terminal",
+            "foot": "Terminal",
+            "dev.zed.Zed": "Zed",
+            "google-chrome": "Chrome",
+            "chromium": "Chromium",
+            "Firefox": "Firefox",
+            "vesktop": "Discord",
+            "thunar": "Files",
+            "Thunar": "Files",
+            "org.pwmt.zathura": "Zathura",
+            "": "Finder"
         },
         "tooltip": false
     }
