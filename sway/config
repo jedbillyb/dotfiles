@@ -274,6 +274,14 @@ bindsym $mod+b exec ~/.local/bin/waybar-toggle.sh
 
 # ── Input ─────────────────────────────────────────────────────────────────────
 
+# The pointer. Kept in step with `gtk-cursor-theme-name` rather than left as
+# the macOS look's business, because the two are not separable here: GTK reads
+# its setting inside windows and sway draws the cursor everywhere else, so a
+# mismatch means the pointer changes shape as it crosses a window edge, which
+# reads as a bug rather than as two themed sessions. sway has no XCURSOR_THEME
+# equivalent; on a compositor the theme is a seat property.
+seat seat0 xcursor_theme WhiteSur-cursors 24
+
 input type:touchpad {
     natural_scroll enabled
     tap enabled

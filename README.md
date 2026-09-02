@@ -2241,6 +2241,43 @@ gsettings set org.gnome.desktop.interface font-name "Inter 11"
 gsettings set org.gnome.desktop.interface color-scheme prefer-dark
 ```
 
+### Cursor
+
+`WhiteSur-cursors`, the matching pointer set from the same author: black arrow
+with a white outline and a drop shadow, and the rainbow beachball for the wait
+cursor. Also unpackaged, also installed by hand and not tracked here. Its
+`dist/` is prebuilt, so there is no build step:
+
+```sh
+git clone --depth 1 https://github.com/vinceliuice/WhiteSur-cursors
+cd WhiteSur-cursors && ./install.sh
+```
+
+**It has to be set in four places, because no one of them covers the others.**
+
+| Where | What it covers |
+|---|---|
+| `env = XCURSOR_THEME,WhiteSur-cursors` in `hypr/hyprland.conf` | the Hyprland session |
+| `seat seat0 xcursor_theme WhiteSur-cursors 24` in `sway/config` | the sway session — sway has no env equivalent, on a compositor this is a seat property |
+| `gtk-cursor-theme-name` in both `gtk/gtk-*/settings.ini` | GTK apps, in either session |
+| `~/.icons/default/index.theme` with `Inherits=WhiteSur-cursors` | XWayland and anything that reads neither the env var nor GTK |
+
+Unlike the rest of the macOS look this is deliberately **not** Hyprland-only.
+GTK draws the pointer inside its own windows and the compositor draws it
+everywhere else, so theming only one session leaves the pointer changing shape
+as it crosses a window edge — which reads as a bug rather than as two themed
+sessions.
+
+To apply it to a running Hyprland without a logout (`env` only takes effect at
+launch), and to tell dconf:
+
+```sh
+hyprctl setcursor WhiteSur-cursors 24
+gsettings set org.gnome.desktop.interface cursor-theme WhiteSur-cursors
+```
+
+Apps already running keep whatever theme they started with until restarted.
+
 ### Wallpaper
 
 `output * bg` in `sway/config` points at `/mnt/shared/wallpapers/`, which is
