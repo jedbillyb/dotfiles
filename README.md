@@ -1353,6 +1353,14 @@ pactl set-card-profile bluez_card.B8_90_47_64_83_CB off
 wireplumber saves that to `~/.local/state/wireplumber/default-profile`, but
 state files get rewritten, hence the config above.
 
+The same drop-in also sets `bluez5.autoswitch-to-headset-profile = false`, for
+the laptop's *own* headphones. The mt7921 controller's SCO link is broken
+(`dmesg` shows `corrupted SCO packet` and `SCO packet for unknown connection
+handle`), so a headset mic over HFP only ever records silence. Worse,
+wireplumber's autoswitch tore down the A2DP sink whenever an app opened a
+microphone, cutting playback mid-sentence. With it off, headphones stay on
+A2DP and apps record from the laptop's built-in mic.
+
 ### Silencing blueman connect/disconnect popups
 
 blueman-applet's `ConnectionNotifier` plugin fires a desktop notification every
