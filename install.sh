@@ -77,13 +77,16 @@ link shell/bash_profile "$HOME/.bash_profile"
 link shell/profile      "$HOME/.profile"
 link shell/inputrc      "$HOME/.inputrc"
 link git/gitconfig      "$HOME/.gitconfig"
+# gpg refuses a group- or world-readable homedir, and link() would create it 755.
+mkdir -p -m 700 "$HOME/.gnupg"
+link gnupg/gpg-agent.conf "$HOME/.gnupg/gpg-agent.conf"
 
 echo "Scripts (-> $BIN):"
 mkdir -p "$BIN"
 # Everything in scripts/ that belongs in $BIN. touchpad-resume-fix.sh and
 # wifi-recover-root.sh are deliberately absent: they are installed elsewhere
 # below, into the elogind hook directory and /usr/local/bin respectively.
-for s in hyprland-session.sh vpn-toggle.sh vpn-proxy.sh vpn-wstunnel.sh vpn-amnezia.sh vpn-autoconnect.sh caffeine-toggle.sh show-desktop.sh sway-idle.sh sway-lock.sh waybar-run.sh waybar-toggle.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py workspace-step.py wofi-dismiss.py wofi-backdrop.py touch-shield.py zed-wrapper gh-inbox; do
+for s in hyprland-session.sh vpn-toggle.sh vpn-proxy.sh vpn-wstunnel.sh vpn-amnezia.sh vpn-autoconnect.sh caffeine-toggle.sh show-desktop.sh sway-idle.sh sway-lock.sh waybar-run.sh waybar-toggle.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py workspace-step.py wofi-dismiss.py wofi-backdrop.py pinentry-wayland.py touch-shield.py zed-wrapper gh-inbox; do
 	chmod +x "$REPO/scripts/$s"
 	link "scripts/$s" "$BIN/$s"
 done

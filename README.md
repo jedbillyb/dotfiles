@@ -45,6 +45,10 @@ My personal configuration files.
   roles are untouched
 - `shell/` - Shell dotfiles (`.bashrc`, `.zshrc`, `.bash_profile`, `.profile`, `.inputrc`)
 - `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`)
+- `gnupg/gpg-agent.conf` - gpg-agent settings: the passphrase prompt and how
+  long an entered passphrase stays cached (see "GPG passphrase prompt" below)
+- `scripts/pinentry-wayland.py` - The passphrase prompt itself, a themed
+  Wayland dialog in place of `pinentry-gtk-2`
 - `bin/spotlight` - Spotlight-style centered wofi launcher (bound to mod+r and
   mod+space); tap or click outside the box to dismiss it
 - `scripts/wofi-dismiss.py` - Closes it on a tap outside the box, by watching
@@ -144,7 +148,8 @@ cd ~/projects/dotfiles
 - symlinks `sway/config`, `i3/config`, `waybar/`, `wofi/`, `foot/foot.ini`, and
   the `xdg-desktop-portal/*-portals.conf` and `airdrop/config` files into
   `~/.config`
-- symlinks the shell dotfiles and `gitconfig` into `~`
+- symlinks the shell dotfiles and `gitconfig` into `~`, and `gpg-agent.conf`
+  into `~/.gnupg` (creating it `0700` if it is missing)
 - symlinks the `scripts/` and `bin/` helpers into `~/.local/bin` and marks them
   executable (an explicit list, not a glob — a new script has to be added to it,
   and `touch-gestures.sh` refuses to start if any helper it calls is missing)
@@ -2285,6 +2290,44 @@ gsettings set org.gnome.desktop.interface cursor-theme WhiteSur-cursors
 ```
 
 Apps already running keep whatever theme they started with until restarted.
+
+### GPG passphrase prompt
+
+Commits are signed (`commit.gpgsign` in `git/gitconfig`), so when gpg-agent's
+cache runs out a signed commit needs the key's passphrase typed into a
+*pinentry*. `gnupg/gpg-agent.conf` points gpg-agent at
+`scripts/pinentry-wayland.py`, a dialog centred on screen in the same dress as
+foot, waybar and wofi: `#242424` at 0.85, square corners, no outlines, Inter,
+and the Tokyo Night blue for the OK button and caret.
+
+The two packaged options each got something wrong:
+
+- **`pinentry-gtk-2`** is a proper window, but GTK 2 is X11-only. sway
+  pre-creates `/tmp/.X11-unix/X0` for lazy Xwayland, so the socket existing
+  proves nothing; with no Xwayland behind it the prompt never appears, and
+  every signed commit waits out 30s and fails with `gpg: signing failed:
+  Timeout`. It also ignores the GTK 3 theme
+- **`pinentry-bemenu`** is Wayland-native and reliable, but it draws a bemenu
+  strip across the top of the screen that reads as part of the bar
+
+The script speaks the pinentry (Assuan) protocol directly and draws with GTK 3
+on a layer-shell `OVERLAY` surface with exclusive keyboard focus, so it needs
+no X, no window rules, and behaves the same under sway and Hyprland (where
+`hypr/hyprland.conf` blurs its `pinentry` namespace like the bar). It handles
+passphrase entry, new-passphrase-with-repeat, confirmations, the agent's
+timeout and "Bad Passphrase" retries, and warns when Caps Lock is on. Enter
+submits, Escape cancels. With no Wayland socket at all (an SSH login) it hands
+the whole exchange to `pinentry-curses` instead.
+
+One trap if it is ever rewritten: gpg-agent runs pinentries as
+`pinentry --display :0`. Importing Gtk passes `sys.argv` to `gtk_init`, which
+takes `:0` as the display to open and comes up with no screen, so the script
+drops its arguments before touching GTK. gpg-agent reports that failure only as
+`signing failed: End of file`.
+
+The cache TTLs stay at 8h / 12h, so the prompt turns up roughly once a working
+day. Config changes need `gpg-connect-agent reloadagent /bye`, which **also
+empties the cache** - the next signature will prompt.
 
 ### Wallpaper
 
