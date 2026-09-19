@@ -280,7 +280,7 @@ bindsym $mod+b exec ~/.local/bin/waybar-toggle.sh
 # mismatch means the pointer changes shape as it crosses a window edge, which
 # reads as a bug rather than as two themed sessions. sway has no XCURSOR_THEME
 # equivalent; on a compositor the theme is a seat property.
-seat seat0 xcursor_theme WhiteSur-cursors 24
+seat seat0 xcursor_theme Adwaita 24
 
 input type:touchpad {
     natural_scroll enabled

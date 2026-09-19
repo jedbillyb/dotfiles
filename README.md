@@ -2256,37 +2256,31 @@ gsettings set org.gnome.desktop.interface color-scheme prefer-dark
 
 ### Cursor
 
-`WhiteSur-cursors`, the matching pointer set from the same author: black arrow
-with a white outline and a drop shadow, and the rainbow beachball for the wait
-cursor. Also unpackaged, also installed by hand and not tracked here. Its
-`dist/` is prebuilt, so there is no build step:
-
-```sh
-git clone --depth 1 https://github.com/vinceliuice/WhiteSur-cursors
-cd WhiteSur-cursors && ./install.sh
-```
+The stock **Adwaita** pointer, in both sessions. `WhiteSur-cursors` (the
+macOS-alike set) was tried with the rest of the macOS look and dropped because
+the user did not like it. Adwaita ships with GTK, so there is nothing to
+install.
 
 **It has to be set in four places, because no one of them covers the others.**
 
 | Where | What it covers |
 |---|---|
-| `env = XCURSOR_THEME,WhiteSur-cursors` in `hypr/hyprland.conf` | the Hyprland session |
-| `seat seat0 xcursor_theme WhiteSur-cursors 24` in `sway/config` | the sway session — sway has no env equivalent, on a compositor this is a seat property |
+| `env = XCURSOR_THEME,Adwaita` in `hypr/hyprland.conf` | the Hyprland session |
+| `seat seat0 xcursor_theme Adwaita 24` in `sway/config` | the sway session — sway has no env equivalent, on a compositor this is a seat property |
 | `gtk-cursor-theme-name` in both `gtk/gtk-*/settings.ini` | GTK apps, in either session |
-| `~/.icons/default/index.theme` with `Inherits=WhiteSur-cursors` | XWayland and anything that reads neither the env var nor GTK |
+| `~/.icons/default/index.theme` with `Inherits=Adwaita` | XWayland and anything that reads neither the env var nor GTK |
 
-Unlike the rest of the macOS look this is deliberately **not** Hyprland-only.
 GTK draws the pointer inside its own windows and the compositor draws it
-everywhere else, so theming only one session leaves the pointer changing shape
-as it crosses a window edge — which reads as a bug rather than as two themed
+everywhere else, so if the four disagree the pointer changes shape as it
+crosses a window edge — which reads as a bug rather than as two themed
 sessions.
 
-To apply it to a running Hyprland without a logout (`env` only takes effect at
-launch), and to tell dconf:
+To apply a change to a running session without a logout, and to tell dconf:
 
 ```sh
-hyprctl setcursor WhiteSur-cursors 24
-gsettings set org.gnome.desktop.interface cursor-theme WhiteSur-cursors
+swaymsg 'seat seat0 xcursor_theme Adwaita 24'   # sway
+hyprctl setcursor Adwaita 24                    # Hyprland (env only takes effect at launch)
+gsettings set org.gnome.desktop.interface cursor-theme Adwaita
 ```
 
 Apps already running keep whatever theme they started with until restarted.
