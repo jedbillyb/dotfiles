@@ -498,6 +498,15 @@ There is no syslog daemon on this machine, so it logs to
 `/tmp/vpn-amnezia/autoconnect.log`, next to `vpn-amnezia.sh diag`. Read the two
 together: a failed auto-connect is invisible by definition.
 
+Because it runs as root, everything it leaves in `/tmp/vpn-amnezia/` and
+`$XDG_RUNTIME_DIR/vpn-facts/` is root-owned, so it `chown`s both back to the
+session user after every run. Skipping the rundir broke the next by-hand
+connect in a nasty way: `vpn-amnezia.sh` appends `awg-quick`'s output to
+`diagnostics.log`, the shell could not open it, so `awg-quick` never ran, tier 2
+failed instantly with nothing logged, and `vpn-toggle.sh` settled on `ws`. If
+`mod+Shift+v` lands on `vpn tcp` on the school wifi and `diagnostics.log` has no
+entry for that attempt, check `ls -l /tmp/vpn-amnezia` for root ownership first.
+
 #### Reading the waybar module
 
 `vpn-status.sh` names the transport rather than just on/off, because

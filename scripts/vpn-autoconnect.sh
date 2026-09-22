@@ -56,6 +56,19 @@ LOG="/tmp/vpn-amnezia/autoconnect.log"
 log() {
     mkdir -p "$(dirname "$LOG")"
     printf '%s %s\n' "$(date -Is)" "$1" >>"$LOG"
+    hand_back
+}
+
+# Everything this hook and vpn-amnezia.sh write is root-owned, so give it back
+# after every log line (one always follows an `up`, success or not). Root-owned
+# endpoint facts leave the waybar tooltip stale. A root-owned rundir is worse:
+# the next by-hand `up` cannot open diagnostics.log, and since awg-quick's
+# output is redirected there, the failed redirect means awg-quick never runs at
+# all - tier 2 fails in zero seconds, leaves no trace, and vpn-toggle.sh drops
+# to `ws` (2026-09-22).
+hand_back() {
+    [[ $(id -u) -eq 0 ]] || return 0
+    chown -R "$SESSION_USER:" "$(dirname "$LOG")" "$XDG_RUNTIME_DIR/vpn-facts" 2>/dev/null
 }
 
 notify() {
@@ -113,11 +126,6 @@ connect() {
 
     log "connecting AmneziaWG on $net"
     if "$AMNEZIA" up >/dev/null 2>&1; then
-        # The endpoint facts were just written by root into the user's runtime
-        # dir. Hand them back, or the next by-hand connect cannot truncate its
-        # own file and the waybar tooltip quietly stops tracking reality.
-        [[ $(id -u) -eq 0 ]] &&
-            chown -R "$SESSION_USER" "$XDG_RUNTIME_DIR/vpn-facts" 2>/dev/null
         log "connected"
         notify "Connected - AmneziaWG UDP/123 (10.0.2.4)"
     else
