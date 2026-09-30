@@ -81,6 +81,7 @@ My personal configuration files.
 - `scripts/vpn-proxy.sh` - TCP-over-SSH fallback for networks that block UDP, so
   there is still a tunnel when WireGuard can't handshake (`up|down|status`)
 - `scripts/show-desktop.sh` - Show-desktop toggle (bound to mod+d)
+- `scripts/brightness.sh` - Brightness keys, with a screen-off step below the minimum
 - `scripts/caffeine-toggle.sh` - Stay-awake toggle: blocks idle lock + lid suspend (bound to mod+Shift+c)
 - `scripts/sway-idle.sh` - swayidle launcher (idle lock / screen-off), restartable by the caffeine toggle
 - `scripts/sway-lock.sh` - Lock screen launcher (swaylock-fprintd, bound to mod+Shift+i)
@@ -2510,7 +2511,7 @@ unfocused.
 | `XF86AudioMute` | Toggle mute |
 | `XF86AudioMicMute` | Toggle mic mute |
 | `XF86AudioPlay` / `Next` / `Prev` / `Stop` | playerctl media controls |
-| `XF86MonBrightnessUp` / `Down` | Brightness ±5% |
+| `XF86MonBrightnessUp` / `Down` | Brightness ±5%. One more Down at the minimum turns the screen off; Up turns it back on (`scripts/brightness.sh`) |
 
 ### Screenshots
 
