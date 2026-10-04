@@ -967,6 +967,12 @@ Pieces:
   and here it doesn't: Firefox keeps its profile in `~/.config/mozilla`. Do not
   create `~/.mozilla` to work around this, Firefox may switch back to it and
   open an empty profile. The system-wide directory is read regardless.
+- **gnome-keyring** (secret service). Bitwarden hides the *Unlock with system
+  authentication* option entirely unless a libsecret provider is reachable,
+  because it parks the protected user key there. Nothing to start by hand: it
+  is D-Bus activated, and emptty's PAM stack already carries
+  `pam_gnome_keyring.so`, so a password login unlocks the `login` keyring
+  (a fingerprint login does not, and gets a keyring prompt on first use).
 - **polkit-gnome agent**, started by both sway and Hyprland. With no agent,
   polkit has nothing to show the prompt with and the unlock silently fails.
 
