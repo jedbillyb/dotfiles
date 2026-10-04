@@ -961,6 +961,12 @@ Pieces:
   but that needs a working polkit agent first.
 - **`bitwarden/pam-polkit-1`**, copied to `/etc/pam.d/polkit-1`. Without it PAM
   falls back to `other`, which is password-only.
+- **`bitwarden/com.8bit.bitwarden.json`**, copied to
+  `/usr/lib/mozilla/native-messaging-hosts/`. The desktop app's own
+  *Allow browser integration* only writes this manifest if `~/.mozilla` exists,
+  and here it doesn't: Firefox keeps its profile in `~/.config/mozilla`. Do not
+  create `~/.mozilla` to work around this, Firefox may switch back to it and
+  open an empty profile. The system-wide directory is read regardless.
 - **polkit-gnome agent**, started by both sway and Hyprland. With no agent,
   polkit has nothing to show the prompt with and the unlock silently fails.
 

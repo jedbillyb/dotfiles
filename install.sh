@@ -253,7 +253,10 @@ link scripts/ancs-pair.sh "$BIN/ancs-pair.sh"
 # Copies, not symlinks: polkitd and PAM read these as root.
 sudo install -o root -g root -m 644 "$REPO/bitwarden/com.bitwarden.Bitwarden.policy" /usr/share/polkit-1/actions/com.bitwarden.Bitwarden.policy
 sudo install -o root -g root -m 644 "$REPO/bitwarden/pam-polkit-1" /etc/pam.d/polkit-1
-info "copy  bitwarden polkit policy + /etc/pam.d/polkit-1"
+# Firefox native messaging manifest, system-wide. The desktop app only writes
+# its own into ~/.mozilla, which does not exist with Firefox's XDG profile dir.
+sudo install -D -o root -g root -m 644 "$REPO/bitwarden/com.8bit.bitwarden.json" /usr/lib/mozilla/native-messaging-hosts/com.8bit.bitwarden.json
+info "copy  bitwarden polkit policy, /etc/pam.d/polkit-1, firefox NMH manifest"
 
 cat <<EOF
 
