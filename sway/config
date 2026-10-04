@@ -68,6 +68,13 @@ exec dbus-update-activation-environment --all
 exec nm-applet --indicator
 exec blueman-applet
 
+# Polkit authentication agent. Without one, anything that asks polkit to
+# authenticate the user just fails. Bitwarden's "unlock with system
+# authentication" goes through polkit, and /etc/pam.d/polkit-1 pulls in
+# system-auth, so the prompt accepts a fingerprint. See "Bitwarden fingerprint
+# unlock" in the README.
+exec /usr/libexec/polkit-gnome-authentication-agent-1
+
 # KDE Connect. The indicator starts kdeconnectd itself and adds a tray icon,
 # so this one line covers both the background daemon and the GUI entry point.
 exec kdeconnect-indicator

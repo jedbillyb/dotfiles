@@ -248,6 +248,13 @@ info "edit  /etc/bluetooth/main.conf (always discoverable + pairable)"
 link dunst/dunstrc "$CONFIG/dunst/dunstrc"
 link scripts/ancs-pair.sh "$BIN/ancs-pair.sh"
 
+# Bitwarden fingerprint unlock: the polkit action the desktop app asks for, and
+# a PAM stack for polkit that includes system-auth (and so pam_fprintd).
+# Copies, not symlinks: polkitd and PAM read these as root.
+sudo install -o root -g root -m 644 "$REPO/bitwarden/com.bitwarden.Bitwarden.policy" /usr/share/polkit-1/actions/com.bitwarden.Bitwarden.policy
+sudo install -o root -g root -m 644 "$REPO/bitwarden/pam-polkit-1" /etc/pam.d/polkit-1
+info "copy  bitwarden polkit policy + /etc/pam.d/polkit-1"
+
 cat <<EOF
 
 Done. Manual steps not handled here (see README):
@@ -257,5 +264,6 @@ Done. Manual steps not handled here (see README):
   - swaylock-fprintd build + PAM setup for the lock screen
   - ANCS: clone pzmarzly/ancs4linux to /mnt/shared/projects and build its
     venv, then pair the iPhone fresh (see README)
+  - Bitwarden desktop app extracted to /opt/bitwarden (see README)
 Make sure "$BIN" is on your PATH.
 EOF

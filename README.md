@@ -15,6 +15,7 @@ My personal configuration files.
   macOS-looking one; sway stays plain and rectangular. Picked at the emptty
   login screen
 - `i3/config` - i3 window manager config (legacy)
+- `bitwarden/` - polkit policy and PAM file for Bitwarden fingerprint unlock
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
   WiFi band, Bluetooth, AirDrop, AirPods, calendar, heat pump, GitHub, and
   Claude indicators). The calendar
@@ -936,6 +937,37 @@ can't reach up and flash the whole bar, only the battery module itself. GTK
 CSS is also pickier than real CSS: no comma-grouped keyframe selectors
 (`0%, 100%` fails to parse) and `steps()` only accepts `start`/`end`, not
 `jump-none`.
+
+### Bitwarden fingerprint unlock
+
+The Bitwarden Firefox extension unlocks with a fingerprint. Firefox can't do
+that itself: the extension hands off to the Bitwarden desktop app over native
+messaging, and the desktop app asks polkit, which asks PAM, which tries
+`pam_fprintd` first via `system-auth`.
+
+Pieces:
+
+- **Desktop app** in `/opt/bitwarden`, the official AppImage unpacked with
+  `--appimage-extract`. Unpacked, not run as an AppImage, because the desktop
+  app writes the path of its `desktop_proxy` into Firefox's native messaging
+  manifest, and a mounted AppImage gets a new random path every launch.
+  `/usr/local/bin/bitwarden` runs it with `--no-sandbox` and a `.desktop` entry
+  goes in `/usr/share/applications`. Neither is managed by `install.sh`.
+  To update: download the new AppImage, `--appimage-extract`, replace
+  `/opt/bitwarden`, then `find` the tree back to 755 dirs / 644 files (squashfs
+  extracts subdirectories as 700, which leaves them unreadable once root-owned).
+- **`bitwarden/com.bitwarden.Bitwarden.policy`**, copied to
+  `/usr/share/polkit-1/actions/`. The desktop app offers to install it itself,
+  but that needs a working polkit agent first.
+- **`bitwarden/pam-polkit-1`**, copied to `/etc/pam.d/polkit-1`. Without it PAM
+  falls back to `other`, which is password-only.
+- **polkit-gnome agent**, started by both sway and Hyprland. With no agent,
+  polkit has nothing to show the prompt with and the unlock silently fails.
+
+One-time setup in the apps: log in to the desktop app, turn on *Unlock with
+system authentication* and *Allow browser integration*, then in the extension
+turn on *Unlock with biometrics* and approve the fingerprint phrase in the
+desktop app. The desktop app must be running for the extension to unlock.
 
 ### LibreOffice Discord presence
 
