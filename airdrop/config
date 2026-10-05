@@ -32,3 +32,12 @@ export AIRDROP_STALL_FLOOR="${AIRDROP_STALL_FLOOR:-20}"
 # owl heard zero frames from the phone; on ch149 it was discovered. ch36
 # station + ch149 GO holds the laptop's Wi-Fi (0% loss).
 AIRDROP_GO_CHAN="${AIRDROP_GO_CHAN:-149}"
+
+# The waybar switch takes the whole Wi-Fi card while it is on (Wi-Fi drops)
+# and gives it back by itself 60s after the last transfer, or after 3 minutes
+# if nothing arrives. Chosen 2026-10-05 over the shared mode, which keeps
+# Wi-Fi up but can only find the phone when both happen to share a channel.
+AIRDROP_MODE="${AIRDROP_MODE:-exclusive}"
+# Country to pin once wpa_supplicant is stopped; the AP-derived domain here
+# is an intersection ("98") with no code to restore.
+AIRDROP_REG="${AIRDROP_REG:-NZ}"

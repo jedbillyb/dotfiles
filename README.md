@@ -45,6 +45,8 @@ My personal configuration files.
   cutting photos off partway. Pins `AIRDROP_GO_CHAN=149` for the waybar
   toggle, because the default (copy the Wi-Fi channel, ch36) is a channel the
   iPhone never does AirDrop on when its own Wi-Fi is on 2.4GHz or off.
+  Sets `AIRDROP_MODE=exclusive` (the switch drops Wi-Fi while on and restores
+  it by itself after a transfer) and `AIRDROP_REG=NZ` for that mode.
 - `wireplumber/wireplumber.conf.d/` - PipeWire session-manager drop-ins. Strips
   the sink-side Bluetooth roles so a phone can't push its audio into the
   laptop (see "Stopping the iPhone routing its audio here" below); headset
