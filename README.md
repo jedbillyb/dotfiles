@@ -87,6 +87,7 @@ My personal configuration files.
 - `scripts/sway-idle.sh` - swayidle launcher (idle lock / screen-off), restartable by the caffeine toggle
 - `scripts/sway-lock.sh` - Lock screen launcher (swaylock-fprintd, bound to mod+Shift+i)
 - `scripts/touchpad-resume-fix.sh` - Unsticks the touchpad after resume (elogind hook + mod+Shift+r)
+- `scripts/sleep-quiet-fans.sh` - elogind hook: low-power profile while asleep so the fan stays off with the lid shut
 - `scripts/waybar-toggle.sh`, `scripts/waybar-run.sh` - Show/hide waybar (mod+b) and launch it;
   the runner also decides which bar to run, macOS under Hyprland and compact under sway
 - `waybar/wifi-band.sh` - Bar module showing which band WiFi is actually on, and
@@ -155,8 +156,9 @@ cd ~/projects/dotfiles
 - symlinks the `scripts/` and `bin/` helpers into `~/.local/bin` and marks them
   executable (an explicit list, not a glob — a new script has to be added to it,
   and `touch-gestures.sh` refuses to start if any helper it calls is missing)
-- symlinks `scripts/touchpad-resume-fix.sh` into
-  `/usr/libexec/elogind/system-sleep/` (via `sudo`) so elogind runs it on resume
+- symlinks `scripts/touchpad-resume-fix.sh` and `scripts/sleep-quiet-fans.sh`
+  into `/usr/libexec/elogind/system-sleep/` (via `sudo`) so elogind runs them
+  around suspend
 - copies the WireGuard template to `/etc/wireguard/wg0.conf` (via `sudo`) only
   if no config is already there
 

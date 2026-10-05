@@ -83,9 +83,10 @@ link gnupg/gpg-agent.conf "$HOME/.gnupg/gpg-agent.conf"
 
 echo "Scripts (-> $BIN):"
 mkdir -p "$BIN"
-# Everything in scripts/ that belongs in $BIN. touchpad-resume-fix.sh and
-# wifi-recover-root.sh are deliberately absent: they are installed elsewhere
-# below, into the elogind hook directory and /usr/local/bin respectively.
+# Everything in scripts/ that belongs in $BIN. touchpad-resume-fix.sh,
+# sleep-quiet-fans.sh and wifi-recover-root.sh are deliberately absent: they
+# are installed elsewhere below, into the elogind hook directory and
+# /usr/local/bin respectively.
 for s in hyprland-session.sh vpn-toggle.sh vpn-proxy.sh vpn-wstunnel.sh vpn-amnezia.sh vpn-autoconnect.sh caffeine-toggle.sh show-desktop.sh sway-idle.sh sway-lock.sh waybar-run.sh waybar-toggle.sh openclaw-send wifi-compare.sh wifi-recover.sh touch-gestures.sh touch-resize.sh touch-resized.py workspace-step.py wofi-dismiss.py wofi-backdrop.py pinentry-wayland.py touch-shield.py zed-wrapper gh-inbox; do
 	chmod +x "$REPO/scripts/$s"
 	link "scripts/$s" "$BIN/$s"
@@ -182,6 +183,14 @@ else
 	sudo mkdir -p "$(dirname "$SLEEP_HOOK")"
 	sudo ln -sf "$REPO/scripts/touchpad-resume-fix.sh" "$SLEEP_HOOK"
 	info "link  $SLEEP_HOOK"
+fi
+FAN_HOOK="/usr/libexec/elogind/system-sleep/sleep-quiet-fans.sh"
+chmod +x "$REPO/scripts/sleep-quiet-fans.sh"
+if [ -L "$FAN_HOOK" ] && [ "$(readlink "$FAN_HOOK")" = "$REPO/scripts/sleep-quiet-fans.sh" ]; then
+	info "ok    $FAN_HOOK"
+else
+	sudo ln -sf "$REPO/scripts/sleep-quiet-fans.sh" "$FAN_HOOK"
+	info "link  $FAN_HOOK"
 fi
 
 echo "WireGuard:"
