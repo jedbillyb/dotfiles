@@ -16,3 +16,11 @@ RECV_DIR="${RECV_DIR:-/mnt/shared/airdrop}"
 # No apostrophe on purpose: OpenDrop substitutes this into an OpenSSL cert
 # subject (/CN=<name>) when it generates its TLS identity.
 AIRDROP_NAME="${AIRDROP_NAME:-Jeds Linux Laptop}"
+
+# Shortest time opendrop waits on a quiet sender before giving up on an upload
+# and salvaging what arrived. opendrop's default floor is 8s, but on this card
+# the laptop's TCP ACKs can black out for ~8s mid-transfer while the phone
+# keeps retransmitting; on 2026-10-05 an 8s floor cut off a 386KB photo at
+# 114KB, one second before the link came back. Exported because opendrop reads
+# it from its environment, not from this file.
+export AIRDROP_STALL_FLOOR="${AIRDROP_STALL_FLOOR:-20}"

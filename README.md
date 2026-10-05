@@ -39,7 +39,10 @@ My personal configuration files.
   files land on the shared mount. It lives here rather than in that repo because
   the things that would otherwise carry the path - the waybar module, a sway
   keybind - are tracked files in a public checkout. Assignments use `${VAR:-…}`
-  so the environment still overrides them.
+  so the environment still overrides them. Also sets `AIRDROP_NAME` (the name
+  in the iOS share sheet) and exports `AIRDROP_STALL_FLOOR=20`, raising
+  opendrop's 8s give-up floor because ACK blackouts of ~8s on the MT7921 were
+  cutting photos off partway.
 - `wireplumber/wireplumber.conf.d/` - PipeWire session-manager drop-ins. Strips
   the sink-side Bluetooth roles so a phone can't push its audio into the
   laptop (see "Stopping the iPhone routing its audio here" below); headset
