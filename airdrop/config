@@ -24,3 +24,11 @@ AIRDROP_NAME="${AIRDROP_NAME:-Jeds Linux Laptop}"
 # 114KB, one second before the link came back. Exported because opendrop reads
 # it from its environment, not from this file.
 export AIRDROP_STALL_FLOOR="${AIRDROP_STALL_FLOOR:-20}"
+
+# Channel for the waybar toggle's AirDrop radio (airdropd's P2P-GO). The
+# default "auto" copies the laptop's Wi-Fi channel (ch36 at home), but the
+# iPhone here sits on the router's 2.4GHz band, where a GO can't run, and with
+# its Wi-Fi off it only does AirDrop on ch149/ch6. Measured 2026-10-05: on ch36
+# owl heard zero frames from the phone; on ch149 it was discovered. ch36
+# station + ch149 GO holds the laptop's Wi-Fi (0% loss).
+AIRDROP_GO_CHAN="${AIRDROP_GO_CHAN:-149}"

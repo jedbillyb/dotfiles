@@ -42,7 +42,9 @@ My personal configuration files.
   so the environment still overrides them. Also sets `AIRDROP_NAME` (the name
   in the iOS share sheet) and exports `AIRDROP_STALL_FLOOR=20`, raising
   opendrop's 8s give-up floor because ACK blackouts of ~8s on the MT7921 were
-  cutting photos off partway.
+  cutting photos off partway. Pins `AIRDROP_GO_CHAN=149` for the waybar
+  toggle, because the default (copy the Wi-Fi channel, ch36) is a channel the
+  iPhone never does AirDrop on when its own Wi-Fi is on 2.4GHz or off.
 - `wireplumber/wireplumber.conf.d/` - PipeWire session-manager drop-ins. Strips
   the sink-side Bluetooth roles so a phone can't push its audio into the
   laptop (see "Stopping the iPhone routing its audio here" below); headset
