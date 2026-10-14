@@ -988,7 +988,9 @@ Pieces:
 One-time setup in the apps: log in to the desktop app, turn on *Unlock with
 system authentication* and *Allow browser integration*, then in the extension
 turn on *Unlock with biometrics* and approve the fingerprint phrase in the
-desktop app. The desktop app must be running for the extension to unlock.
+desktop app. The desktop app must be running for the extension to unlock, so
+sway and Hyprland both start it at login. In its settings turn on *Start to
+tray* and *Close to tray* so it lives in the tray instead of opening a window.
 
 ### LibreOffice Discord presence
 

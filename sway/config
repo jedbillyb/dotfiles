@@ -75,6 +75,11 @@ exec blueman-applet
 # unlock" in the README.
 exec /usr/libexec/polkit-gnome-authentication-agent-1
 
+# Bitwarden desktop app, so the Firefox extension can unlock with a fingerprint
+# from the start. It sits in the tray (Start to tray + Close to tray in its
+# settings).
+exec bitwarden
+
 # KDE Connect. The indicator starts kdeconnectd itself and adds a tray icon,
 # so this one line covers both the background daemon and the GUI entry point.
 exec kdeconnect-indicator
