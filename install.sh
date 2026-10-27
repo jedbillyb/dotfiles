@@ -63,6 +63,8 @@ link xdg-desktop-portal-wlr/config        "$CONFIG/xdg-desktop-portal-wlr/config
 link airdrop/config "$CONFIG/airdrop/config"
 # Bluetooth sink roles off: the iPhone is paired for notifications, not audio.
 link wireplumber/wireplumber.conf.d "$CONFIG/wireplumber/wireplumber.conf.d"
+# Lua hook that makes Bluetooth headphones the default output on connect.
+link wireplumber/scripts "${XDG_DATA_HOME:-$HOME/.local/share}/wireplumber/scripts"
 
 echo "Shell + git (-> \$HOME):"
 link emptty/emptty      "$CONFIG/emptty"

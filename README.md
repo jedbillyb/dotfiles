@@ -51,7 +51,8 @@ My personal configuration files.
 - `wireplumber/wireplumber.conf.d/` - PipeWire session-manager drop-ins. Strips
   the sink-side Bluetooth roles so a phone can't push its audio into the
   laptop (see "Stopping the iPhone routing its audio here" below); headset
-  roles are untouched
+  roles are untouched. Also loads `wireplumber/scripts/bt-autoswitch.lua`
+  (see "Switching to Bluetooth headphones on connect" below)
 - `shell/` - Shell dotfiles (`.bashrc`, `.zshrc`, `.bash_profile`, `.profile`, `.inputrc`)
 - `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`)
 - `gnupg/gpg-agent.conf` - gpg-agent settings: the passphrase prompt and how
@@ -1451,6 +1452,19 @@ handle`), so a headset mic over HFP only ever records silence. Worse,
 wireplumber's autoswitch tore down the A2DP sink whenever an app opened a
 microphone, cutting playback mid-sentence. With it off, headphones stay on
 A2DP and apps record from the laptop's built-in mic.
+
+### Switching to Bluetooth headphones on connect
+
+wireplumber keeps whatever default output was last chosen, so connecting the
+AirPods left the laptop speakers as the default and apps kept playing there.
+
+`wireplumber/scripts/bt-autoswitch.lua` hooks `node-added` for any bluez
+`Audio/Sink` and writes it to `default.configured.audio.sink`. Streams follow
+the new default, and when the headphones disconnect wireplumber falls back to
+the speakers on its own. It is loaded by
+`wireplumber/wireplumber.conf.d/52-bt-autoswitch.conf`, and `install.sh` links
+the scripts folder to `~/.local/share/wireplumber/scripts`. Restart wireplumber
+after changing either.
 
 ### Silencing blueman connect/disconnect popups
 
