@@ -991,7 +991,7 @@ turn on *Unlock with biometrics* and approve the fingerprint phrase in the
 desktop app. The desktop app must be running for the extension to unlock, so
 sway and Hyprland both start it at login through
 `scripts/bitwarden-autostart.sh`, which runs `bitwarden --autostart` (hidden)
-once the `login` keyring is unlocked. Bitwarden reads its fingerprint key from
+once the default keyring is unlocked. Bitwarden reads its fingerprint key from
 the keyring only at startup; launched straight from the compositor it beat the
 keyring unlock, logged `OS keyring is_locked=true`, asked for the master
 password and the extension had no biometric button. The script gives up
