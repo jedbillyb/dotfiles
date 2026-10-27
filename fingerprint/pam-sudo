@@ -1,0 +1,9 @@
+#%PAM-1.0
+auth [success=done default=ignore] pam_exec.so quiet /usr/local/bin/claude-sudo-auth
+# Not "include system-auth" for auth: that runs pam_fprintd (finger first,
+# then password). Here finger and password run at the same time instead.
+auth      required    pam_env.so
+auth      sufficient  pam_fprintd_grosshack.so timeout=60
+auth      required    pam_unix.so     try_first_pass nullok
+account 	include 	system-auth
+session 	include 	system-auth

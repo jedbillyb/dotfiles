@@ -267,6 +267,16 @@ sudo install -o root -g root -m 644 "$REPO/bitwarden/pam-polkit-1" /etc/pam.d/po
 sudo install -D -o root -g root -m 644 "$REPO/bitwarden/com.8bit.bitwarden.json" /usr/lib/mozilla/native-messaging-hosts/com.8bit.bitwarden.json
 info "copy  bitwarden polkit policy, /etc/pam.d/polkit-1, firefox NMH manifest"
 
+# Finger OR password at the same time for su, sudo and TTY login. Only when
+# pam_fprintd_grosshack.so is installed: these files name it, and without the
+# module sudo would fail closed.
+if [ -f /usr/lib/security/pam_fprintd_grosshack.so ]; then
+  for f in su sudo login; do
+    sudo install -o root -g root -m 644 "$REPO/fingerprint/pam-$f" "/etc/pam.d/$f"
+  done
+  info "copy  /etc/pam.d/{su,sudo,login} (fingerprint or password)"
+fi
+
 cat <<EOF
 
 Done. Manual steps not handled here (see README):

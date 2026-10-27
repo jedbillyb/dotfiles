@@ -1,0 +1,11 @@
+auth		sufficient	pam_rootok.so
+# Finger and password at the same time: whichever comes first wins. A typed
+# password is handed to pam_unix below via try_first_pass.
+auth		sufficient	pam_fprintd_grosshack.so timeout=60
+auth 		required	pam_unix.so	try_first_pass
+account		required	pam_unix.so
+session		optional	pam_mail.so	dir=/var/mail standard
+session		optional	pam_xauth.so
+session		optional 	pam_umask.so 	usergroups umask=022
+session		required	pam_env.so
+session		required	pam_unix.so

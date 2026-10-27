@@ -16,6 +16,7 @@ My personal configuration files.
   login screen
 - `i3/config` - i3 window manager config (legacy)
 - `bitwarden/` - polkit policy and PAM file for Bitwarden fingerprint unlock
+- `fingerprint/` - PAM files for su, sudo and TTY login: fingerprint or password, whichever comes first
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
   WiFi band, Bluetooth, AirDrop, AirPods, calendar, heat pump, GitHub, and
   Claude indicators). The calendar
@@ -946,6 +947,16 @@ can't reach up and flash the whole bar, only the battery module itself. GTK
 CSS is also pickier than real CSS: no comma-grouped keyframe selectors
 (`0%, 100%` fails to parse) and `steps()` only accepts `start`/`end`, not
 `jump-none`.
+
+### Fingerprint or password at the same time
+
+`fingerprint/pam-{su,sudo,login}` go to `/etc/pam.d/`. They use
+`pam_fprintd_grosshack.so` (built from `/mnt/shared/projects/pam-fprint-grosshack`
+with its `build-install-void.sh`), which asks for the password and the finger
+at once, so there is no 10 s wait before you can type. install.sh copies them
+only if that module is installed, since sudo fails without it. emptty, polkit
+and swaylock are left alone: emptty would cancel the scan with its blank
+password box, polkit is finger only on purpose, and swaylock already runs both.
 
 ### Bitwarden fingerprint unlock
 

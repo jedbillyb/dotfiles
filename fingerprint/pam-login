@@ -1,0 +1,12 @@
+#%PAM-1.0
+
+auth 		required 	pam_securetty.so
+auth 		requisite 	pam_nologin.so
+# The system-login auth stack, minus the finger-then-password pam_fprintd:
+# finger and password run at the same time instead.
+auth		required	pam_shells.so
+auth		required	pam_env.so
+auth		sufficient	pam_fprintd_grosshack.so timeout=60
+auth		required	pam_unix.so	try_first_pass nullok
+account 	include 	system-local-login
+session 	include 	system-local-login
