@@ -77,8 +77,9 @@ exec /usr/libexec/polkit-gnome-authentication-agent-1
 
 # Bitwarden desktop app, so the Firefox extension can unlock with a fingerprint
 # from the start. --autostart starts it hidden; turn on "Keep Bitwarden running
-# in the background" in its settings so closing the window hides it too.
-exec bitwarden --autostart
+# in the background" in its settings so closing the window hides it too. The
+# wrapper waits for the login keyring to unlock first (see the README).
+exec ~/.local/bin/bitwarden-autostart.sh
 
 # KDE Connect. The indicator starts kdeconnectd itself and adds a tray icon,
 # so this one line covers both the background daemon and the GUI entry point.
