@@ -1,5 +1,10 @@
 #%PAM-1.0
-auth      include   system-auth
+# Fingerprint only, no password fallback. Bitwarden's "unlock with system
+# authentication" goes through this file, and a password fallback meant anyone
+# with the login password could open the vault. Applies to every polkit
+# prompt (pkexec included), not just Bitwarden's.
+auth      required  pam_env.so
+auth      required  pam_fprintd.so timeout=10
 account   include   system-auth
 password  include   system-auth
 session   include   system-auth

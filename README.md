@@ -951,8 +951,8 @@ CSS is also pickier than real CSS: no comma-grouped keyframe selectors
 
 The Bitwarden Firefox extension unlocks with a fingerprint. Firefox can't do
 that itself: the extension hands off to the Bitwarden desktop app over native
-messaging, and the desktop app asks polkit, which asks PAM, which tries
-`pam_fprintd` first via `system-auth`.
+messaging, and the desktop app asks polkit, which asks PAM, which accepts a
+fingerprint only.
 
 Pieces:
 
@@ -968,8 +968,12 @@ Pieces:
 - **`bitwarden/com.bitwarden.Bitwarden.policy`**, copied to
   `/usr/share/polkit-1/actions/`. The desktop app offers to install it itself,
   but that needs a working polkit agent first.
-- **`bitwarden/pam-polkit-1`**, copied to `/etc/pam.d/polkit-1`. Without it PAM
-  falls back to `other`, which is password-only.
+- **`bitwarden/pam-polkit-1`**, copied to `/etc/pam.d/polkit-1`. Fingerprint
+  only (`pam_fprintd` required, no `pam_unix`). The desktop app keeps its
+  unlock key in the keyring, which unlocks at login, so a password fallback
+  here would let anyone with the login password open the vault. This covers
+  every polkit prompt, `pkexec` included, not just Bitwarden's. Without the
+  file PAM falls back to `other`, which is password-only.
 - **`bitwarden/com.8bit.bitwarden.json`**, copied to
   `/usr/lib/mozilla/native-messaging-hosts/`. The desktop app's own
   *Allow browser integration* only writes this manifest if `~/.mozilla` exists,
