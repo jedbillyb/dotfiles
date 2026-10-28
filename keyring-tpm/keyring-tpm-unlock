@@ -1,0 +1,85 @@
+#!/usr/bin/env python3
+"""keyring-tpm-unlock - unlock the default keyring with the login password
+sealed in the TPM by keyring-tpm-seal.
+
+Run at session start (from bitwarden-autostart.sh). After a password login PAM
+has already unlocked the keyring and this does nothing. After a fingerprint
+login there is no password for PAM to hand over, so this unseals it and passes
+it to gnome-keyring's internal unlock call, which needs no prompt.
+
+If the PCRs changed (kernel or firmware update) the unseal fails and the
+keyring stays locked; a notification says to log in with the password once,
+which reseals.
+"""
+import os
+import subprocess
+import sys
+import tempfile
+
+from gi.repository import Gio, GLib
+
+PCRS = "sha256:0,4,7"
+USER = os.environ.get("USER") or os.getlogin()
+BLOB = f"/var/lib/keyring-tpm/{USER}"
+SVC = "/org/freedesktop/secrets"
+INTERNAL = "org.gnome.keyring.InternalUnsupportedGuiltRiddenInterface"
+
+bus = Gio.bus_get_sync(Gio.BusType.SESSION)
+
+
+def call(path, iface, method, args, rtype=None):
+    return bus.call_sync("org.freedesktop.secrets", path, iface, method, args,
+                         GLib.VariantType(rtype) if rtype else None, 0, -1, None)
+
+
+def notify(body):
+    subprocess.run(["notify-send", "-u", "critical", "Keyring locked", body],
+                   check=False)
+
+
+def unseal():
+    env = dict(os.environ, TPM2TOOLS_TCTI="device:/dev/tpmrm0")
+    with tempfile.TemporaryDirectory() as tmp:
+        run = lambda *a: subprocess.run(a, env=env, check=True,
+                                        capture_output=True).stdout
+        run("tpm2_createprimary", "-Q", "-C", "o", "-g", "sha256", "-G", "ecc",
+            "-c", f"{tmp}/primary.ctx")
+        run("tpm2_load", "-Q", "-C", f"{tmp}/primary.ctx", "-u", f"{BLOB}.pub",
+            "-r", f"{BLOB}.priv", "-c", f"{tmp}/seal.ctx")
+        return run("tpm2_unseal", "-c", f"{tmp}/seal.ctx", "-p", f"pcr:{PCRS}")
+
+
+def main():
+    coll, = call(SVC, "org.freedesktop.Secret.Service", "ReadAlias",
+                 GLib.Variant("(s)", ("default",)), "(o)").unpack()
+    if coll == "/":
+        return
+    locked, = call(coll, "org.freedesktop.DBus.Properties", "Get",
+                   GLib.Variant("(ss)", ("org.freedesktop.Secret.Collection",
+                                         "Locked")), "(v)").unpack()
+    if not locked:
+        return
+    if not os.path.exists(f"{BLOB}.priv"):
+        notify("No password sealed in the TPM yet. Log in with your password once.")
+        return
+    try:
+        pw = unseal()
+    except subprocess.CalledProcessError:
+        notify("The TPM would not release the password (kernel or firmware "
+               "update?). Log in with your password once to fix it.")
+        return
+    _, sess = call(SVC, "org.freedesktop.Secret.Service", "OpenSession",
+                   GLib.Variant("(sv)", ("plain", GLib.Variant("s", ""))),
+                   "(vo)").unpack()
+    try:
+        call(SVC, INTERNAL, "UnlockWithMasterPassword",
+             GLib.Variant("(o(oayays))", (coll, (sess, b"", pw, "text/plain"))))
+    except GLib.Error:
+        notify("The sealed password did not unlock the keyring. Log in with "
+               "your password once to reseal it.")
+    finally:
+        call(sess, "org.freedesktop.Secret.Session", "Close", None)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

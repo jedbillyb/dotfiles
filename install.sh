@@ -46,6 +46,13 @@ else
 	info "installing autotiling"
 	sudo xbps-install -y autotiling
 fi
+# tpm2-tools seals/unseals the login password for keyring-tpm.
+if command -v tpm2_unseal >/dev/null 2>&1; then
+	info "ok    tpm2-tools"
+else
+	info "installing tpm2-tools"
+	sudo xbps-install -y tpm2-tools
+fi
 
 echo "Configs:"
 link sway/config   "$CONFIG/sway/config"
@@ -273,6 +280,15 @@ sudo install -o root -g root -m 644 "$REPO/bitwarden/pam-polkit-1" /etc/pam.d/po
 # its own into ~/.mozilla, which does not exist with Firefox's XDG profile dir.
 sudo install -D -o root -g root -m 644 "$REPO/bitwarden/com.8bit.bitwarden.json" /usr/lib/mozilla/native-messaging-hosts/com.8bit.bitwarden.json
 info "copy  bitwarden polkit policy, /etc/pam.d/polkit-1, firefox NMH manifest"
+
+# Keyring unlock after a fingerprint login: the login password is sealed in
+# the TPM at each password login (pam_exec in emptty's PAM file) and unsealed
+# at session start. Unsealing needs the _tss group (/dev/tpmrm0).
+sudo usermod -a -G _tss "$USER"
+sudo install -o root -g root -m 755 "$REPO/keyring-tpm/keyring-tpm-seal" /usr/local/sbin/keyring-tpm-seal
+sudo install -o root -g root -m 644 "$REPO/keyring-tpm/pam-emptty" /etc/pam.d/emptty
+link keyring-tpm/keyring-tpm-unlock "$BIN/keyring-tpm-unlock"
+info "copy  keyring-tpm-seal, /etc/pam.d/emptty (TPM keyring unlock)"
 
 # Finger OR password at the same time for su, sudo and TTY login. Only when
 # pam_fprintd_grosshack.so is installed: these files name it, and without the

@@ -16,6 +16,7 @@ My personal configuration files.
   login screen
 - `i3/config` - i3 window manager config (legacy)
 - `bitwarden/` - polkit policy and PAM file for Bitwarden fingerprint unlock
+- `keyring-tpm/` - unlocks the keyring after a fingerprint login, with the login password sealed in the TPM
 - `fingerprint/` - PAM files for su, sudo and TTY login: fingerprint or password, whichever comes first
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
   WiFi band, Bluetooth, AirDrop, AirPods, calendar, heat pump, GitHub, and
@@ -1001,8 +1002,9 @@ Pieces:
   authentication* option entirely unless a libsecret provider is reachable,
   because it parks the protected user key there. Nothing to start by hand: it
   is D-Bus activated, and emptty's PAM stack already carries
-  `pam_gnome_keyring.so`, so a password login unlocks the `login` keyring
-  (a fingerprint login does not, and gets a keyring prompt on first use).
+  `pam_gnome_keyring.so`, so a password login unlocks the keyring. A
+  fingerprint login gives PAM no password, so `keyring-tpm/` covers that case
+  (see below).
 - **polkit-gnome agent**, started by both sway and Hyprland. With no agent,
   polkit has nothing to show the prompt with and the unlock silently fails.
 
@@ -1018,6 +1020,34 @@ keyring unlock, logged `OS keyring is_locked=true`, asked for the master
 password and the extension had no biometric button. The script gives up
 waiting after 30s and starts it anyway. Turn on *Keep Bitwarden running in the background* in its settings so
 closing the window hides it to the tray instead of quitting.
+
+#### Keyring unlock after a fingerprint login (`keyring-tpm/`)
+
+A fingerprint login leaves the keyring locked, so Bitwarden starts without its
+fingerprint key. A fingerprint reader only says yes or no, so it can't
+decrypt anything; the TPM stands in for the password instead:
+
+- **`keyring-tpm-seal`**, in `/usr/local/sbin`, run by `pam_exec` from
+  **`pam-emptty`** (copied to `/etc/pam.d/emptty`, the stock file plus that one
+  line). On every password login it checks the password against
+  `/etc/shadow` (pam_exec runs even when pam_unix rejected it), then seals it
+  in the TPM to PCRs 0, 4 and 7 and writes the blobs to
+  `/var/lib/keyring-tpm/<user>.{pub,priv}`.
+- **`keyring-tpm-unlock`**, run first by `scripts/bitwarden-autostart.sh`. If
+  the default keyring is locked it unseals the password and unlocks the
+  keyring through gnome-keyring's internal `UnlockWithMasterPassword` call (no
+  prompt). Needs the `_tss` group for `/dev/tpmrm0`; takes effect after a
+  re-login.
+
+PCR 4 measures the kernel, so after a kernel or firmware update the unseal
+fails and a notification says so: log in with the password once and it
+reseals. This assumes the keyring password is the login password.
+
+Limits: the disk is not encrypted and Secure Boot is off, so someone with the
+laptop can edit the root filesystem, boot the normal kernel (same PCRs) and
+unseal. Any process running as the user can also unseal. It stops a copied
+disk or a USB boot, not more. The original PAM file is at
+`/etc/pam.d/emptty.stock`.
 
 ### LibreOffice Discord presence
 

@@ -1,0 +1,47 @@
+#!/bin/sh
+# keyring-tpm-seal - store the login password in the TPM, so a fingerprint
+# login can still unlock the keyring. Installed to /usr/local/sbin and run as
+# root by pam_exec (expose_authtok) from /etc/pam.d/emptty, after a PASSWORD
+# login only: a fingerprint login ends the auth stack at pam_fprintd and never
+# gets here.
+#
+# The password is checked against /etc/shadow first, because pam_exec still
+# runs when pam_unix has just rejected it. It is sealed to PCRs 0, 4 and 7
+# (firmware, boot loader + kernel, Secure Boot state), so it only comes back
+# out on this machine booted the same way. A kernel or firmware update changes
+# those PCRs; the next password login reseals, which is why this runs on
+# every password login rather than once.
+
+PCRS=sha256:0,4,7
+DIR=/var/lib/keyring-tpm
+export TPM2TOOLS_TCTI=device:/dev/tpmrm0
+
+user=$PAM_USER
+[ -n "$user" ] || exit 0
+pw=$(tr -d '\0')
+[ -n "$pw" ] || exit 0
+
+printf %s "$pw" | perl -e '
+	my $pw = <STDIN>;
+	my $hash = (getpwnam($ARGV[0]))[1];
+	exit(defined $hash && length $hash > 1 && crypt($pw, $hash) eq $hash ? 0 : 1);
+' "$user" || exit 0
+
+# Sealing takes a second or two; do it in the background so login is not held.
+(
+	umask 077
+	tmp=$(mktemp -d) || exit 1
+	trap 'rm -rf "$tmp"' EXIT
+	tpm2_createprimary -Q -C o -g sha256 -G ecc -c "$tmp/primary.ctx" &&
+	tpm2_pcrread -Q -o "$tmp/pcr.bin" "$PCRS" &&
+	tpm2_createpolicy -Q --policy-pcr -l "$PCRS" -f "$tmp/pcr.bin" -L "$tmp/policy" &&
+	printf %s "$pw" | tpm2_create -Q -C "$tmp/primary.ctx" -L "$tmp/policy" \
+		-a 'fixedtpm|fixedparent|noda' -i- -u "$tmp/pub" -r "$tmp/priv" || exit 1
+	# The blobs are useless without this TPM in this boot state, but keep them
+	# to root and the user who unseals them.
+	mkdir -p "$DIR"
+	install -o root -g "$user" -m 640 "$tmp/pub" "$DIR/$user.pub"
+	install -o root -g "$user" -m 640 "$tmp/priv" "$DIR/$user.priv"
+) </dev/null >/dev/null 2>&1 &
+
+exit 0

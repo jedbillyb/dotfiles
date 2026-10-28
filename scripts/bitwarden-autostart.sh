@@ -6,6 +6,11 @@
 # master password, and the Firefox extension loses its biometric button.
 # Gives up waiting after 30s (a keyring nobody unlocks stays locked)
 # and starts Bitwarden anyway.
+#
+# After a fingerprint login PAM has no password to unlock the keyring with, so
+# keyring-tpm-unlock first unlocks it with the password sealed in the TPM.
+
+keyring-tpm-unlock
 
 i=0
 while [ "$i" -lt 60 ]; do

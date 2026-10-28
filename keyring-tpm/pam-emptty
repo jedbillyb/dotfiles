@@ -1,0 +1,15 @@
+#%PAM-1.0
+# Stock emptty file plus one pam_exec line. After a password login,
+# keyring-tpm-seal stores the password in the TPM so that a later fingerprint
+# login (which ends the stack at pam_fprintd, before pam_gnome_keyring) can
+# still unlock the keyring via keyring-tpm-unlock.
+auth            sufficient      pam_succeed_if.so user ingroup nopasswdlogin
+auth            include         system-login
+-auth           optional        pam_gnome_keyring.so
+-auth           optional        pam_kwallet5.so
+auth            optional        pam_exec.so expose_authtok quiet /usr/local/sbin/keyring-tpm-seal
+account         include         system-login
+password        include         system-login
+session         include         system-login
+-session        optional        pam_gnome_keyring.so auto_start
+-session        optional        pam_kwallet5.so auto_start force_run
