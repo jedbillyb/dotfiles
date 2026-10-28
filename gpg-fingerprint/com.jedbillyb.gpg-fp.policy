@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE policyconfig PUBLIC
+ "-//freedesktop//DTD PolicyKit Policy Configuration 1.0//EN"
+ "http://www.freedesktop.org/standards/PolicyKit/1.0/policyconfig.dtd">
+<policyconfig>
+    <action id="com.jedbillyb.gpg-fp.unseal">
+      <description>Unlock the GPG signing key</description>
+      <message>Touch the fingerprint reader to sign</message>
+      <defaults>
+        <allow_any>no</allow_any>
+        <allow_inactive>no</allow_inactive>
+        <allow_active>auth_self</allow_active>
+      </defaults>
+      <annotate key="org.freedesktop.policykit.exec.path">/usr/local/libexec/gpg-fp-unseal</annotate>
+    </action>
+</policyconfig>

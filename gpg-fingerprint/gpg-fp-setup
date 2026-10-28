@@ -1,0 +1,26 @@
+#!/bin/sh
+# gpg-fp-setup - let a fingerprint answer the GPG signing passphrase prompt.
+# Asks for the passphrase once, checks it really unlocks the signing subkey,
+# then hands it to gpg-fp-store to seal in the TPM. Run it again after
+# changing the passphrase.
+
+key=$(git config --get user.signingkey) || { echo "no user.signingkey in git config" >&2; exit 1; }
+# The keygrip of exactly the key git signs with: gpg-agent names it in
+# SETKEYINFO. A trailing ! (as here) pins that exact key, the primary, even
+# though a signing subkey also exists, so match on key ID, not capability.
+id=${key%!}
+grip=$(gpg --with-colons --with-keygrip --list-secret-keys "$id" |
+	awk -F: -v id="$id" '$1=="sec"||$1=="ssb"{hit=(substr($5,length($5)-length(id)+1)==id)} $1=="grp"&&hit{print $10; exit}')
+[ -n "$grip" ] || { echo "no signing key found for $key" >&2; exit 1; }
+
+printf 'GPG passphrase: '
+stty -echo; IFS= read -r pw; stty echo; echo
+
+# Drop the cached passphrase, or the check below passes on the cache alone.
+gpg-connect-agent "CLEAR_PASSPHRASE --mode=normal $grip" /bye >/dev/null
+if ! printf %s "$pw" | gpg --batch --yes --pinentry-mode loopback --passphrase-fd 0 \
+	-u "$key" -o /dev/null --sign /dev/null 2>/dev/null; then
+	echo "wrong passphrase, nothing stored" >&2
+	exit 1
+fi
+printf %s "$pw" | sudo /usr/local/libexec/gpg-fp-store "$grip" && echo "stored; next signature asks for a finger"

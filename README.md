@@ -60,6 +60,8 @@ My personal configuration files.
   long an entered passphrase stays cached (see "GPG passphrase prompt" below)
 - `scripts/pinentry-wayland.py` - The passphrase prompt itself, a themed
   Wayland dialog in place of `pinentry-gtk-2`
+- `gpg-fingerprint/` - lets a fingerprint answer that prompt, with the
+  passphrase sealed in the TPM (see "Fingerprint instead of the passphrase")
 - `bin/spotlight` - Spotlight-style centered wofi launcher (bound to mod+r and
   mod+space); tap or click outside the box to dismiss it
 - `scripts/wofi-dismiss.py` - Closes it on a tap outside the box, by watching
@@ -2457,6 +2459,33 @@ drops its arguments before touching GTK. gpg-agent reports that failure only as
 The cache TTLs stay at 8h / 12h, so the prompt turns up roughly once a working
 day. Config changes need `gpg-connect-agent reloadagent /bye`, which **also
 empties the cache** - the next signature will prompt.
+
+#### Fingerprint instead of the passphrase (`gpg-fingerprint/`)
+
+When the cache is empty, a fingerprint answers the prompt instead of typing.
+The passphrase is stored, sealed in the TPM, and only a fingerprint gets it out:
+
+- **`gpg-fp-setup`** (in `~/.local/bin`). Run it in a terminal: it asks for the
+  passphrase once, checks it really signs with the key in `user.signingkey`,
+  then pipes it to `sudo gpg-fp-store`. Rerun after changing the passphrase.
+  `user.signingkey` ends in `!`, which pins the primary key, so the keygrip is
+  found by key ID, not by "first key that can sign" (the `[S]` subkey is the
+  OCI one).
+- **`gpg-fp-store`** (root, `/usr/local/libexec`) seals it in the TPM with no
+  PCR policy, so kernel and firmware updates don't lose it. Blobs in
+  `/var/lib/gpg-fp/` (root only); the keygrip, which is not secret, in
+  `/var/lib/gpg-fp.keygrip`.
+- **`gpg-fp-unseal`** (root, `/usr/local/libexec`) prints it. Reached only via
+  `pkexec` and the polkit action in **`com.jedbillyb.gpg-fp.policy`**, which
+  authenticates through `/etc/pam.d/polkit-1`: fingerprint only (see Bitwarden
+  above).
+- **`scripts/pinentry-wayland.py`** remembers the keygrip from `SETKEYINFO`. On
+  a GETPIN for that key, if it is not a retry (`SETERROR`) or a new passphrase
+  (`SETREPEAT`), it runs `pkexec gpg-fp-unseal` and sends the result without
+  drawing anything. Cancel, wrong finger or a TPM error fall through to the
+  normal dialog, and so does the retry if the sealed passphrase is wrong.
+
+Cost: anyone with root, or a matching finger, can sign as this key.
 
 ### Wallpaper
 

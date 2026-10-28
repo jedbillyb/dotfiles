@@ -1,0 +1,14 @@
+#!/bin/sh
+# gpg-fp-unseal - print the GPG passphrase sealed by gpg-fp-store. Run by the
+# pinentry through pkexec; the polkit action is fingerprint only (see
+# bitwarden/pam-polkit-1), so reaching this at all means a finger matched.
+
+DIR=/var/lib/gpg-fp
+export TPM2TOOLS_TCTI=device:/dev/tpmrm0
+
+umask 077
+tmp=$(mktemp -d) || exit 1
+trap 'rm -rf "$tmp"' EXIT
+tpm2_createprimary -Q -C o -g sha256 -G ecc -c "$tmp/primary.ctx" &&
+tpm2_load -Q -C "$tmp/primary.ctx" -u "$DIR/pub" -r "$DIR/priv" -c "$tmp/seal.ctx" &&
+tpm2_unseal -Q -c "$tmp/seal.ctx"

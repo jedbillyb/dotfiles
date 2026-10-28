@@ -24,12 +24,16 @@ the rest are acknowledged and ignored, which is what the stock pinentries do.
 """
 
 import os
+import subprocess
 import sys
 
 # Error codes are gpg-error values with the pinentry source (5) in the top byte.
 ERR_CANCELED = 83886179  # GPG_ERR_CANCELED
 ERR_NOT_CONFIRMED = 83886194  # GPG_ERR_NOT_CONFIRMED
 ERR_TIMEOUT = 83886142  # GPG_ERR_TIMEOUT
+# Written by gpg-fingerprint/gpg-fp-store and gpg-fp-unseal (see README).
+GPG_FP_KEYGRIP = "/var/lib/gpg-fp.keygrip"
+GPG_FP_UNSEAL = "/usr/local/libexec/gpg-fp-unseal"
 
 CSS = b"""
 .panel {
@@ -181,6 +185,7 @@ class Pinentry:
         self.repeat = None
         self.repeat_error = ""
         self.timeout = 0
+        self.keygrip = ""
 
     def send(self, line):
         self.out.write(line.encode("utf-8") + b"\n")
@@ -235,6 +240,9 @@ class Pinentry:
             self.repeat = text or "Repeat:"
         elif cmd == "SETREPEATERROR":
             self.repeat_error = text
+        elif cmd == "SETKEYINFO":
+            # "n/<keygrip>", or "--clear"
+            self.keygrip = text.strip().rpartition("/")[2]
         elif cmd == "SETTIMEOUT":
             try:
                 self.timeout = int(text)
@@ -260,7 +268,7 @@ class Pinentry:
         elif cmd == "MESSAGE":
             self.confirm(one_button=True)
             return True
-        # OPTION, SETKEYINFO, SETQUALITYBAR, SETGENPIN and the like need no
+        # OPTION, SETQUALITYBAR, SETGENPIN and the like need no
         # handling: acknowledging them is enough for the agent to carry on.
         self.send("OK")
         return True
@@ -452,7 +460,34 @@ class Pinentry:
         self.error = ""
         return state["result"], state.get("texts", [])
 
+    def fingerprint_pin(self):
+        """The passphrase from the TPM, released by a fingerprint through the
+        polkit action behind gpg-fingerprint/gpg-fp-unseal; None to fall back
+        to the dialog. Only for the key gpg-fp-setup sealed, and only on a
+        first ask: a SETERROR means the sealed one was just rejected."""
+        if self.repeat or self.error or not self.keygrip:
+            return None
+        try:
+            with open(GPG_FP_KEYGRIP) as f:
+                if f.read().strip() != self.keygrip:
+                    return None
+        except OSError:
+            return None
+        try:
+            # Cancelling the polkit prompt exits 126.
+            res = subprocess.run(["pkexec", GPG_FP_UNSEAL], capture_output=True,
+                                 timeout=60)
+        except (OSError, subprocess.TimeoutExpired):
+            return None
+        if res.returncode != 0 or not res.stdout:
+            return None
+        return res.stdout.decode("utf-8", "replace")
+
     def getpin(self):
+        pin = self.fingerprint_pin()
+        if pin is not None:
+            self.send_data(pin)
+            return
         entries = [self.prompt or "Passphrase:"]
         if self.repeat:
             entries.append(self.repeat)

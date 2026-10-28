@@ -1,0 +1,32 @@
+#!/bin/sh
+# gpg-fp-store - seal the GPG signing passphrase in the TPM. Installed to
+# /usr/local/libexec and run as root by gpg-fp-setup, which has already checked
+# the passphrase against the key. Reads the passphrase on stdin and the keygrip
+# it unlocks as $1.
+#
+# Sealed with no PCR policy, so kernel and firmware updates do not lose it; the
+# blobs only unseal on this TPM, and only root can read them. Reading them back
+# goes through gpg-fp-unseal behind a fingerprint-only polkit action.
+
+DIR=/var/lib/gpg-fp
+export TPM2TOOLS_TCTI=device:/dev/tpmrm0
+
+grip=$1
+case $grip in
+	*[!0-9A-F]* | "") echo "gpg-fp-store: bad keygrip" >&2; exit 1 ;;
+esac
+
+umask 077
+tmp=$(mktemp -d) || exit 1
+trap 'rm -rf "$tmp"' EXIT
+tpm2_createprimary -Q -C o -g sha256 -G ecc -c "$tmp/primary.ctx" &&
+tpm2_create -Q -C "$tmp/primary.ctx" -a 'fixedtpm|fixedparent|userwithauth|noda' \
+	-i- -u "$tmp/pub" -r "$tmp/priv" || exit 1
+
+mkdir -p "$DIR" && chmod 700 "$DIR"
+install -m 600 "$tmp/pub" "$DIR/pub"
+install -m 600 "$tmp/priv" "$DIR/priv"
+# The keygrip is not secret; the pinentry reads it to know which prompt to
+# answer by fingerprint. The directory is 700, so it lives one level up.
+printf '%s\n' "$grip" > /var/lib/gpg-fp.keygrip
+chmod 644 /var/lib/gpg-fp.keygrip

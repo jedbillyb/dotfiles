@@ -290,6 +290,15 @@ sudo install -o root -g root -m 644 "$REPO/keyring-tpm/pam-emptty" /etc/pam.d/em
 link keyring-tpm/keyring-tpm-unlock "$BIN/keyring-tpm-unlock"
 info "copy  keyring-tpm-seal, /etc/pam.d/emptty (TPM keyring unlock)"
 
+# GPG passphrase by fingerprint: root helpers that seal/unseal it in the TPM,
+# and the polkit action (fingerprint only, via /etc/pam.d/polkit-1) that
+# guards the unseal. gpg-fp-setup does the one-time sealing.
+sudo install -D -o root -g root -m 755 "$REPO/gpg-fingerprint/gpg-fp-store" /usr/local/libexec/gpg-fp-store
+sudo install -o root -g root -m 755 "$REPO/gpg-fingerprint/gpg-fp-unseal" /usr/local/libexec/gpg-fp-unseal
+sudo install -o root -g root -m 644 "$REPO/gpg-fingerprint/com.jedbillyb.gpg-fp.policy" /usr/share/polkit-1/actions/com.jedbillyb.gpg-fp.policy
+link gpg-fingerprint/gpg-fp-setup "$BIN/gpg-fp-setup"
+info "copy  gpg-fp-store, gpg-fp-unseal, gpg-fp polkit action"
+
 # Finger OR password at the same time for su, sudo and TTY login. Only when
 # pam_fprintd_grosshack.so is installed: these files name it, and without the
 # module sudo would fail closed.
