@@ -39,7 +39,8 @@ printf %s "$pw" | perl -e '
 		-a 'fixedtpm|fixedparent|noda' -i- -u "$tmp/pub" -r "$tmp/priv" || exit 1
 	# The blobs are useless without this TPM in this boot state, but keep them
 	# to root and the user who unseals them.
-	mkdir -p "$DIR"
+	# umask 077 is still in force here; the user must be able to reach the blobs.
+	install -d -m 755 "$DIR"
 	install -o root -g "$user" -m 640 "$tmp/pub" "$DIR/$user.pub"
 	install -o root -g "$user" -m 640 "$tmp/priv" "$DIR/$user.priv"
 ) </dev/null >/dev/null 2>&1 &

@@ -1034,7 +1034,7 @@ decrypt anything; the TPM stands in for the password instead:
   line). On every password login it checks the password against
   `/etc/shadow` (pam_exec runs even when pam_unix rejected it), then seals it
   in the TPM to PCRs 0, 4 and 7 and writes the blobs to
-  `/var/lib/keyring-tpm/<user>.{pub,priv}`.
+  `/var/lib/keyring-tpm/<user>.{pub,priv}` (dir 755, files 640 root:user).
 - **`keyring-tpm-unlock`**, run first by `scripts/bitwarden-autostart.sh`. If
   the default keyring is locked it unseals the password and unlocks the
   keyring through gnome-keyring's internal `UnlockWithMasterPassword` call (no
