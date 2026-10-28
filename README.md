@@ -2542,6 +2542,7 @@ Two other fixes are baked into that entry:
 | `$mod+Shift+i` | Lock screen (swaylock-fprintd, auto fingerprint) |
 | `$mod+Shift+o` | Exit sway, back to TTY |
 | `$mod+Shift+p` | Power off |
+| `$mod+Shift+w` | Reboot straight into Windows (UEFI BootNext, skips GRUB) |
 | `$mod+Shift+r` | Reload sway config (also re-probes a wedged touchpad and recovers WiFi) |
 
 ### Window management

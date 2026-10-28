@@ -191,6 +191,8 @@ bindsym $mod+Shift+m exec gnome-network-displays
 bindsym $mod+Shift+i exec /home/jed/.local/bin/sway-lock.sh
 bindsym $mod+Shift+o exec swaymsg exit
 bindsym $mod+Shift+p exec loginctl poweroff
+# One-shot UEFI BootNext to Windows, skipping GRUB (reboot-to-linux project).
+bindsym $mod+Shift+w exec sudo /usr/local/bin/reboot-to-windows
 # Also re-probes the touchpad, which wakes up wedged after suspend.
 bindsym $mod+Shift+r reload, exec sudo /usr/libexec/elogind/system-sleep/touchpad-resume-fix.sh, exec $HOME/.local/bin/wifi-recover.sh
 
