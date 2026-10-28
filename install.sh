@@ -83,6 +83,8 @@ link emptty/custom-sessions "$CONFIG/emptty-custom-sessions"
 # Edited in place rather than copied, since /etc/emptty/conf is the packaged file.
 if [ -f /etc/emptty/conf ]; then
 	sudo sed -i "s/^#\?DEFAULT_USER=.*/DEFAULT_USER=$USER/" /etc/emptty/conf
+	# keyring-tpm/pam-emptty prints the finger-or-password prompt itself.
+	sudo sed -i "s/^#\?HIDE_ENTER_PASSWORD=.*/HIDE_ENTER_PASSWORD=true/" /etc/emptty/conf
 fi
 
 link shell/bashrc       "$HOME/.bashrc"
