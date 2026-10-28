@@ -2456,9 +2456,10 @@ takes `:0` as the display to open and comes up with no screen, so the script
 drops its arguments before touching GTK. gpg-agent reports that failure only as
 `signing failed: End of file`.
 
-The cache TTLs stay at 8h / 12h, so the prompt turns up roughly once a working
-day. Config changes need `gpg-connect-agent reloadagent /bye`, which **also
-empties the cache** - the next signature will prompt.
+The cache TTLs are 10 min idle / 1h max: short, because a fingerprint answers
+the prompt (below), so asking often costs a touch, not typing. Config changes
+need `gpg-connect-agent reloadagent /bye`, which **also empties the cache** -
+the next signature will prompt.
 
 #### Fingerprint instead of the passphrase (`gpg-fingerprint/`)
 
