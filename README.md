@@ -963,9 +963,12 @@ CSS is also pickier than real CSS: no comma-grouped keyframe selectors
 `pam_fprintd_grosshack.so` (built from `/mnt/shared/projects/pam-fprint-grosshack`
 with its `build-install-void.sh`), which asks for the password and the finger
 at once, so there is no 10 s wait before you can type. install.sh copies them
-only if that module is installed, since sudo fails without it. emptty, polkit
-and swaylock are left alone: emptty would cancel the scan with its blank
-password box, polkit is finger only on purpose, and swaylock already runs both.
+only if that module is installed, since sudo fails without it. The emptty
+login screen gets the same treatment from `keyring-tpm/pam-emptty` (below).
+polkit and swaylock are left alone: polkit is finger only on purpose, and
+swaylock already runs both. If emptty ever hangs after a finger, log in on
+tty1 and `sudo cp /etc/pam.d/emptty.stock /etc/pam.d/emptty` (that drops the
+TPM seal line too).
 
 ### Bitwarden fingerprint unlock
 
@@ -1030,8 +1033,8 @@ fingerprint key. A fingerprint reader only says yes or no, so it can't
 decrypt anything; the TPM stands in for the password instead:
 
 - **`keyring-tpm-seal`**, in `/usr/local/sbin`, run by `pam_exec` from
-  **`pam-emptty`** (copied to `/etc/pam.d/emptty`, the stock file plus that one
-  line). On every password login it checks the password against
+  **`pam-emptty`** (copied to `/etc/pam.d/emptty`; also gives emptty the
+  finger-or-password prompt). On every password login it checks the password against
   `/etc/shadow` (pam_exec runs even when pam_unix rejected it), then seals it
   in the TPM to PCRs 0, 4 and 7 and writes the blobs to
   `/var/lib/keyring-tpm/<user>.{pub,priv}` (dir 755, files 640 root:user).

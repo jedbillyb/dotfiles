@@ -1,10 +1,21 @@
 #%PAM-1.0
-# Stock emptty file plus one pam_exec line. After a password login,
-# keyring-tpm-seal stores the password in the TPM so that a later fingerprint
-# login (which ends the stack at pam_fprintd, before pam_gnome_keyring) can
-# still unlock the keyring via keyring-tpm-unlock.
+# emptty's PAM file. Differs from the stock one in two ways:
+#
+# 1. Finger OR password at the same time, like fingerprint/pam-login: the
+#    system-login auth stack is spelled out with pam_fprintd_grosshack.so in
+#    place of system-auth's finger-then-password pam_fprintd.
+# 2. One pam_exec line. After a password login, keyring-tpm-seal stores the
+#    password in the TPM so that a later fingerprint login (which ends the
+#    stack at the fingerprint module, before pam_gnome_keyring) can still
+#    unlock the keyring via keyring-tpm-unlock.
+#
+# The stock file is kept at /etc/pam.d/emptty.stock.
 auth            sufficient      pam_succeed_if.so user ingroup nopasswdlogin
-auth            include         system-login
+auth            required        pam_shells.so
+auth            requisite       pam_nologin.so
+auth            required        pam_env.so
+auth            sufficient      pam_fprintd_grosshack.so timeout=86400
+auth            required        pam_unix.so try_first_pass nullok
 -auth           optional        pam_gnome_keyring.so
 -auth           optional        pam_kwallet5.so
 auth            optional        pam_exec.so expose_authtok quiet /usr/local/sbin/keyring-tpm-seal
