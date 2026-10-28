@@ -72,6 +72,11 @@ link emptty/emptty      "$CONFIG/emptty"
 # sway.desktop; only Hyprland needs one of ours, and a user custom-session
 # is the one shape that needs no root and no packaged file overwritten.
 link emptty/custom-sessions "$CONFIG/emptty-custom-sessions"
+# Pre-fill the login prompt with this user, so only the password is typed.
+# Edited in place rather than copied, since /etc/emptty/conf is the packaged file.
+if [ -f /etc/emptty/conf ]; then
+	sudo sed -i "s/^#\?DEFAULT_USER=.*/DEFAULT_USER=$USER/" /etc/emptty/conf
+fi
 
 link shell/bashrc       "$HOME/.bashrc"
 link shell/zshrc        "$HOME/.zshrc"

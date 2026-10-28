@@ -267,6 +267,11 @@ Check it with `tr '\\0' '\\n' < /proc/$(pgrep -x sway)/environ | grep ^PATH=`.
 If a session ever fails to start, switch TTY and `rm ~/.config/emptty` to fall
 back to the stock `sway.desktop`.
 
+`install.sh` also sets `DEFAULT_USER` in `/etc/emptty/conf` to the installing
+user, so the login prompt arrives with the username filled in and only asks for
+the password. `AUTOLOGIN` stays `false`. Comment the line out again to get the
+username prompt back.
+
 ### Compressed swap (zram)
 
 This machine has no swap partition or swap file, so before this any memory
