@@ -325,8 +325,9 @@ if [ -f /etc/default/grub ]; then
 		fi
 	done
 	sudo grub-editenv /boot/grub/grubenv set saved_entry=0
+	sudo install -o root -g root -m 755 "$REPO/boot/02_hold_shift_windows" /etc/grub.d/02_hold_shift_windows
 	sudo update-grub >/dev/null 2>&1
-	info "edit  /etc/default/grub (hidden 1s menu, GRUB_DEFAULT=saved)"
+	info "edit  /etc/default/grub (hidden 1s menu, GRUB_DEFAULT=saved), hold-Shift-for-Windows"
 fi
 link boot/reboot-windows "$BIN/reboot-windows"
 
