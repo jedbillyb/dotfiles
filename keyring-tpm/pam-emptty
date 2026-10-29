@@ -1,26 +1,18 @@
 #%PAM-1.0
-# emptty's PAM file. Differs from the stock one in two ways:
+# emptty's PAM file: the stock one plus one pam_exec line. After a password
+# login, keyring-tpm-seal stores the password in the TPM so that a later
+# fingerprint login (which ends the stack at pam_fprintd, before
+# pam_gnome_keyring) can still unlock the keyring via keyring-tpm-unlock.
 #
-# 1. Finger OR password at the same time, like fingerprint/pam-login: the
-#    system-login auth stack is spelled out with pam_fprintd_grosshack.so in
-#    place of system-auth's finger-then-password pam_fprintd.
-#    emptty never prints a module's password prompt text, only its own
-#    "Password:" (hidden by HIDE_ENTER_PASSWORD=true in /etc/emptty/conf), so
-#    pam_echo prints the prompt. timeout=-1 (no limit): the module only parses
-#    two digits, so timeout=86400 silently fell back to 30s.
-# 2. One pam_exec line. After a password login, keyring-tpm-seal stores the
-#    password in the TPM so that a later fingerprint login (which ends the
-#    stack at the fingerprint module, before pam_gnome_keyring) can still
-#    unlock the keyring via keyring-tpm-unlock.
+# Login stays finger first (10s), then password. pam_fprintd_grosshack (finger
+# OR password at once) was tried here and was unreliable: emptty's Go password
+# read does not mix with the module's prompt thread, so fingers were missed
+# and typed passwords got eaten. Do not retry it without a way to test that
+# cannot lock you out.
 #
 # The stock file is kept at /etc/pam.d/emptty.stock.
 auth            sufficient      pam_succeed_if.so user ingroup nopasswdlogin
-auth            required        pam_shells.so
-auth            requisite       pam_nologin.so
-auth            required        pam_env.so
-auth            optional        pam_echo.so Enter Password or Place finger on fingerprint reader:
-auth            sufficient      pam_fprintd_grosshack.so timeout=-1
-auth            required        pam_unix.so try_first_pass nullok
+auth            include         system-login
 -auth           optional        pam_gnome_keyring.so
 -auth           optional        pam_kwallet5.so
 auth            optional        pam_exec.so expose_authtok quiet /usr/local/sbin/keyring-tpm-seal

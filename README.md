@@ -964,19 +964,16 @@ CSS is also pickier than real CSS: no comma-grouped keyframe selectors
 with its `build-install-void.sh`), which asks for the password and the finger
 at once, so there is no 10 s wait before you can type. install.sh copies them
 only if that module is installed, since sudo fails without it. The emptty
-login screen gets the same treatment from `keyring-tpm/pam-emptty` (below).
+login screen does NOT: it stays finger first, then password.
 polkit and swaylock are left alone: polkit is finger only on purpose, and
 swaylock already runs both.
 
-emptty needed two extra pieces. Its password prompt is Go, which ignores the
-module's pthread_cancel, so after a finger match the leftover read swallowed
-the keys typed at the Sway/Hyprland picker and the login seemed to hang for
-~30s. The local `void` branch of pam-fprint-grosshack fixes that (it pushes a
-newline with TIOCSTI to finish the read). And emptty prints only its own
-"Password:", never the module's text, so `HIDE_ENTER_PASSWORD=true` in
-`/etc/emptty/conf` hides that and `pam_echo` prints the combined prompt. Note
-the module parses only two digits of `timeout=`, so `timeout=86400` means the
-default 30s; `-1` means no limit. If emptty ever breaks, log in on tty1 and
+grosshack was tried on emptty and reverted: emptty's password read is Go, which
+does not mix with the module's prompt thread, so fingers were missed and typed
+passwords got eaten. A TIOCSTI patch on the local `void` branch of
+pam-fprint-grosshack did not fix it and is not installed. Also, the module
+parses only two digits of `timeout=`, so `timeout=86400` means the default 30s.
+If emptty ever breaks, log in on tty1 and
 `sudo cp /etc/pam.d/emptty.stock /etc/pam.d/emptty` (that drops the TPM seal
 line too).
 
