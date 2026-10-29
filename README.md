@@ -964,18 +964,36 @@ CSS is also pickier than real CSS: no comma-grouped keyframe selectors
 with its `build-install-void.sh`), which asks for the password and the finger
 at once, so there is no 10 s wait before you can type. install.sh copies them
 only if that module is installed, since sudo fails without it. The emptty
-login screen does NOT: it stays finger first, then password.
+login screen uses the emptty-fp fork instead (next section).
 polkit and swaylock are left alone: polkit is finger only on purpose, and
 swaylock already runs both.
 
 grosshack was tried on emptty and reverted: emptty's password read is Go, which
 does not mix with the module's prompt thread, so fingers were missed and typed
-passwords got eaten. A TIOCSTI patch on the local `void` branch of
-pam-fprint-grosshack did not fix it and is not installed. Also, the module
-parses only two digits of `timeout=`, so `timeout=86400` means the default 30s.
-If emptty ever breaks, log in on tty1 and
-`sudo cp /etc/pam.d/emptty.stock /etc/pam.d/emptty` (that drops the TPM seal
-line too).
+passwords got eaten. Also, the module parses only two digits of `timeout=`, so
+`timeout=86400` means the default 30s.
+
+### emptty-fp: finger or password at login, Sway by default
+
+The login screen on tty7 runs a local fork of emptty,
+`/mnt/shared/projects/emptty-fp` (branch `fp`, details in its `fp/README.md`).
+emptty itself watches the reader through fprintd and reads the password at
+the same time, so "Enter Password or Place finger on fingerprint reader:"
+takes either. A broken reader never blocks the password. After login it
+prints "Starting Sway. Press any key to pick another session." and starts
+Sway after 1s; press a key in that second for the picker (Hyprland).
+
+install.sh builds it to `/usr/local/bin/emptty-fp` and installs:
+- `emptty-fp/run` over `/etc/sv/emptty/run`. It falls back to stock
+  `/usr/bin/emptty` if the fork binary is missing.
+- The PAM services `emptty-password` (pam_unix plus the TPM seal) and
+  `emptty-fingerprint` (pam_rootok, since emptty already checked the finger).
+- `FINGERPRINT`, `DEFAULT_SESSION`, `DEFAULT_SESSION_ENV` and
+  `DEFAULT_SESSION_WAIT` in `/etc/emptty/conf`.
+
+Test changes on tty8 with `fp/test-tty8.sh` before installing, never on tty7.
+To go back to stock: log in on tty1 and run
+`sudo rm /usr/local/bin/emptty-fp && sudo sv restart emptty`.
 
 ### Bitwarden fingerprint unlock
 

@@ -290,6 +290,28 @@ sudo install -o root -g root -m 644 "$REPO/keyring-tpm/pam-emptty" /etc/pam.d/em
 link keyring-tpm/keyring-tpm-unlock "$BIN/keyring-tpm-unlock"
 info "copy  keyring-tpm-seal, /etc/pam.d/emptty (TPM keyring unlock)"
 
+# emptty-fp: the emptty fork that takes a finger or the password at the same
+# time and starts Sway unless a key is pressed within 1s. Built from its own
+# repo; without that repo the stock emptty stays in place.
+FP_SRC=/mnt/shared/projects/emptty-fp
+if [ -d "$FP_SRC" ] && command -v go >/dev/null; then
+	(cd "$FP_SRC" && go build -o dist/emptty -buildvcs=false \
+		-ldflags "-X github.com/tvrzna/emptty/src.buildVersion=v0.16.1-fp" .)
+	sudo install -o root -g root -m 755 "$FP_SRC/dist/emptty" /usr/local/bin/emptty-fp
+	sudo install -o root -g root -m 644 "$FP_SRC/fp/pam/emptty-password" /etc/pam.d/emptty-password
+	sudo install -o root -g root -m 644 "$FP_SRC/fp/pam/emptty-fingerprint" /etc/pam.d/emptty-fingerprint
+	sudo install -o root -g root -m 755 "$REPO/emptty-fp/run" /etc/sv/emptty/run
+	for kv in FINGERPRINT=true DEFAULT_SESSION=Sway DEFAULT_SESSION_ENV=wayland DEFAULT_SESSION_WAIT=1000; do
+		k=${kv%%=*}
+		if grep -q "^#\?$k=" /etc/emptty/conf; then
+			sudo sed -i "s/^#\?$k=.*/$kv/" /etc/emptty/conf
+		else
+			echo "$kv" | sudo tee -a /etc/emptty/conf >/dev/null
+		fi
+	done
+	info "copy  emptty-fp, its PAM services, runit run file, emptty conf keys"
+fi
+
 # GPG passphrase by fingerprint: root helpers that seal/unseal it in the TPM,
 # and the polkit action (fingerprint only, via /etc/pam.d/polkit-1) that
 # guards the unseal. gpg-fp-setup does the one-time sealing.
