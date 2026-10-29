@@ -979,9 +979,10 @@ The login screen on tty7 runs a local fork of emptty,
 `/mnt/shared/projects/emptty-fp` (branch `fp`, details in its `fp/README.md`).
 emptty itself watches the reader through fprintd and reads the password at
 the same time, so "Enter Password or Place finger on fingerprint reader:"
-takes either. A broken reader never blocks the password. After login it
-prints "Starting Sway. Press any key to pick another session." and starts
-Sway after 1s; press a key in that second for the picker (Hyprland).
+takes either. A broken reader never blocks the password. The line above it,
+"Session: Sway  (Tab to change)", picks what starts after login: Tab cycles
+Sway, Hyprland and Windows (Windows reboots into it once via grub-reboot).
+There is no picker or delay after login.
 
 install.sh builds it to `/usr/local/bin/emptty-fp` and installs:
 - `emptty-fp/run` over `/etc/sv/emptty/run`. It falls back to stock
@@ -989,7 +990,9 @@ install.sh builds it to `/usr/local/bin/emptty-fp` and installs:
 - The PAM services `emptty-password` (pam_unix plus the TPM seal) and
   `emptty-fingerprint` (pam_rootok, since emptty already checked the finger).
 - `FINGERPRINT`, `DEFAULT_SESSION`, `DEFAULT_SESSION_ENV` and
-  `DEFAULT_SESSION_WAIT` in `/etc/emptty/conf`.
+  `DEFAULT_SESSION_WAIT=0` in `/etc/emptty/conf`. (A positive
+  `DEFAULT_SESSION_WAIT` in ms is the fork's other mode: start the default
+  session unless a key is pressed in that time. Unused here.)
 
 Test changes on tty8 with `fp/test-tty8.sh` before installing, never on tty7.
 To go back to stock: log in on tty1 and run
@@ -1003,7 +1006,7 @@ once through `grub-reboot`, which needs `GRUB_DEFAULT=saved`; the boot after
 that is Void again. Holding Shift from power-on boots straight into Windows
 (`boot/02_hold_shift_windows` in `/etc/grub.d`, using GRUB's `keystatus`;
 firmware that doesn't report Shift just ignores it). Lenovo's F12 boot menu
-also reaches Windows directly.
+also reaches Windows directly, and so does Tab to "Windows" at the login prompt.
 Measured on 2026-10-30: about 15s firmware, then Linux reaches the login
 screen about 4s after GRUB.
 
