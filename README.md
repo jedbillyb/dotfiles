@@ -995,6 +995,15 @@ Test changes on tty8 with `fp/test-tty8.sh` before installing, never on tty7.
 To go back to stock: log in on tty1 and run
 `sudo rm /usr/local/bin/emptty-fp && sudo sv restart emptty`.
 
+### Fast boot and getting to Windows
+
+GRUB's menu is hidden: it waits 1s (press Esc in that second to show it)
+instead of showing a 5s menu. `reboot-windows` (from `boot/`) boots Windows
+once through `grub-reboot`, which needs `GRUB_DEFAULT=saved`; the boot after
+that is Void again. Lenovo's F12 boot menu also reaches Windows directly.
+Measured on 2026-10-30: about 15s firmware, then Linux reaches the login
+screen about 4s after GRUB.
+
 ### Bitwarden fingerprint unlock
 
 The Bitwarden Firefox extension unlocks with a fingerprint. Firefox can't do

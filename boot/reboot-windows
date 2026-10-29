@@ -1,0 +1,8 @@
+#!/bin/sh
+# Reboot into Windows once. GRUB's menu is hidden (Esc in the first second
+# shows it), so this is the everyday way to Windows. grub-reboot needs
+# GRUB_DEFAULT=saved, which install.sh sets. The next boot after that is
+# Void again.
+entry=$(sudo grep -o "menuentry 'Windows Boot Manager[^']*'" /boot/grub/grub.cfg | head -1 | cut -d"'" -f2)
+[ -n "$entry" ] || { echo "No Windows entry in grub.cfg (run update-grub)"; exit 1; }
+sudo grub-reboot "$entry" && sudo reboot

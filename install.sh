@@ -312,6 +312,24 @@ if [ -d "$FP_SRC" ] && command -v go >/dev/null; then
 	info "copy  emptty-fp, its PAM services, runit run file, emptty conf keys"
 fi
 
+# Fast boot: GRUB's menu stays hidden for 1s (Esc shows it) instead of a 5s
+# menu, and Windows is reached with reboot-windows (grub-reboot, which needs
+# GRUB_DEFAULT=saved). Lenovo's F12 boot menu also reaches Windows directly.
+if [ -f /etc/default/grub ]; then
+	for kv in GRUB_DEFAULT=saved GRUB_TIMEOUT=1 GRUB_TIMEOUT_STYLE=hidden; do
+		k=${kv%%=*}
+		if grep -q "^#\?$k=" /etc/default/grub; then
+			sudo sed -i "s/^#\?$k=.*/$kv/" /etc/default/grub
+		else
+			echo "$kv" | sudo tee -a /etc/default/grub >/dev/null
+		fi
+	done
+	sudo grub-editenv /boot/grub/grubenv set saved_entry=0
+	sudo update-grub >/dev/null 2>&1
+	info "edit  /etc/default/grub (hidden 1s menu, GRUB_DEFAULT=saved)"
+fi
+link boot/reboot-windows "$BIN/reboot-windows"
+
 # GPG passphrase by fingerprint: root helpers that seal/unseal it in the TPM,
 # and the polkit action (fingerprint only, via /etc/pam.d/polkit-1) that
 # guards the unseal. gpg-fp-setup does the one-time sealing.
