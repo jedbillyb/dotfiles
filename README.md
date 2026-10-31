@@ -987,6 +987,9 @@ There is no picker or delay after login.
 install.sh builds it to `/usr/local/bin/emptty-fp` and installs:
 - `emptty-fp/run` over `/etc/sv/emptty/run`. It falls back to stock
   `/usr/bin/emptty` if the fork binary is missing.
+- `emptty-fp/xbps-noextract.conf` as `/etc/xbps.d/emptty-fp.conf`, so an
+  emptty package update no longer puts the stock run file back (the
+  2026-10-31 upgrade to emptty 0.16.1_2 did exactly that).
 - The PAM services `emptty-password` (pam_unix plus the TPM seal) and
   `emptty-fingerprint` (pam_rootok, since emptty already checked the finger).
 - `FINGERPRINT`, `DEFAULT_SESSION`, `DEFAULT_SESSION_ENV` and

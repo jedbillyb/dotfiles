@@ -3,6 +3,6 @@
 # Runs the emptty-fp fork (finger or password at the same time, see
 # /mnt/shared/projects/emptty-fp/fp/README.md). If that binary is missing,
 # falls back to stock emptty, which still logs in finger first, then password.
-# An emptty package update overwrites this file, which is the same fallback.
+# /etc/xbps.d/emptty-fp.conf stops emptty package updates overwriting it.
 [ -x /usr/local/bin/emptty-fp ] && exec setsid /usr/local/bin/emptty-fp -d
 exec setsid /usr/bin/emptty -d

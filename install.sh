@@ -301,6 +301,7 @@ if [ -d "$FP_SRC" ] && command -v go >/dev/null; then
 	sudo install -o root -g root -m 644 "$FP_SRC/fp/pam/emptty-password" /etc/pam.d/emptty-password
 	sudo install -o root -g root -m 644 "$FP_SRC/fp/pam/emptty-fingerprint" /etc/pam.d/emptty-fingerprint
 	sudo install -o root -g root -m 755 "$REPO/emptty-fp/run" /etc/sv/emptty/run
+	sudo install -o root -g root -m 644 "$REPO/emptty-fp/xbps-noextract.conf" /etc/xbps.d/emptty-fp.conf
 	for kv in FINGERPRINT=true DEFAULT_SESSION=Sway DEFAULT_SESSION_ENV=wayland DEFAULT_SESSION_WAIT=0; do
 		k=${kv%%=*}
 		if grep -q "^#\?$k=" /etc/emptty/conf; then
