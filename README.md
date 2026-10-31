@@ -1003,10 +1003,10 @@ To go back to stock: log in on tty1 and run
 GRUB's menu is hidden: it waits 1s (press Esc in that second to show it)
 instead of showing a 5s menu. `reboot-windows` (from `boot/`) boots Windows
 once through `grub-reboot`, which needs `GRUB_DEFAULT=saved`; the boot after
-that is Void again. Holding Shift from power-on boots straight into Windows
-(`boot/02_hold_shift_windows` in `/etc/grub.d`, using GRUB's `keystatus`;
-firmware that doesn't report Shift just ignores it). Lenovo's F12 boot menu
-also reaches Windows directly, and so does Tab to "Windows" at the login prompt.
+that is Void again. To pick Windows at power-on, tap Esc until the GRUB menu
+shows. Holding Shift does not work: this firmware doesn't report modifier keys
+to GRUB's `keystatus`, so that script was removed. Lenovo's F12 boot menu also
+reaches Windows directly, and so does Tab to "Windows" at the login prompt.
 Measured on 2026-10-30: about 15s firmware, then Linux reaches the login
 screen about 4s after GRUB.
 
