@@ -151,6 +151,12 @@ sudo mkdir -p "$(dirname "$VPN_SLEEP_HOOK")"
 sudo ln -sfn "$VPN_AUTO" "$VPN_SLEEP_HOOK"
 info "link  $VPN_SLEEP_HOOK"
 
+echo "Apple SuperDrive wake (udev):"
+# Copied for the same reason as the touchscreen rule below.
+SUPERDRIVE_RULE="/etc/udev/rules.d/91-superdrive.rules"
+sudo install -o root -g root -m 644 "$REPO/udev/91-superdrive.rules" "$SUPERDRIVE_RULE"
+info "copy  $SUPERDRIVE_RULE"
+
 echo "Touchscreen gestures (udev + input group):"
 # Copy, not symlink: udev reads its rules very early and before /mnt is
 # necessarily mounted, so a rule that lives in this repo would be missing on

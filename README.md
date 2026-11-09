@@ -150,6 +150,9 @@ My personal configuration files.
   and leave nothing usable between "no guard" and "396px"
 - `udev/99-touchscreen-lisgd.rules` - Stable `/dev/input/touchscreen` symlink
   and group access for that daemon
+- `udev/91-superdrive.rules` - Wakes the Apple USB SuperDrive (`05ac:1500`) on
+  plug-in with `sg_raw ... EA 00 00 00 00 00 01`. Without it the drive shows up
+  as `/dev/sr0` but rejects every disc. Needs `sg3_utils`
 - `scripts/openclaw-send` - openclaw helper script
 - `scripts/zed-wrapper` - Launches Zed with `CLAUDE_LOCAL_API_KEY` set, so Zed
   accepts the local `claude-local` provider (see "Zed and the local Claude
