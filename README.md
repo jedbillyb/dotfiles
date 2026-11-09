@@ -92,7 +92,12 @@ My personal configuration files.
 - `scripts/vpn-wstunnel.sh` - Full-tunnel WireGuard carried over TCP/443 via
   wstunnel, for networks that filter UDP (`up|down|status|diag`)
 - `scripts/vpn-proxy.sh` - TCP-over-SSH fallback for networks that block UDP, so
-  there is still a tunnel when WireGuard can't handshake (`up|down|status`)
+  there is still a tunnel when WireGuard can't handshake (`up|down|status`).
+  `up` only reports success once traffic is seen leaving from the SSH server,
+  `status` checks ssh, redsocks and the nat redirect together, and a watchdog
+  tears down a half-built redirect if the script dies mid-setup. A false
+  success would otherwise get cached by `vpn-toggle.sh` as that network's
+  working transport
 - `scripts/show-desktop.sh` - Show-desktop toggle (bound to mod+d)
 - `scripts/brightness.sh` - Brightness keys, with a screen-off step below the minimum
 - `scripts/caffeine-toggle.sh` - Stay-awake toggle: blocks idle lock + lid suspend (bound to mod+Shift+c)
