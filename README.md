@@ -55,7 +55,8 @@ My personal configuration files.
   roles are untouched. Also loads `wireplumber/scripts/bt-autoswitch.lua`
   (see "Switching to Bluetooth headphones on connect" below)
 - `shell/` - Shell dotfiles (`.bashrc`, `.zshrc`, `.bash_profile`, `.profile`, `.inputrc`)
-- `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`)
+- `git/gitconfig` - Git config (no secrets: GPG signing uses a key ID, auth delegates to `gh`,
+  and to `glab` for gitlab.freedesktop.org). The signing key ends in `!` to pin the primary key
 - `gnupg/gpg-agent.conf` - gpg-agent settings: the passphrase prompt and how
   long an entered passphrase stays cached (see "GPG passphrase prompt" below)
 - `scripts/pinentry-wayland.py` - The passphrase prompt itself, a themed

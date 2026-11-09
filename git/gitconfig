@@ -1,7 +1,7 @@
 [user]
 	name = Jed Blenkhorn
 	email = hello@jedbillyb.com
-	signingkey = BB9BED32814014B8
+	signingkey = BB9BED32814014B8!
 [commit]
 	gpgsign = true
 [credential "https://github.com"]
@@ -16,3 +16,6 @@
 	program = gpg
 [gpg "openpgp"]
 	program = gpg
+[credential "https://gitlab.freedesktop.org"]
+	helper = 
+	helper = !/usr/bin/glab auth git-credential
