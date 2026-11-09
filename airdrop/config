@@ -41,3 +41,8 @@ AIRDROP_MODE="${AIRDROP_MODE:-exclusive}"
 # Country to pin once wpa_supplicant is stopped; the AP-derived domain here
 # is an intersection ("98") with no code to restore.
 AIRDROP_REG="${AIRDROP_REG:-NZ}"
+
+# Who a right-click "Send via AirDrop" goes to: a device NAME (case and
+# apostrophes ignored) or ID. Unset, the first Apple device to answer wins -
+# which next to a Mac is often the Mac, not the phone.
+AIRDROP_RECEIVER="${AIRDROP_RECEIVER:-Jed's iPhone}"
