@@ -2746,7 +2746,7 @@ unfocused.
 
 | Keybind | Action |
 | --- | --- |
-| `XF86AudioRaiseVolume` / `LowerVolume` | Volume ±10% (silent - no desktop notification) |
+| `XF86AudioRaiseVolume` / `LowerVolume` | Volume ±10%, capped at 100% (silent - no desktop notification) |
 | `XF86AudioMute` | Toggle mute |
 | `XF86AudioMicMute` | Toggle mic mute |
 | `XF86AudioPlay` / `Next` / `Prev` / `Stop` | playerctl media controls |

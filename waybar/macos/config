@@ -51,6 +51,7 @@
         "format": "󰂚"
     },
     "pulseaudio": {
+        "max-volume": 100,
         "format": "󰕾 {volume}%",
         "format-muted": "󰖁",
         "on-click": "wpctl set-mute @DEFAULT_AUDIO_SINK@ toggle",
