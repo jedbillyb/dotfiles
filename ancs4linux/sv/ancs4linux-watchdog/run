@@ -1,7 +1,7 @@
 #!/bin/sh
 # Keep the BLE advertisement alive, and resubscribe ANCS when the phone returns.
 #
-# Two failures that previously could only be fixed by hand, both of which look
+# Three problems that previously could only be fixed by hand, all of which look
 # perfectly healthy from `sv status`:
 #
 # 1. The advertisement silently disappears from the controller. Seen
@@ -101,6 +101,37 @@ rearm() {
 	echo "re-armed: advertising instance is back on the controller"
 }
 
+# 3. The BLE link to the phone starves 2.4 GHz WiFi. The mt7921e shares one
+#    radio between WiFi and Bluetooth, and at the link's default connection
+#    interval (30-50 ms) the coexistence firmware hands Bluetooth so much
+#    airtime that WiFi rx rate falls to 1 Mbit/s. Measured 2026-11-16 on
+#    2142-WiFi ch2 with the phone attached: 0.2 Mbit/s. After one
+#    `hcitool lecup` to a 300-500 ms interval with latency 4: 59 Mbit/s, rx
+#    rate back to 300+ Mbit/s, notifications unaffected (they are tiny and
+#    a half-second delay is invisible). BlueZ never renegotiates this on its
+#    own, so slow every new LE handle to a bonded phone once. Units: interval
+#    1.25 ms, timeout 10 ms; the 6 s timeout clears the spec minimum of
+#    (1 + latency) * max interval * 2 = 5 s.
+LE_MIN=240 LE_MAX=400 LE_LATENCY=4 LE_TIMEOUT=600
+slowed=""
+slow_le_links() {
+	phones=$(bluetoothctl devices Bonded 2>/dev/null | awk '/iPhone|iPad/ { print $2 }')
+	now=""
+	for pair in $(hcitool con 2>/dev/null | awk '$2 == "LE" { print $3 ":" $5 }'); do
+		mac=${pair%:*}
+		echo "$phones" | grep -qx "$mac" || continue
+		now="$now$pair "
+		case " $slowed " in *" $pair "*) continue ;; esac
+		if hcitool lecup --handle "${pair##*:}" --min $LE_MIN --max $LE_MAX \
+			--latency $LE_LATENCY --timeout $LE_TIMEOUT >/dev/null 2>&1; then
+			echo "slowed BLE link $pair to spare 2.4 GHz WiFi"
+		else
+			echo "could not slow BLE link $pair"
+		fi
+	done
+	slowed="$now"
+}
+
 echo "watching advertisement and phone attachment every ${INTERVAL}s"
 # Seed the edge detector so a boot with the phone already attached does not
 # count as an attach and restart the observer for nothing.
@@ -118,6 +149,8 @@ while :; do
 		sv restart /var/service/ancs4linux-observer >/dev/null 2>&1 || true
 	fi
 	was_connected="$now_connected"
+
+	slow_le_links
 
 	sleep "$INTERVAL"
 done

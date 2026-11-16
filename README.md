@@ -1241,7 +1241,9 @@ the controller had already dropped, so it is not evidence.
 
 `ancs4linux-watchdog` polls that every 30s and re-arms when it reads zero. It
 also restarts the observer on the phone's disconnected -> connected edge,
-because that resubscribe never happens on its own (see below). To do it by hand,
+because that resubscribe never happens on its own (see below). It also slows each new
+BLE link to the phone so it stops starving 2.4 GHz WiFi (see "2.4 GHz, Bluetooth
+and the mt7921 combo chip"). To do it by hand,
 note that **`enable-advertising` has to be called twice**: the first call fails
 with a rich-formatted traceback ending in `DBusError: Does Not Exist`, which is
 expected rather than a real error. The daemon still has the adapter in its
@@ -1611,6 +1613,30 @@ and clicking it cycles the NetworkManager `802-11-wireless.band` preference
 through auto -> `a` (5 GHz) -> `bg` (2.4 GHz). Pinning to 5 GHz is the fix. If the
 pinned band has no usable AP the script reverts to the previous setting and
 reconnects rather than leaving the machine offline.
+
+**You can keep Bluetooth on and still use 2.4 GHz.** The damage comes from how
+often the BLE link talks, not from the link existing. At BlueZ's default 30-50 ms
+connection interval the coexistence firmware gives Bluetooth so much airtime that
+WiFi rx rate drops to 1 Mbit/s. Slowing the link to a 300-500 ms interval with
+latency 4 fixed it. Measured 2026-11-16 on `2142-WiFi` ch2 with the phone
+attached:
+
+| | default interval | slowed |
+|---|---|---|
+| throughput | 0.2 Mbit/s | 59 Mbit/s |
+| WiFi rx rate | 1.0 Mbit/s | 310 Mbit/s |
+
+Notifications still arrive, since a half-second delay on a tiny ANCS packet is
+not noticeable. BlueZ never renegotiates the interval itself, so
+`ancs4linux-watchdog` runs `hcitool lecup` once on every new LE handle to a
+bonded iPhone/iPad (within 30s of it connecting). By hand:
+
+```sh
+hcitool con                       # find the LE handle
+sudo hcitool lecup --handle <h> --min 240 --max 400 --latency 4 --timeout 600
+```
+
+Pinning to 5 GHz is still faster where 5 GHz reaches.
 
 The other half of the fix is `waybar/bluetooth-status.sh`, which toggles the
 controller. Turning Bluetooth off frees the radio, at the cost of iPhone
