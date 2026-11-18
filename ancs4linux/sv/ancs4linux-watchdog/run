@@ -34,11 +34,6 @@ INTERVAL=30
 while [ ! -x "$DIR/ancs4linux-ctl" ]; do sleep 5; done
 while ! pgrep -x bluetoothd >/dev/null; do sleep 2; done
 
-# Let the advertising service finish its own boot-time enable before judging
-# it. That runs from a backgrounded subshell which waits on get-all-hci, so a
-# fresh boot legitimately reads 0 instances for ~15s; sampling earlier invents
-# a problem and re-arms on top of a working setup.
-sleep 90
 
 # Number of LE advertising instances actually on the controller. Empty output
 # means btmgmt did not answer, which is deliberately NOT the same as zero.
@@ -151,6 +146,26 @@ slow_le_links() {
 	slowed="$now"
 }
 
+# Slowing the phone's link cannot wait: until it happens 2.4 GHz WiFi is dead,
+# and the phone usually attaches within seconds of boot. This used to sit
+# behind the 90s wait below plus a 30s poll, so every boot started with up to
+# two minutes of no internet. Poll it every 5s instead, from the start.
+SLOW_EVERY=5
+wait_slowing() { # seconds
+	n=$(( $1 / SLOW_EVERY ))
+	while [ "$n" -gt 0 ]; do
+		slow_le_links
+		sleep "$SLOW_EVERY"
+		n=$((n - 1))
+	done
+}
+
+# Let the advertising service finish its own boot-time enable before judging
+# it. That runs from a backgrounded subshell which waits on get-all-hci, so a
+# fresh boot legitimately reads 0 instances for ~15s; sampling earlier invents
+# a problem and re-arms on top of a working setup.
+wait_slowing 90
+
 echo "watching advertisement and phone attachment every ${INTERVAL}s"
 # Seed the edge detector so a boot with the phone already attached does not
 # count as an attach and restart the observer for nothing.
@@ -169,7 +184,5 @@ while :; do
 	fi
 	was_connected="$now_connected"
 
-	slow_le_links
-
-	sleep "$INTERVAL"
+	wait_slowing "$INTERVAL"
 done

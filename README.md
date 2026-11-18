@@ -1629,7 +1629,9 @@ attached:
 Notifications still arrive, since a half-second delay on a tiny ANCS packet is
 not noticeable. BlueZ never renegotiates the interval itself, so
 `ancs4linux-watchdog` slows every new LE link to a bonded iPhone/iPad (within
-30s of it connecting) to 300-480 ms, latency 3, 6 s timeout.
+5s of it connecting, from boot onwards) to 300-480 ms, latency 3, 6 s timeout.
+It used to wait 90s after boot and then poll every 30s, so a boot with the
+phone nearby started with up to two minutes of no internet at all.
 
 **How depends on who connected.** `hcitool con` shows the role:
 
