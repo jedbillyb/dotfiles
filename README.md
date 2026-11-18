@@ -1615,56 +1615,74 @@ pinned band has no usable AP the script reverts to the previous setting and
 reconnects rather than leaving the machine offline.
 
 **You can keep Bluetooth on and still use 2.4 GHz.** The damage comes from how
-often the BLE link talks, not from the link existing. At BlueZ's default 30-50 ms
-connection interval the coexistence firmware gives Bluetooth so much airtime that
-WiFi rx rate drops to 1 Mbit/s. Slowing the link to a 300-500 ms interval with
-latency 4 fixed it. Measured 2026-11-16 on `2142-WiFi` ch2 with the phone
+much airtime Bluetooth asks for, not from it being on. Two things ask for far
+too much by default, and both are fixed here.
+
+**1. The iPhone link.** At the default 30-50 ms connection interval the
+coexistence firmware gives Bluetooth so much airtime that WiFi rx rate drops to
+1 Mbit/s, which feels like no internet at all. Slowing the link to 300-480 ms
+fixes it, and notifications still arrive, since a half-second delay on a tiny
+ANCS packet is not noticeable. Measured on `2142-WiFi` ch2 with the phone
 attached:
 
 | | default interval | slowed |
 |---|---|---|
-| throughput | 0.2 Mbit/s | 59 Mbit/s |
-| WiFi rx rate | 1.0 Mbit/s | 310 Mbit/s |
+| throughput (2026-11-16) | 0.2 Mbit/s | 59 Mbit/s |
+| WiFi rx rate (2026-11-16) | 1.0 Mbit/s | 310 Mbit/s |
+| throughput (2026-11-18) | 12 Mbit/s | 80 Mbit/s |
 
-Notifications still arrive, since a half-second delay on a tiny ANCS packet is
-not noticeable. BlueZ never renegotiates the interval itself, so
-`ancs4linux-watchdog` slows every new LE link to a bonded iPhone/iPad (within
-5s of it connecting, from boot onwards) to 300-480 ms, latency 3, 6 s timeout.
-It used to wait 90s after boot and then poll every 30s, so a boot with the
-phone nearby started with up to two minutes of no internet at all.
+BlueZ never renegotiates the interval itself, so `ancs4linux-watchdog` slows
+every new LE link to a bonded iPhone/iPad within 5s of it connecting, from boot
+onwards, to 300-480 ms, latency 3, 6 s timeout. How depends on who connected,
+which `hcitool con` shows as `lm`:
 
-**How depends on who connected.** `hcitool con` shows the role:
-
-- `lm CENTRAL` (we connected, via `ancs4linux-reconnect`): `hcitool lecup`
-  works, and `/etc/bluetooth/main.conf` `[LE]` already sets these values for
-  every new connection.
-- `lm PERIPHERAL` (the phone connected to our advert, the usual case): the
-  mt7921 refuses `hcitool lecup` with "Command Disallowed" **and hcitool still
-  exits 0**. The peripheral has to ask with an L2CAP Connection Parameter
+- `lm PERIPHERAL`: the phone connected to our advert, the usual case. The
+  mt7921 refuses `hcitool lecup` here with "Command Disallowed" **and hcitool
+  still exits 0**. The peripheral has to ask with an L2CAP Connection Parameter
   Update Request, which no BlueZ tool sends, so `ancs4linux/le-conn-param-req`
   (installed to `/usr/local/sbin`) sends one as a raw ACL packet. The kernel
-  does send its own on connect, but with the link's current latency 0 and
-  720 ms timeout, which iOS rejects.
+  sends its own on connect, but with the link's current latency 0 and 720 ms
+  timeout, which iOS rejects.
+- `lm CENTRAL`: we connected, via `ancs4linux-reconnect`. `hcitool lecup`
+  works, and `/etc/bluetooth/main.conf` `[LE]` already sets these values for
+  every new connection.
 
-iOS only grants values inside Apple's accessory rules (latency <= 30, timeout
-2-6 s, max interval * (latency + 1) <= 2 s and * 3 < timeout). The first
-version of this fix asked for 500 ms with latency 4 (2.5 s) and would have been
-rejected even if it had been sent. Measured 2026-11-18 on `2142-WiFi` ch2 with
-the phone attached as peripheral: 12 Mbit/s before, 80 after. By hand:
+iOS only grants values inside Apple's accessory rules: latency <= 30, timeout
+2-6 s, max interval * (latency + 1) <= 2 s, and that times 3 < timeout.
 
-```sh
-hcitool con                                         # handle and role
-sudo le-conn-param-req <h> 240 384 3 600            # PERIPHERAL
-sudo hcitool lecup --handle <h> --min 240 --max 384 --latency 3 --timeout 600   # CENTRAL
-sudo btmon | grep -A4 'Connection Update Complete'  # what was actually granted
-```
+Two earlier versions of this looked fine and did nothing. The 2026-11-16 one
+used only `hcitool lecup`, so it worked on the day the laptop happened to be the
+central and silently failed every other time, and its 500 ms with latency 4
+(2.5 s) breaks the 2 s rule anyway. It also sat behind a 90s boot wait and a 30s
+poll, so every boot with the phone nearby started with up to two minutes of no
+internet.
 
-**The keyboard scan.** The Logitech K375s is a bonded auto-connect LE device,
+**2. The keyboard scan.** The Logitech K375s is a bonded auto-connect LE device,
 so whenever it is asleep the kernel runs a background scan to catch it, by
 default 30 ms out of every 60 ms (50% of the radio), all day, phone or no
 phone. `main.conf` `ScanIntervalAutoConnect=1024` / `ScanWindowAutoConnect=36`
 cuts that to 22.5 ms every 640 ms (3.5%); the keyboard still reconnects within
 about a second. `install.sh` writes all of these `[LE]` values.
+
+**Checking it.** Never trust a tool's exit code or a "slowed" log line here;
+only the controller's Connection Update Complete event says what was granted.
+iOS answers "Connection Parameters rejected" to a request that matches what the
+link already has, so a rejection right after restarting the watchdog on a link
+it already slowed is normal.
+
+```sh
+hcitool con                                    # handle, state 1 = up, lm = role
+tail /var/log/ancs4linux-watchdog/current      # "asked to slow BLE link ..."
+sudo btmon | grep -A4 'Connection Update Complete'   # want 480.00 msec
+
+# by hand
+sudo le-conn-param-req <h> 240 384 3 600                                      # PERIPHERAL
+sudo hcitool lecup --handle <h> --min 240 --max 384 --latency 3 --timeout 600 # CENTRAL
+```
+
+Speed tests on Starlink in the evening are noisy enough to mislead, and
+`speed.cloudflare.com` throttles to 0 after a few dozen 30 MB downloads.
+Compare Bluetooth on and off in alternating rounds, not one sample each.
 
 Pinning to 5 GHz is still faster where 5 GHz reaches.
 

@@ -24,7 +24,11 @@ import socket
 import struct
 import sys
 
+if len(sys.argv) != 6:
+    sys.exit("usage: le-conn-param-req HANDLE MIN MAX LATENCY TIMEOUT")
 handle, imin, imax, latency, timeout = (int(a, 0) for a in sys.argv[1:6])
+if not (6 <= imin <= imax <= 3200 and latency <= 499 and 10 <= timeout <= 3200):
+    sys.exit("le-conn-param-req: parameters outside the Bluetooth spec range")
 
 IDENT = 0x7A
 sig = struct.pack("<BBHHHHH", 0x12, IDENT, 8, imin, imax, latency, timeout)

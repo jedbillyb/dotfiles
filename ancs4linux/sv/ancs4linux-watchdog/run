@@ -1,12 +1,13 @@
 #!/bin/sh
-# Keep the BLE advertisement alive, and resubscribe ANCS when the phone returns.
+# Keep the BLE advertisement alive, resubscribe ANCS when the phone returns, and
+# keep the phone's BLE link from starving 2.4 GHz WiFi.
 #
 # Three problems that previously could only be fixed by hand, all of which look
-# perfectly healthy from `sv status`:
+# perfectly healthy from `sv status` (3 is described above slow_le_links):
 #
 # 1. The advertisement silently disappears from the controller. Seen
 #    2026-08-19: ancs4linux-advertising had been up 8h47m with no errors, but
-#    `btmgmt advinfo` said "Instances list with 0 items" -- nothing was being
+#    `btmgmt advinfo` said "Instances list with 0 items": nothing was being
 #    broadcast at all, so the bonded iPhone had no peripheral to reconnect to
 #    and sat disconnected all day while the reconnect poller spun uselessly.
 #    Suspend/resume is the likely trigger (the machine had been through ~15
@@ -18,7 +19,7 @@
 #    already dropped.
 #
 # 2. The observer desyncs whenever the phone reattaches. The device's GATT
-#    object paths change and it never resubscribes on its own -- it just sits
+#    object paths change and it never resubscribes on its own. It just sits
 #    there while bluetoothctl reports the phone connected and not one
 #    notification arrives. Restarting it fixes it every time, so do that on the
 #    disconnected -> connected edge instead of waiting to notice by hand.
@@ -99,28 +100,34 @@ rearm() {
 # 3. The BLE link to the phone starves 2.4 GHz WiFi. The mt7921e shares one
 #    radio between WiFi and Bluetooth, and at the link's default connection
 #    interval (30-50 ms) the coexistence firmware hands Bluetooth so much
-#    airtime that WiFi rx rate falls to 1 Mbit/s. Measured 2026-11-16 on
-#    2142-WiFi ch2 with the phone attached: 0.2 Mbit/s. After one
-#    `hcitool lecup` to a 300-500 ms interval with latency 4: 59 Mbit/s, rx
-#    rate back to 300+ Mbit/s, notifications unaffected (they are tiny and
-#    a half-second delay is invisible). BlueZ never renegotiates this on its
-#    own, so slow every new LE handle to a bonded phone once. Units: interval
-#    1.25 ms, timeout 10 ms.
+#    airtime that WiFi rx rate falls to 1 Mbit/s: no internet, in practice.
+#    At 300-480 ms it is fine (2142-WiFi ch2, phone attached: 0.2 -> 59
+#    Mbit/s on 2026-11-16, 12 -> 80 on 2026-11-18) and notifications are
+#    unaffected. BlueZ never renegotiates this on its own, so ask once per new
+#    link to a bonded phone. Units: interval 1.25 ms, timeout 10 ms.
 #
-#    How depends on who connected to whom (2026-11-18). When the PHONE
-#    connected to our advert we are the peripheral, the controller refuses
-#    `hcitool lecup` with "Command Disallowed", and hcitool exits 0 anyway, so
-#    this used to log "slowed" while nothing changed and WiFi stayed dead.
-#    The peripheral has to ASK, with an L2CAP request (le-conn-param-req), and
-#    iOS only grants values inside Apple's rules: 300-480 ms, latency 3, 6 s
-#    timeout fits them (480 ms * 4 = 1.92 s <= 2 s, * 3 < 6 s). The old 500 ms
-#    latency 4 did not. When WE connected (ancs4linux-reconnect) we are the
-#    central and lecup works; main.conf [LE] already sets these values for
-#    new connections, lecup covers the phone asking for faster later.
+#    How depends on who connected to whom, the `lm` column of `hcitool con`:
+#    - PERIPHERAL (the phone connected to our advert, the usual case): the
+#      controller refuses `hcitool lecup` with "Command Disallowed", and
+#      hcitool exits 0 anyway. The peripheral has to ASK, with an L2CAP
+#      Connection Parameter Update Request, which le-conn-param-req sends.
+#    - CENTRAL (ancs4linux-reconnect connected): lecup works. main.conf [LE]
+#      already sets these values for new connections; this covers the phone
+#      asking for something faster later.
+#
+#    iOS only grants values inside Apple's accessory rules, which these meet:
+#    480 ms * (3 + 1) = 1.92 s <= 2 s, and * 3 = 5.76 s < the 6 s timeout.
+#
+#    iOS rejects a request identical to the link's current parameters, so
+#    "rejected" in btmon after restarting this service is not a failure.
 #
 #    Only state 1 (established) counts. `hcitool con` also lists a pending
-#    background connect as state 5 with a dummy handle, which was "slowed"
-#    too.
+#    background connect as state 5 with a dummy handle.
+#
+#    The 2026-11-16 version used lecup alone and 500 ms with latency 4, so it
+#    only worked on links where we were central, and iOS would have refused it
+#    anyway. It logged "slowed" either way. The log line now says "asked",
+#    because only btmon's Connection Update Complete proves what was granted.
 LE_MIN=240 LE_MAX=384 LE_LATENCY=3 LE_TIMEOUT=600
 slowed=""
 slow_le_links() {
@@ -138,9 +145,13 @@ slow_le_links() {
 			/usr/local/sbin/le-conn-param-req "$handle" $LE_MIN $LE_MAX \
 				$LE_LATENCY $LE_TIMEOUT
 		else
+			# Exit status is meaningless (always 0), hence no check.
 			hcitool lecup --handle "$handle" --min $LE_MIN --max $LE_MAX \
 				--latency $LE_LATENCY --timeout $LE_TIMEOUT
-		fi >/dev/null 2>&1
+		fi >/dev/null 2>&1 || {
+			echo "could not send slow-down request for BLE link $mac handle $handle ($role)"
+			continue
+		}
 		echo "asked to slow BLE link $mac handle $handle ($role) to spare 2.4 GHz WiFi"
 	done
 	slowed="$now"
