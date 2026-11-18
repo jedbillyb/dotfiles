@@ -110,24 +110,43 @@ rearm() {
 #    rate back to 300+ Mbit/s, notifications unaffected (they are tiny and
 #    a half-second delay is invisible). BlueZ never renegotiates this on its
 #    own, so slow every new LE handle to a bonded phone once. Units: interval
-#    1.25 ms, timeout 10 ms; the 6 s timeout clears the spec minimum of
-#    (1 + latency) * max interval * 2 = 5 s.
-LE_MIN=240 LE_MAX=400 LE_LATENCY=4 LE_TIMEOUT=600
+#    1.25 ms, timeout 10 ms.
+#
+#    How depends on who connected to whom (2026-11-18). When the PHONE
+#    connected to our advert we are the peripheral, the controller refuses
+#    `hcitool lecup` with "Command Disallowed", and hcitool exits 0 anyway, so
+#    this used to log "slowed" while nothing changed and WiFi stayed dead.
+#    The peripheral has to ASK, with an L2CAP request (le-conn-param-req), and
+#    iOS only grants values inside Apple's rules: 300-480 ms, latency 3, 6 s
+#    timeout fits them (480 ms * 4 = 1.92 s <= 2 s, * 3 < 6 s). The old 500 ms
+#    latency 4 did not. When WE connected (ancs4linux-reconnect) we are the
+#    central and lecup works; main.conf [LE] already sets these values for
+#    new connections, lecup covers the phone asking for faster later.
+#
+#    Only state 1 (established) counts. `hcitool con` also lists a pending
+#    background connect as state 5 with a dummy handle, which was "slowed"
+#    too.
+LE_MIN=240 LE_MAX=384 LE_LATENCY=3 LE_TIMEOUT=600
 slowed=""
 slow_le_links() {
 	phones=$(bluetoothctl devices Bonded 2>/dev/null | awk '/iPhone|iPad/ { print $2 }')
 	now=""
-	for pair in $(hcitool con 2>/dev/null | awk '$2 == "LE" { print $3 ":" $5 }'); do
-		mac=${pair%:*}
+	for link in $(hcitool con 2>/dev/null | awk '$2 == "LE" && $7 == 1 { print $3 "," $5 "," $9 }'); do
+		mac=${link%%,*}
+		rest=${link#*,}
+		handle=${rest%,*}
+		role=${rest#*,}
 		echo "$phones" | grep -qx "$mac" || continue
-		now="$now$pair "
-		case " $slowed " in *" $pair "*) continue ;; esac
-		if hcitool lecup --handle "${pair##*:}" --min $LE_MIN --max $LE_MAX \
-			--latency $LE_LATENCY --timeout $LE_TIMEOUT >/dev/null 2>&1; then
-			echo "slowed BLE link $pair to spare 2.4 GHz WiFi"
+		now="$now$link "
+		case " $slowed " in *" $link "*) continue ;; esac
+		if [ "$role" = PERIPHERAL ]; then
+			/usr/local/sbin/le-conn-param-req "$handle" $LE_MIN $LE_MAX \
+				$LE_LATENCY $LE_TIMEOUT
 		else
-			echo "could not slow BLE link $pair"
-		fi
+			hcitool lecup --handle "$handle" --min $LE_MIN --max $LE_MAX \
+				--latency $LE_LATENCY --timeout $LE_TIMEOUT
+		fi >/dev/null 2>&1
+		echo "asked to slow BLE link $mac handle $handle ($role) to spare 2.4 GHz WiFi"
 	done
 	slowed="$now"
 }

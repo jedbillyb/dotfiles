@@ -1,0 +1,36 @@
+#!/usr/bin/env python3
+"""Ask the central of an LE link for new connection parameters.
+
+Usage: le-conn-param-req HANDLE MIN MAX LATENCY TIMEOUT
+       (MIN/MAX in 1.25 ms units, TIMEOUT in 10 ms units)
+
+For links where this machine is the PERIPHERAL, i.e. the iPhone connected to
+our advert. There `hcitool lecup` (HCI LE Connection Update) is refused by the
+mt7921 with "Command Disallowed", and hcitool still exits 0. The peripheral's
+way to ask is an L2CAP LE signalling Connection Parameter Update Request, and
+no BlueZ tool sends one. The kernel sends one by itself on connect, but it
+copies the link's CURRENT latency and timeout (0 and 720 ms) next to the
+configured interval, and iOS rejects that combination.
+
+The kernel owns the LE signalling channel, so the request goes out as a raw
+ACL packet on an HCI raw socket. The iPhone's reply reaches the kernel, which
+ignores a response to an ident it did not send. Needs root (CAP_NET_RAW).
+
+iOS only accepts parameters inside Apple's accessory rules: interval min a
+multiple of 15 ms and >= 15 ms, max >= min + 15 ms, latency <= 30, timeout
+2-6 s, max * (latency + 1) <= 2 s, and max * (latency + 1) * 3 < timeout.
+"""
+import socket
+import struct
+import sys
+
+handle, imin, imax, latency, timeout = (int(a, 0) for a in sys.argv[1:6])
+
+IDENT = 0x7A
+sig = struct.pack("<BBHHHHH", 0x12, IDENT, 8, imin, imax, latency, timeout)
+l2cap = struct.pack("<HH", len(sig), 0x0005) + sig
+acl = b"\x02" + struct.pack("<HH", handle & 0x0FFF, len(l2cap)) + l2cap
+
+s = socket.socket(socket.AF_BLUETOOTH, socket.SOCK_RAW, socket.BTPROTO_HCI)
+s.bind((0,))
+s.send(acl)

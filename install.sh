@@ -274,6 +274,23 @@ sudo sed -i \
 	-e 's/^#\?AlwaysPairable = .*/AlwaysPairable = true/' \
 	/etc/bluetooth/main.conf
 info "edit  /etc/bluetooth/main.conf (always discoverable + pairable)"
+# Spare 2.4 GHz WiFi from the mt7921's shared radio (README "2.4 GHz,
+# Bluetooth and the mt7921 combo chip"). Slow LE connections by default
+# (300-480 ms, latency 3, 6 s), and cut the always-on background scan that
+# auto-connects the keyboard/phone from 50% duty (30 ms every 60 ms) to 3.5%
+# (22.5 ms every 640 ms).
+sudo sed -i \
+	-e 's/^#\?MinConnectionInterval=.*/MinConnectionInterval=240/' \
+	-e 's/^#\?MaxConnectionInterval=.*/MaxConnectionInterval=384/' \
+	-e 's/^#\?ConnectionLatency=.*/ConnectionLatency=3/' \
+	-e 's/^#\?ConnectionSupervisionTimeout=.*/ConnectionSupervisionTimeout=600/' \
+	-e 's/^#\?ScanIntervalAutoConnect=.*/ScanIntervalAutoConnect=1024/' \
+	-e 's/^#\?ScanWindowAutoConnect=.*/ScanWindowAutoConnect=36/' \
+	/etc/bluetooth/main.conf
+info "edit  /etc/bluetooth/main.conf (LE params that spare 2.4 GHz WiFi)"
+# Copy, not symlink: ancs4linux-watchdog runs it from /etc/sv at boot.
+sudo install -o root -g root -m 755 "$REPO/ancs4linux/le-conn-param-req" /usr/local/sbin/le-conn-param-req
+info "copy  /usr/local/sbin/le-conn-param-req"
 link dunst/dunstrc "$CONFIG/dunst/dunstrc"
 link scripts/ancs-pair.sh "$BIN/ancs-pair.sh"
 

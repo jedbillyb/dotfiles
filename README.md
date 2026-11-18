@@ -1628,13 +1628,41 @@ attached:
 
 Notifications still arrive, since a half-second delay on a tiny ANCS packet is
 not noticeable. BlueZ never renegotiates the interval itself, so
-`ancs4linux-watchdog` runs `hcitool lecup` once on every new LE handle to a
-bonded iPhone/iPad (within 30s of it connecting). By hand:
+`ancs4linux-watchdog` slows every new LE link to a bonded iPhone/iPad (within
+30s of it connecting) to 300-480 ms, latency 3, 6 s timeout.
+
+**How depends on who connected.** `hcitool con` shows the role:
+
+- `lm CENTRAL` (we connected, via `ancs4linux-reconnect`): `hcitool lecup`
+  works, and `/etc/bluetooth/main.conf` `[LE]` already sets these values for
+  every new connection.
+- `lm PERIPHERAL` (the phone connected to our advert, the usual case): the
+  mt7921 refuses `hcitool lecup` with "Command Disallowed" **and hcitool still
+  exits 0**. The peripheral has to ask with an L2CAP Connection Parameter
+  Update Request, which no BlueZ tool sends, so `ancs4linux/le-conn-param-req`
+  (installed to `/usr/local/sbin`) sends one as a raw ACL packet. The kernel
+  does send its own on connect, but with the link's current latency 0 and
+  720 ms timeout, which iOS rejects.
+
+iOS only grants values inside Apple's accessory rules (latency <= 30, timeout
+2-6 s, max interval * (latency + 1) <= 2 s and * 3 < timeout). The first
+version of this fix asked for 500 ms with latency 4 (2.5 s) and would have been
+rejected even if it had been sent. Measured 2026-11-18 on `2142-WiFi` ch2 with
+the phone attached as peripheral: 12 Mbit/s before, 80 after. By hand:
 
 ```sh
-hcitool con                       # find the LE handle
-sudo hcitool lecup --handle <h> --min 240 --max 400 --latency 4 --timeout 600
+hcitool con                                         # handle and role
+sudo le-conn-param-req <h> 240 384 3 600            # PERIPHERAL
+sudo hcitool lecup --handle <h> --min 240 --max 384 --latency 3 --timeout 600   # CENTRAL
+sudo btmon | grep -A4 'Connection Update Complete'  # what was actually granted
 ```
+
+**The keyboard scan.** The Logitech K375s is a bonded auto-connect LE device,
+so whenever it is asleep the kernel runs a background scan to catch it, by
+default 30 ms out of every 60 ms (50% of the radio), all day, phone or no
+phone. `main.conf` `ScanIntervalAutoConnect=1024` / `ScanWindowAutoConnect=36`
+cuts that to 22.5 ms every 640 ms (3.5%); the keyboard still reconnects within
+about a second. `install.sh` writes all of these `[LE]` values.
 
 Pinning to 5 GHz is still faster where 5 GHz reaches.
 
