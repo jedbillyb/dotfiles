@@ -1456,6 +1456,9 @@ believes dunst rather than its own state file.
 
 ### Popup placement
 
+Popups are a flat `#242424` box in Inter 9, with no frame. Stacked popups sit
+flush, split by a 1px `#333333` separator.
+
 `origin = top-right` with `offset = 0x0`: sway/config has no gaps and no
 borders, so a tiled window's corner is the screen corner (below waybar).
 

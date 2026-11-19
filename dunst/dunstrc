@@ -29,12 +29,14 @@
     # even when its outer gaps are pixel-identical.
     padding = 10
     horizontal_padding = 10
-    frame_width = 1
-    gap_size = 5
-    # Square, to match sway's windows. sway draws 5px borders but paints them
-    # fully transparent (client.* are all #00000000), so a window is a plain
-    # rectangle with hard corners -- a rounded popup sitting over one looked
-    # like it came from a different desktop.
+    # No frame: a flat #242424 box like foot and waybar. Stacked popups are
+    # split by a 1px separator instead of a gap, so they read as one panel.
+    frame_width = 0
+    gap_size = 0
+    separator_height = 1
+    separator_color = "#333333"
+    # Square, to match sway's windows (no gaps, no borders): a rounded popup
+    # sitting over one looked like it came from a different desktop.
     corner_radius = 0
     text_icon_padding = 10
 
@@ -45,7 +47,7 @@
     # 9pt to sit in proportion with waybar, which is 9px. The bar is
     # monospace because it is columns of numbers; notification text is prose,
     # and mono makes it look like terminal output rather than a message.
-    font = DejaVu Sans 9
+    font = Inter 9
     # 0, not a positive value: line_height adds leading *below* every line,
     # including the last, so anything above 0 quietly adds to the bottom
     # padding only and the box stops looking evenly padded.
@@ -84,19 +86,16 @@
 [urgency_low]
     background = "#242424"
     foreground = "#777777"
-    frame_color = "#3b3b3b"
     timeout = 6
 
 [urgency_normal]
     background = "#242424"
     foreground = "#cccccc"
-    frame_color = "#4a4a4a"
     timeout = 10
 
 [urgency_critical]
     background = "#242424"
     foreground = "#cccccc"
-    frame_color = "#f7768e"
     # Not 0. dunst's convention is that critical notifications never expire, so
     # they sit on screen until clicked -- a refused pairing then follows you
     # around for the rest of the session. Long enough to be read, then gone.
