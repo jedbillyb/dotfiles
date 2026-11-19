@@ -29,6 +29,14 @@ My personal configuration files.
   opens the Google OAuth consent flow in a terminal, so the 7-day token expiry is
   fixed from the bar instead of by hand
 - `wofi/config`, `wofi/style.css` - Wofi app launcher config and theme
+- `firefox/` - Firefox profile overrides, symlinked into
+  `~/.config/mozilla/firefox/<profile>/` (not linked by install.sh; the profile
+  dir name differs per install). `user.js`: GPU video decode, loads the two
+  stylesheets, and `full-screen-api.ignore-widgets` so video fullscreen fills
+  the window and waybar stays visible. `chrome/userChrome.css`: flat dark
+  toolbars, no tab gradient or outline, square corners everywhere.
+  `chrome/userContent.css`: no blue focus ring around fullscreen video. All
+  three are read only at startup, so changes need a full Ctrl+Q restart.
 - `foot/foot.ini` - foot terminal config (sway runs `footclient` against a foot server)
 - `xdg-desktop-portal/` - Portal backend selection so Flatpak apps get a working file picker on sway (`*-portals.conf`)
 - `xdg-desktop-portal-wlr/config` - Which output the wlroots portal screencasts.

@@ -1,0 +1,47 @@
+/* Flatten the toolbar/tab-strip colour gradient to one plain dark grey. */
+#navigator-toolbox,
+#titlebar,
+#TabsToolbar,
+#nav-bar,
+#PersonalToolbar,
+#sidebar-main,
+#sidebar-box {
+  background-color: #1c1c1c !important;
+  background-image: none !important;
+}
+
+/* Square tabs, and no coloured gradient outline on the selected tab. */
+.tabbrowser-tab,
+.tabbrowser-tab .tab-stack,
+.tabbrowser-tab .tab-background {
+  border-radius: 0 !important;
+  outline: none !important;
+  box-shadow: none !important;
+  border: none !important;
+  background-image: none !important;
+}
+.tabbrowser-tab .tab-background::before,
+.tabbrowser-tab .tab-background::after,
+.tabbrowser-tab .tab-stack::before,
+.tabbrowser-tab .tab-stack::after {
+  display: none !important;
+}
+.tabbrowser-tab[selected] .tab-background {
+  background-color: #333 !important;
+}
+
+/* Everything in the browser UI square: url bar, buttons, menus, popups. */
+:root {
+  --border-radius-small: 0 !important;
+  --border-radius-medium: 0 !important;
+  --border-radius-large: 0 !important;
+  --border-radius-xlarge: 0 !important;
+  --border-radius-circle: 0 !important;
+  --toolbarbutton-border-radius: 0 !important;
+  --tab-border-radius: 0 !important;
+  --urlbar-icon-border-radius: 0 !important;
+  --arrowpanel-border-radius: 0 !important;
+}
+*, *::before, *::after {
+  border-radius: 0 !important;
+}

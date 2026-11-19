@@ -1,0 +1,7 @@
+/* Hide the blue focus ring Firefox draws around a fullscreen video player
+   (it showed as blue arcs in the screen corners). */
+:fullscreen, :fullscreen:focus, :fullscreen :focus, :fullscreen :focus-visible,
+video:focus, video:focus-visible {
+  outline: none !important;
+  box-shadow: none !important;
+}
