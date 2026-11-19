@@ -1,7 +1,7 @@
 {
     "position": "top",
     "height": 16,
-    "layer": "overlay",
+    "layer": "top",
     "exclusive": true,
     "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude"],
     "modules-center": ["clock"],

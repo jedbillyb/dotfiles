@@ -20,7 +20,8 @@ My personal configuration files.
 - `fingerprint/` - PAM files for su, sudo and TTY login: fingerprint or password, whichever comes first
 - `waybar/` - Waybar config, style, and status scripts (VPN, caffeine, network,
   WiFi band, Bluetooth, AirDrop, AirPods, calendar, heat pump, GitHub, and
-  Claude indicators). The calendar
+  Claude indicators). The bar sits on the `top` layer, so fullscreen windows
+  (videos) cover it. The calendar
   module styles two failure states, `auth` (Google OAuth token expired or
   revoked) and `stale` (fetching is failing and the cache has aged out), so a
   broken backend is visible instead of collapsing to an empty module. Clicking
