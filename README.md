@@ -132,8 +132,8 @@ My personal configuration files.
   FIFO and exits, so the gesture pays ~1ms. Its exit status tells lisgd whether
   the gesture was really a resize
 - `scripts/touch-resized.py` - The daemon behind it, holding the sway IPC socket
-  open; resizes the tiled window boundary nearest the gesture, giving the 10px
-  gap a fingertip-sized grab region
+  open; resizes the tiled window boundary nearest the gesture, giving the 1px
+  border a fingertip-sized grab region
 - `scripts/workspace-step.py` - Steps one workspace along by *number*, creating
   it if needed, which the two-finger edge swipe runs; `workspace next_on_output`
   only walks the ones that already exist
@@ -1456,16 +1456,9 @@ believes dunst rather than its own state file.
 
 ### Popup placement
 
-`origin = top-right` with `offset = 10x10`, so the popup's corner lands exactly
-on the *visible* corner of a tiled window.
-
-**10, not 5.** sway/config sets `gaps outer 5` **and** `default_border pixel 5`,
-and those borders are fully transparent (`client.*` colours are `#00000000`), so
-5px of every window is invisible and its content starts 10px in. Matching the
-5px gap makes the popup overhang every window by 5px, which is what "the border
-is the problem" turned out to mean. Measured against a real foot window: content
-begins at `screen_width - 10` and at `y = 26`, and the popup's frame now lands on
-exactly those pixels.
+`origin = top-right` with `offset = 1x1`, so the popup's corner lands exactly
+on the content corner of a tiled window: sway/config has no gaps and a 1px
+border, so content starts 1px in.
 
 **dunst's vertical offset is measured from the bottom of waybar's exclusive
 zone, not from the top of the screen.** The bar's own 16px height is already
@@ -2277,50 +2270,25 @@ pkill lisgd
 ~/.local/bin/lisgd -v -d /dev/input/touchscreen -g '1,RL,R,*,R,notify-send swiped'
 ```
 
-### Touch-resizing windows and invisible borders
+### Gaps and borders
 
-Dragging a window edge to resize it needs a border to grab — with `border none`
-there is no hit region at all, and tiled windows can only be resized from the
-keyboard. But a visible 5px frame around everything is ugly, and taking 5px out
-of each window's content is worse.
+No gaps: windows sit flush against each other and the screen edges, so every
+pixel goes to content. A 1px solid grey border separates them and marks the
+focused window (lighter grey). This replaced an older layout of invisible 5px
+borders plus a 5px outer gap, which existed only to give touch a border to grab.
 
-Both are avoidable. sway alpha-blends border colours over the wallpaper layer,
-so `#00000000` gives a border that is fully invisible and still grabbable. The
-space it costs is handed straight back by moving the 10px separation out of the
-gaps and into the borders:
+That is not needed: `scripts/touch-resize.sh` does its own hit test with 60px of
+slop around each window boundary, so a 1px border is still easy to drag by
+finger. With the mouse, use `$mod` + right-drag.
 
 ```
-default_border pixel 5      # was: none
-gaps inner 0                # was: 10
-gaps outer 5                # was: 0
-client.* ... #00000000 ...  # transparent border, background, indicator
+default_border pixel 1
+gaps inner 0
+gaps outer 0
+client.focused   #888888 ...   # unfocused: #333333
 ```
 
-Two adjacent windows now sit flush, with 5px of transparent border each making
-up the same 10px gutter as before, and the outer gap of 5 plus a 5px border
-reproduces the old 10px screen-edge inset. Window *content* rects come out
-byte-identical to the old borderless layout — the borders are free.
-
-The border width is pinned by wanting every gap the same. A window's rect
-cannot extend past the output and outer gaps clamp there, so the screen-edge
-inset always equals the border width, while the gutter between two windows is
-*two* borders. Equal gaps therefore forces `outer == border` and
-`gutter == 2 * border`, and a 10px look caps the border at 5. Widening the grab
-strip means widening every gap with it (`border 10` + `outer 10` gives 20px
-throughout). Negative outer gaps don't buy a way out — sway clamps them at the
-output edge.
-
-Which leaves a real limitation: 10px is about a fifth of a fingertip on this
-screen (~5.6 px/mm), so dragging a border by touch is fiddly. The 4-finger
-resize gestures above are the way round it — they need no aiming.
-
-`resize` wants a space before the unit: `resize grow width 60 px`. The
-unspaced `60px` is not a parse error, it just quietly resizes by the wrong
-amount.
-
-`default_border` only applies to windows created after it, so after a reload
-existing windows keep their old setting until you re-run
-`swaymsg '[app_id=".*"] border pixel 5'` or restart them.
+foot runs with `alpha=1.0` (opaque) in both colour schemes.
 
 ### Compositor (sway, and the SwayFX detour)
 

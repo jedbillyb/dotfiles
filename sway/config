@@ -8,38 +8,25 @@ set $mod Mod4
 
 font pango:monospace 8
 
-# Borders are the drag handle for touch resizing -- with `border none` there is
-# no hit region for a finger to grab, so tiled windows can only be resized from
-# the keyboard. These are invisible ones: fully transparent, because sway
-# alpha-blends border colours over the wallpaper layer.
+# No gaps: windows sit flush against each other and the screen edges, so
+# every pixel goes to content. A 1px solid border is the only separation; it
+# also shows which window is focused (lighter grey).
 #
-# The 5px they cost comes out of inner gaps rather than out of the windows, so
-# this is pixel-identical to the old borderless 10px-gap layout: same content
-# sizes, same 10px everywhere.
-#
-# Every gap has to stay the same width, and that pins the border to half a gap.
-# A window's rect cannot extend past the output and outer gaps clamp there, so
-# the screen-edge inset always equals the border width, while the gutter
-# between two windows is two borders. Equal gaps therefore means
-# outer == border and gutter == 2 * border, i.e. a 10px look caps the border at
-# 5. Widening the grab strip means widening every gap to match -- border 10
-# plus outer 10 gives 20px throughout.
-#
-# 10px is a fifth of a fingertip on this screen, so dragging a border is fiddly
-# by touch. The 2-finger resize gestures in touch-gestures.sh are the way round
-# that: they need no aiming at all.
-default_border pixel 5
-default_floating_border pixel 5
+# Touch resizing does not depend on the border: touch-resize.sh does its own
+# hit test with 60px of slop around each boundary, so a 1px border is still
+# grabbable by finger. With the mouse, use $mod + right-drag.
+default_border pixel 1
+default_floating_border pixel 1
 focus_on_window_activation none
 floating_modifier $mod normal
 
 gaps inner 0
-gaps outer 5
+gaps outer 0
 
 #                       border    background text    indicator child_border
-client.focused          #00000000 #00000000  #ffffff #00000000 #00000000
-client.focused_inactive #00000000 #00000000  #888888 #00000000 #00000000
-client.unfocused        #00000000 #00000000  #888888 #00000000 #00000000
+client.focused          #888888   #888888    #ffffff #888888   #888888
+client.focused_inactive #333333   #333333    #888888 #333333   #333333
+client.unfocused        #333333   #333333    #888888 #333333   #333333
 
 # ── Output / Wallpaper ────────────────────────────────────────────────────────
 
