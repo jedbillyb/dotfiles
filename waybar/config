@@ -3,6 +3,8 @@
     "height": 16,
     "layer": "top",
     "exclusive": true,
+    "ipc": true,
+    "id": "waybar",
     "modules-left": ["sway/workspaces", "custom/calendar", "custom/claude"],
     "modules-center": ["clock"],
     "modules-right": ["custom/airpods", "custom/heatpump", "custom/airdrop", "custom/caffeine", "custom/vpn", "custom/github", "custom/notifications", "custom/bluetooth", "custom/wifiband", "custom/network", "pulseaudio", "memory", "cpu", "temperature", "battery"],

@@ -29,12 +29,12 @@
     # even when its outer gaps are pixel-identical.
     padding = 10
     horizontal_padding = 10
-    # No frame: a flat #242424 box like foot and waybar. Stacked popups are
-    # split by a 1px separator instead of a gap, so they read as one panel.
+    # No frame: a flat black box like waybar, distinct from #242424 foot.
+    # Stacked popups are split by a 1px separator instead of a gap.
     frame_width = 0
     gap_size = 0
     separator_height = 1
-    separator_color = "#333333"
+    separator_color = "#242424"
     # Square, to match sway's windows (no gaps, no borders): a rounded popup
     # sitting over one looked like it came from a different desktop.
     corner_radius = 0
@@ -84,17 +84,17 @@
     mouse_right_click = close_current
 
 [urgency_low]
-    background = "#242424"
+    background = "#000000"
     foreground = "#777777"
     timeout = 6
 
 [urgency_normal]
-    background = "#242424"
+    background = "#000000"
     foreground = "#cccccc"
     timeout = 10
 
 [urgency_critical]
-    background = "#242424"
+    background = "#000000"
     foreground = "#cccccc"
     # Not 0. dunst's convention is that critical notifications never expire, so
     # they sit on screen until clicked -- a refused pairing then follows you

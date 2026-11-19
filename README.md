@@ -1456,8 +1456,12 @@ believes dunst rather than its own state file.
 
 ### Popup placement
 
-Popups are a flat `#242424` box in Inter 9, with no frame. Stacked popups sit
-flush, split by a 1px `#333333` separator.
+Popups are a flat black box in Inter 9, with no frame, matching the black bar
+and standing out from the `#242424` terminals. Stacked popups sit flush, split
+by a 1px `#242424` separator.
+
+In fullscreen the bar is hidden (see `scripts/fullscreen-bar.py` below), its
+exclusive zone goes away, and popups sit at the very top of the screen.
 
 `origin = top-right` with `offset = 0x0`: sway/config has no gaps and no
 borders, so a tiled window's corner is the screen corner (below waybar).
@@ -2288,7 +2292,16 @@ gaps inner 0
 gaps outer 0
 ```
 
-foot runs with `alpha=1.0` (opaque) in both colour schemes.
+foot runs with `alpha=1.0` (opaque, `#242424`) in both colour schemes; waybar is
+solid black so the bar reads as separate from the terminals under it.
+
+`scripts/fullscreen-bar.py` hides waybar while a fullscreen window is showing.
+A fullscreen window covers the bar but sway still reserves its 16px, so dunst
+popups landed 16px down over a video. waybar has `"ipc": true, "id": "waybar"`
+and sway/config has a matching `bar { id waybar; swaybar_command true }` block
+(`true` so sway does not start swaybar), which makes
+`swaymsg bar waybar mode invisible|dock` an idempotent show/hide. The script
+subscribes to sway window/workspace events and sets the mode.
 
 ### Compositor (sway, and the SwayFX detour)
 

@@ -8,8 +8,8 @@
 }
 
 window#waybar {
-    /* Match foot terminal: solid #242424, no transparency. */
-    background: #242424;
+    /* Solid black: distinct from the #242424 terminals below it. */
+    background: #000000;
     color: #cccccc;
 }
 

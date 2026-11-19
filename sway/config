@@ -266,6 +266,21 @@ bindsym $mod+Shift+d mode "resize"
 # rather than starting a second one.
 exec_always ~/.local/bin/waybar-run.sh
 
+# A sway bar id for waybar to follow over IPC ("ipc": true, "id": "waybar" in
+# waybar/config), so `swaymsg bar waybar mode ...` can show and hide it. waybar
+# itself is still started by waybar-run.sh above; swaybar_command is `true` so
+# sway does not launch a second bar.
+bar {
+    id waybar
+    position top
+    mode dock
+    swaybar_command true
+}
+
+# Hide the bar while a fullscreen window shows, so its exclusive zone goes away
+# and notifications sit at the very top instead of 16px down.
+exec_always /mnt/shared/projects/dotfiles/scripts/fullscreen-bar.py
+
 # Hide/show the bar. Normally that is just waybar's visibility toggle -- the
 # process stays alive, so the supervisor above leaves a hidden bar alone -- but
 # if the bar has crashed and stayed down, the same key brings it back instead
