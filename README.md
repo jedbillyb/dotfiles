@@ -2525,7 +2525,7 @@ Commits are signed (`commit.gpgsign` in `git/gitconfig`), so when gpg-agent's
 cache runs out a signed commit needs the key's passphrase typed into a
 *pinentry*. `gnupg/gpg-agent.conf` points gpg-agent at
 `scripts/pinentry-wayland.py`, a dialog centred on screen in the same dress as
-foot, waybar and wofi: `#242424` at 0.85, square corners, no outlines, Inter,
+foot, waybar and wofi: solid `#242424`, square corners, no outlines, Inter,
 and the Tokyo Night blue for the OK button and caret.
 
 The two packaged options each got something wrong:

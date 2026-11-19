@@ -14,7 +14,7 @@ The two stock pinentries both fall short here:
 
 So this speaks the pinentry protocol itself and draws the prompt as a GTK 3
 layer-shell surface: native Wayland, no X, the same in sway and Hyprland, and
-dressed like foot, waybar and wofi (#242424 at 0.85, square corners, no
+dressed like foot, waybar and wofi (solid #242424, square corners, no
 outlines, Tokyo Night blue accent).
 
 gpg-agent starts one of these per operation and talks Assuan over stdin/stdout:
@@ -38,7 +38,7 @@ GPG_FP_UNSEAL = "/usr/local/libexec/gpg-fp-unseal"
 CSS = b"""
 .panel {
     /* Same ground as foot, waybar and wofi. */
-    background-color: rgba(36, 36, 36, 0.85);
+    background-color: #242424;
     /* No outlines anywhere: foot, waybar and wofi draw none, and sway's
        borders are transparent. Fills do the separating instead. */
     border: none;

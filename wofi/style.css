@@ -12,8 +12,8 @@
 
 /* The whole floating panel */
 window {
-    /* Match foot terminal / waybar: #242424 at 0.85 alpha. */
-    background-color: rgba(36, 36, 36, 0.85);
+    /* Match foot terminal / waybar: solid #242424. */
+    background-color: #242424;
     color: #f5f5f5;
     border: none;
 }
