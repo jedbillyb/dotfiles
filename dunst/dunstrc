@@ -10,14 +10,14 @@
     follow = mouse
 
     # Line the popup up with the top-right corner of a tiled window's content.
-    # sway/config has no gaps and a 1px border, so content starts 1px in.
+    # sway/config has no gaps and no borders, so that is the screen corner.
     #
     # The vertical offset here is measured from the bottom of waybar's
     # exclusive zone, NOT from the top of the screen - waybar's own 16px is
     # already excluded, so the old `16 + 10 = 26` double-counted the bar and
     # sat a bar-height too low while the right edge stayed correct.
     origin = top-right
-    offset = 1x1
+    offset = 0x0
     width = (200, 340)
     height = (0, 220)
     notification_limit = 4

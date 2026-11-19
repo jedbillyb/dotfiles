@@ -8,15 +8,13 @@ set $mod Mod4
 
 font pango:monospace 8
 
-# No gaps: windows sit flush against each other and the screen edges, so
-# every pixel goes to content. A 1px solid border is the only separation; it
-# also shows which window is focused (lighter grey).
+# No gaps and no borders: windows sit flush against each other and the screen
+# edges, so every pixel goes to content, with no focus outline.
 #
-# Touch resizing does not depend on the border: touch-resize.sh does its own
-# hit test with 60px of slop around each boundary, so a 1px border is still
-# grabbable by finger. With the mouse, use $mod + right-drag.
-default_border pixel 1
-default_floating_border pixel 1
+# Touch resizing does not need a border: touch-resize.sh does its own hit test
+# with 60px of slop around each boundary. With the mouse, use $mod + right-drag.
+default_border none
+default_floating_border none
 focus_on_window_activation none
 floating_modifier $mod normal
 

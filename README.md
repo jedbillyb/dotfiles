@@ -132,8 +132,8 @@ My personal configuration files.
   FIFO and exits, so the gesture pays ~1ms. Its exit status tells lisgd whether
   the gesture was really a resize
 - `scripts/touch-resized.py` - The daemon behind it, holding the sway IPC socket
-  open; resizes the tiled window boundary nearest the gesture, giving the 1px
-  border a fingertip-sized grab region
+  open; resizes the tiled window boundary nearest the gesture, giving the
+  boundary between two windows a fingertip-sized grab region
 - `scripts/workspace-step.py` - Steps one workspace along by *number*, creating
   it if needed, which the two-finger edge swipe runs; `workspace next_on_output`
   only walks the ones that already exist
@@ -1456,9 +1456,8 @@ believes dunst rather than its own state file.
 
 ### Popup placement
 
-`origin = top-right` with `offset = 1x1`, so the popup's corner lands exactly
-on the content corner of a tiled window: sway/config has no gaps and a 1px
-border, so content starts 1px in.
+`origin = top-right` with `offset = 0x0`: sway/config has no gaps and no
+borders, so a tiled window's corner is the screen corner (below waybar).
 
 **dunst's vertical offset is measured from the bottom of waybar's exclusive
 zone, not from the top of the screen.** The bar's own 16px height is already
@@ -2272,20 +2271,18 @@ pkill lisgd
 
 ### Gaps and borders
 
-No gaps: windows sit flush against each other and the screen edges, so every
-pixel goes to content. A 1px solid grey border separates them and marks the
-focused window (lighter grey). This replaced an older layout of invisible 5px
+No gaps and no borders: windows sit flush against each other and the screen
+edges, so every pixel goes to content, with no focus outline. This replaced an older layout of invisible 5px
 borders plus a 5px outer gap, which existed only to give touch a border to grab.
 
 That is not needed: `scripts/touch-resize.sh` does its own hit test with 60px of
-slop around each window boundary, so a 1px border is still easy to drag by
-finger. With the mouse, use `$mod` + right-drag.
+slop around each window boundary, so the boundary is easy to drag by
+finger, even with no border at all. With the mouse, use `$mod` + right-drag.
 
 ```
-default_border pixel 1
+default_border none
 gaps inner 0
 gaps outer 0
-client.focused   #888888 ...   # unfocused: #333333
 ```
 
 foot runs with `alpha=1.0` (opaque) in both colour schemes.
