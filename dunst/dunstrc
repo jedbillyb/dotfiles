@@ -77,7 +77,10 @@
     show_age_threshold = -1
     sticky_history = yes
     history_length = 40
-    idle_threshold = 120
+    # 0, not 120. With a threshold, dunst stops expiring popups once there has
+    # been no keyboard/mouse input for that long, so iPhone notifications that
+    # land while watching something pile up on screen until the next keypress.
+    idle_threshold = 0
 
     mouse_left_click = do_action, close_current
     mouse_middle_click = close_all

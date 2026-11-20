@@ -1462,6 +1462,10 @@ The mode is remembered in `$XDG_RUNTIME_DIR/notification-mode`, so it resets to
 `all` on reboot. If dunst gets paused behind the script's back, the script
 believes dunst rather than its own state file.
 
+`idle_threshold = 0` so popups always expire on their timeout. It was 120,
+which makes dunst freeze every popup after 2 minutes without keyboard or mouse
+input; phone notifications arriving mid-video then stayed until a keypress.
+
 ### Popup placement
 
 Popups are a flat black box in Inter 9, with no frame, matching the black bar
