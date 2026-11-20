@@ -2543,6 +2543,10 @@ gsettings set org.gnome.desktop.interface cursor-theme Adwaita
 
 Apps already running keep whatever theme they started with until restarted.
 
+In sway the pointer also hides itself after 3 seconds without movement
+(`seat seat0 hide_cursor 3000`), so it does not sit on top of fullscreen
+video. Moving the mouse brings it back.
+
 ### GPG passphrase prompt
 
 Commits are signed (`commit.gpgsign` in `git/gitconfig`), so when gpg-agent's

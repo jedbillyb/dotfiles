@@ -297,6 +297,11 @@ bindsym $mod+b exec ~/.local/bin/waybar-toggle.sh
 # equivalent; on a compositor the theme is a seat property.
 seat seat0 xcursor_theme Adwaita 24
 
+# Hide the pointer after 3 s without movement, so it does not sit on top of a
+# fullscreen video. Firefox's own hide was not doing it, so sway does it for
+# every window. Any motion brings it back.
+seat seat0 hide_cursor 3000
+
 input type:touchpad {
     natural_scroll enabled
     tap enabled
